@@ -500,7 +500,7 @@ internalfn
 int slice_cmp(struct slice const* s, char const* str)
 {
     int32_t len = (int32_t)strlen(str);
-    int32_t s_len = s->end - s->start;
+    int32_t s_len = (int32_t)(s->end - s->start);
 
     if (len < s_len) {
         return -1;
@@ -515,7 +515,7 @@ int slice_cmp(struct slice const* s, char const* str)
 
 internalfn
 int32_t slice_len(struct slice const* s) {
-    return s->end - s->start;
+    return (int32_t)(s->end - s->start);
 }
 
 /* splits s at any of the separators in separator_list and stores
@@ -2262,9 +2262,9 @@ int32_t b_ppv2(struct beatmap* map, struct pp_calc* pp,
     int32_t max_combo = b_max_combo(map);
 
     return ppv2x(pp, map->mode, aim, speed, map->ar, map->od,
-        max_combo, map->nsliders, map->ncircles, map->nobjects,
-        mods, max_combo, map->nobjects, 0, 0, 0,
-        PP_DEFAULT_SCORING);
+        max_combo, map->nsliders, map->ncircles,
+        (uint16_t)map->nobjects, mods, max_combo, map->nobjects,
+        0, 0, 0, PP_DEFAULT_SCORING);
 }
 
 int32_t b_ppv2p(struct beatmap* map, struct pp_calc* pp,
@@ -2275,7 +2275,7 @@ int32_t b_ppv2p(struct beatmap* map, struct pp_calc* pp,
     p->max_combo = b_max_combo(map);
     p->nsliders = map->nsliders;
     p->ncircles = map->ncircles;
-    p->nobjects = map->nobjects;
+    p->nobjects = (uint16_t)map->nobjects;
     p->mode = map->mode;
     pp_handle_default_params(p);
 
