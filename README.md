@@ -87,6 +87,13 @@ $ wc -c oppai
 75512 oppai
 ```
 
+oppai-ng has proper error output in whatever format you select,
+while legacy oppai either gives empty output or just dies with
+a plaintext error.
+
+oppai-ng has well-defined errno style error codes that you can
+check for when using it as a library or reading its output.
+
 the same test suite runs about 45% faster on oppai-ng compared
 to old oppai, also the peak resident memory size is 4 to 6 times
 smaller according to various ```time -v``` runs.
