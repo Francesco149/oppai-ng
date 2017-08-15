@@ -785,7 +785,7 @@ int main(int argc, char* argv[])
     char* output_name = "text";
     char* mods_str = 0;
     uint32_t mods = MODS_NOMOD;
-    double acc_percent;
+    double acc_percent = 100.0;
     int use_percent = 0;
 
     uint32_t overrides = 0;
