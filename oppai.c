@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 0
-#define OPPAI_VERSION_PATCH 0
+#define OPPAI_VERSION_PATCH 1
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -884,7 +884,7 @@ int32_t b_max_combo(struct beatmap* b)
 
         /* actually doesn't include first head because we already
            added it by setting res = nobjects */
-        res += ticks - 1;
+        res += mymax(0, ticks - 1);
     }
 
     return res;
