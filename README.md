@@ -17,7 +17,7 @@ memory usage (~4-6x less), smaller and easier to read codebase
 - [other build parameters](#other-build-parameters)
 
 # installing (linux)
-```
+```sh
 wget https://github.com/Francesco149/oppai-ng/archive/HEAD.tar.gz
 tar xf HEAD.tar.gz
 cd oppai-*
@@ -45,7 +45,7 @@ you can run oppai with no arguments to check the documentation.
 
 here's some example usages:
 
-```
+```sh
 oppai path/to/map.osu +HDHR 98% 500x 1xmiss
 oppai path/to/map.osu 3x100
 oppai path/to/map.osu 3x100 OD10
@@ -57,14 +57,14 @@ to ```-````.
 
 for example on linux you can do:
 
-```
+```sh
 curl https://osu.ppy.sh/osu/774965 | oppai - +HDDT
 curl https://osu.ppy.sh/osu/774965 | oppai - +HDDT 1200x 1m
 ```
 
 while on windows it's a bit more verbose (powershell):
 
-```
+```powershell
 (New-Object System.Net.WebClient).DownloadString("https://osu.ppy.sh/osu/37658") | ./oppai -
 (New-Object System.Net.WebClient).DownloadString("https://osu.ppy.sh/osu/37658") | ./oppai - +HDHR
 (New-Object System.Net.WebClient).DownloadString("https://osu.ppy.sh/osu/37658") | ./oppai - +HDHR 99% 600x 1m
@@ -75,7 +75,7 @@ beatmap's page.
 
 # oppai-ng vs old oppai
 executable size is around 7 times smaller:
-```
+```sh
 $ cd ~/src/oppai
 $ ./build.sh -static
 $ wc -c oppai
@@ -91,7 +91,7 @@ the same test suite runs about 45% faster on oppai-ng compared
 to old oppai, also the peak resident memory size is 4 to 6 times
 smaller according to various ```time -v``` runs.
 
-```
+```sh
 $ cd ~/src/oppai
 $ ./build_test.sh
 $ time -v ./oppai_test
@@ -160,7 +160,7 @@ for a 15 minute marathon.
 the codebase has ~5x less lines than legacy oppai, making it easy
 to read and use as a single header library
 
-```
+```sh
 $ cd ~/src/oppai
 $ sloc *.cc
 
@@ -218,7 +218,7 @@ installed. visual studio with c/c++ support also works.
 
 open a visual studio prompt:
 
-```
+```bat
 cd path\to\oppai\source
 build.bat
 oppai
@@ -234,7 +234,7 @@ projects.
 just copy oppai.c into your project, it acts as a single-header
 library.
 
-```
+```c
 #define OPPAI_IMPLEMENTATION
 #include "../oppai.c"
 
@@ -263,7 +263,7 @@ int main()
 }
 ```
 
-```
+```sh
 gcc test.c
 cat /path/to/file.osu | ./a.out
 ```
