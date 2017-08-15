@@ -1,0 +1,10 @@
+tags
+*.log
+*.tar.xz
+*.zip
+/oppai
+*.json
+*.obj
+*.exe
+/test/test_suite
+/test/oppai_test

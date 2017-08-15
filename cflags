@@ -1,0 +1,36 @@
+#!/bin/sh
+
+cflags="-std=c89 -pedantic"
+cflags="$cflags -O3"
+cflags="$cflags -Wno-variadic-macros -Wno-long-long -Wall"
+cflags="$cflags -ffunction-sections -fdata-sections"
+cflags="$cflags -g0 -fno-unwind-tables -s"
+cflags="$cflags -fno-asynchronous-unwind-tables"
+
+ldflags="-lm"
+
+cflags="$cflags $CFLAGS"
+ldflags="$ldflags $LDFLAGS"
+
+cc="$CC"
+
+if [ $(uname) = "Darwin" ]; then
+    cc=${cc:-clang}
+else
+    cc=${cc:-gcc}
+fi
+
+(
+    uname -a
+    echo $cc
+    echo $cflags
+    echo $ldflags
+    $cc --version
+    $cc -dumpmachine
+) \
+> flags.log
+
+export cflags="$cflags"
+export ldflags="$ldflags"
+export cc="$cc"
+

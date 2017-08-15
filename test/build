@@ -1,0 +1,11 @@
+#!/bin/sh
+
+dir="$(dirname "$0")"
+. "$dir"/../cflags
+
+printf "#ifdef OPPAI_NOCURL\nBRUH_DISABLE_CURL\n#endif\n" | \
+    $cc "$@" -E - | grep "BRUH_DISABLE_CURL" >/dev/null 2>&1 || \
+    ldflags="$ldflags -lcurl"
+
+$cc $cflags "$@" test.c $ldflags -o oppai_test
+
