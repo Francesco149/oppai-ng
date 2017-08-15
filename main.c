@@ -139,10 +139,10 @@ output_sig(output_text)
         printf("+%s ", mods_str);
     }
 
-    mapstats->ar = twodec(mapstats->ar);
-    mapstats->od = twodec(mapstats->od);
-    mapstats->cs = twodec(mapstats->cs);
-    mapstats->hp = twodec(mapstats->hp);
+    mapstats->ar = (float)twodec(mapstats->ar);
+    mapstats->od = (float)twodec(mapstats->od);
+    mapstats->cs = (float)twodec(mapstats->cs);
+    mapstats->hp = (float)twodec(mapstats->hp);
     stars->total = twodec(stars->total);
     stars->aim = twodec(stars->aim);
     stars->speed = twodec(stars->speed);
@@ -720,7 +720,7 @@ void print_memory_usage(struct parser* pa, struct diff_calc* dc)
 internalfn
 int cmpsuffix(char const* str, char const* suffix)
 {
-    int sufflen = mymin(strlen(str), strlen(suffix));
+    int32_t sufflen = (int32_t)mymin(strlen(str), strlen(suffix));
     return strcmp(str + strlen(str) - sufflen, suffix);
 }
 
@@ -789,9 +789,9 @@ int main(int argc, char* argv[])
     int use_percent = 0;
 
     uint32_t overrides = 0;
-#   define OVERRIDE_AR (1<<0)
-#   define OVERRIDE_OD (1<<1)
-#   define OVERRIDE_CS (1<<2)
+#   define OVERRIDE_AR ((uint32_t)1<<0)
+#   define OVERRIDE_OD ((uint32_t)1<<1)
+#   define OVERRIDE_CS ((uint32_t)1<<2)
 
     float ar_override, od_override, cs_override;
 
@@ -1017,8 +1017,8 @@ int main(int argc, char* argv[])
 
     if (use_percent)
     {
-        acc_round(acc_percent, map.nobjects, params.nmiss,
-            &params.n300, &params.n100, &params.n50);
+        acc_round(acc_percent, (uint16_t)map.nobjects,
+            params.nmiss, &params.n300, &params.n100, &params.n50);
     }
 
     result = b_ppv2p(&map, &pp, &params);

@@ -239,15 +239,15 @@ int32_t p_map(struct parser* pa, struct beatmap* b, FILE* f);
 
 /* mod bits for mods_apply */
 #define MODS_NOMOD 0
-#define MODS_NF (1<<0)
-#define MODS_EZ (1<<1)
-#define MODS_HD (1<<3)
-#define MODS_HR (1<<4)
-#define MODS_DT (1<<6)
-#define MODS_HT (1<<8)
-#define MODS_NC (1<<9)
-#define MODS_FL (1<<10)
-#define MODS_SO (1<<12)
+#define MODS_NF ((uint32_t)1<<0)
+#define MODS_EZ ((uint32_t)1<<1)
+#define MODS_HD ((uint32_t)1<<3)
+#define MODS_HR ((uint32_t)1<<4)
+#define MODS_DT ((uint32_t)1<<6)
+#define MODS_HT ((uint32_t)1<<8)
+#define MODS_NC ((uint32_t)1<<9)
+#define MODS_FL ((uint32_t)1<<10)
+#define MODS_SO ((uint32_t)1<<12)
 #define MODS_SPEED_CHANGING (MODS_DT | MODS_HT | MODS_NC)
 #define MODS_MAP_CHANGING (MODS_HR | MODS_EZ | MODS_SPEED_CHANGING)
 
@@ -259,11 +259,11 @@ struct beatmap_stats
 };
 
 /* flags bits for mods_apply */
-#define APPLY_AR (1<<0)
-#define APPLY_OD (1<<1)
-#define APPLY_CS (1<<2)
-#define APPLY_HP (1<<3)
-#define APPLY_ALL (~0)
+#define APPLY_AR ((uint32_t)1<<0)
+#define APPLY_OD ((uint32_t)1<<1)
+#define APPLY_CS ((uint32_t)1<<2)
+#define APPLY_HP ((uint32_t)1<<3)
+#define APPLY_ALL (~(uint32_t)0)
 
 /* calculates beatmap stats with mods applied. s should initially
    contain the base stats. flags specifies which stats are touched.
