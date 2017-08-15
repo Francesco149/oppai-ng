@@ -2263,8 +2263,8 @@ int32_t b_ppv2(struct beatmap* map, struct pp_calc* pp,
 
     return ppv2x(pp, map->mode, aim, speed, map->ar, map->od,
         max_combo, map->nsliders, map->ncircles,
-        (uint16_t)map->nobjects, mods, max_combo, map->nobjects,
-        0, 0, 0, PP_DEFAULT_SCORING);
+        (uint16_t)map->nobjects, mods, max_combo,
+        (uint16_t)map->nobjects, 0, 0, 0, PP_DEFAULT_SCORING);
 }
 
 int32_t b_ppv2p(struct beatmap* map, struct pp_calc* pp,
