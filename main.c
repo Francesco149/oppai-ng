@@ -793,7 +793,7 @@ int main(int argc, char* argv[])
 #   define OVERRIDE_OD ((uint32_t)1<<1)
 #   define OVERRIDE_CS ((uint32_t)1<<2)
 
-    float ar_override, od_override, cs_override;
+    float ar_override = 0, od_override = 0, cs_override = 0;
 
     /* parse arguments ----------------------------------------- */
     me = argv[0];
