@@ -470,8 +470,8 @@ int whitespace(char c)
 }
 
 internalfn
-int slice_write(struct slice const* s, FILE* f) {
-    return fwrite(s->start, 1, s->end - s->start, f);
+int32_t slice_write(struct slice const* s, FILE* f) {
+    return (int32_t)fwrite(s->start, 1, s->end - s->start, f);
 }
 
 internalfn
@@ -499,7 +499,7 @@ void slice_trim(struct slice* s)
 internalfn
 int slice_cmp(struct slice const* s, char const* str)
 {
-    int32_t len = strlen(str);
+    int32_t len = (int32_t)strlen(str);
     int32_t s_len = s->end - s->start;
 
     if (len < s_len) {
@@ -655,7 +655,7 @@ void* m_push(struct memstack* m, void const* p, int32_t nbytes)
 
 internalfn
 void* m_push_slice(struct memstack* m, struct slice* s) {
-    return m_push(m, s->start, s->end - s->start);
+    return m_push(m, s->start, (int32_t)(s->end - s->start));
 }
 
 internalfn
@@ -723,7 +723,7 @@ void mods_apply(uint32_t mods,
         float odms;
 
         s->od *= od_ar_hp_multiplier;
-        odms = OD0_MS - ceil(OD_MS_STEP * s->od);
+        odms = OD0_MS - (float)ceil(OD_MS_STEP * s->od);
 
         /* stats must be capped to 0-10 before HT/DT which brings
            them to a range of -4.42 to 11.08 for OD and -5 to 11
@@ -1020,7 +1020,7 @@ int32_t consume_until(struct parser* pa, struct slice const* s,
             {
                 dst->start = s->start;
                 dst->end = p;
-                return p - s->start;
+                return (int32_t)(p - s->start);
             }
         }
     }
@@ -1062,7 +1062,7 @@ int32_t p_section_name(struct parser* pa,
         return parse_err(SYNTAX, p);
     }
 
-    return p.start - s->start;
+    return (int32_t)(p.start - s->start);
 }
 
 /* name: value
@@ -1088,7 +1088,7 @@ int32_t p_property(struct parser* pa, struct slice const* s,
     slice_trim(name);
     slice_trim(value);
 
-    return s->end - s->start;
+    return (int32_t)(s->end - s->start);
 }
 
 internalfn
@@ -1300,7 +1300,7 @@ int32_t p_timing(struct parser* pa, struct slice* line)
         return parse_err(SYNTAX, *line);
     }
 
-    res = split[n - 1].end - line->start;
+    res = (int32_t)(split[n - 1].end - line->start);
 
     for (i = 0; i < n; ++i) {
         slice_trim(&split[i]);
@@ -1445,7 +1445,7 @@ int32_t p_objects_std(struct parser* pa, struct slice* line)
         return ERR_OOM;
     }
 
-    return elements[nelements - 1].end - line->start;
+    return (int32_t)(elements[nelements - 1].end - line->start);
 }
 
 internalfn
@@ -1459,7 +1459,7 @@ int32_t p_line(struct parser* pa, struct slice* line)
     }
 
     if (slice_whitespace(line)) {
-        return line->end - line->start;
+        return (int32_t)(line->end - line->start);
     }
 
     /* comments (according to lazer) */
@@ -1467,7 +1467,7 @@ int32_t p_line(struct parser* pa, struct slice* line)
     {
         case ' ':
         case '_':
-            return line->end - line->start;
+            return (int32_t)(line->end - line->start);
     }
 
     /* from here on we don't care about leading or
@@ -1560,9 +1560,10 @@ int32_t p_map(struct parser* pa, struct beatmap* b, FILE* f)
         struct slice s; /* points to the remaining data in buf */
         int more_data;
 
-        bufsize = sizeof(pa->buf) - (pbuf - pa->buf);
+        bufsize = (int32_t)sizeof(pa->buf) -
+            (int32_t)(pbuf - pa->buf);
 
-        nread = fread(pbuf, 1, bufsize, f);
+        nread = (int32_t)fread(pbuf, 1, bufsize, f);
         if (!nread) {
             /* eof */
             break;
@@ -1598,7 +1599,7 @@ int32_t p_map(struct parser* pa, struct beatmap* b, FILE* f)
                 /* EOF, so we must process the remaining data
                    as a line */
                 line = s;
-                n = s.end - s.start;
+                n = (int32_t)(s.end - s.start);
             }
 
             else {
