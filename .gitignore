@@ -6,5 +6,6 @@ tags
 *.json
 *.obj
 *.exe
+*.swp
 /test/test_suite
 /test/oppai_test
