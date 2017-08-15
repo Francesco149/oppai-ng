@@ -105,7 +105,11 @@ typedef output_sig(fnoutput);
 /* null output                                                   */
 
 /* stdout must be left alone, outputting to stderr is fine tho */
-internalfn output_sig(output_null) {}
+internalfn output_sig(output_null)
+{
+    (void)result; (void)map; (void)mapstats; (void)mods_str;
+    (void)stars; (void)params; (void)pp;
+}
 
 #ifndef OPPAI_NOTEXT
 /* ------------------------------------------------------------- */
