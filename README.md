@@ -53,7 +53,7 @@ oppai path/to/map.osu -ojson
 ```
 
 you can also pipe maps from standard input by setting the filename
-to ```-````.
+to ```-```.
 
 for example on linux you can do:
 
