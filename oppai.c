@@ -853,7 +853,6 @@ int32_t b_max_combo(struct beatmap* b)
             sv_multiplier = (-100.0 / t->ms_per_beat);
         }
 
-        /* calculate slider end time */
         px_per_beat = b->sv * 100.0 * sv_multiplier;
         num_beats = (sl->distance * sl->repetitions) / px_per_beat;
 
