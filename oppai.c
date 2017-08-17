@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 0
-#define OPPAI_VERSION_PATCH 9
+#define OPPAI_VERSION_PATCH 10
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -162,13 +162,6 @@ struct beatmap
     float hp, cs, od, ar, sv;
     float tick_rate;
 };
-
-/* return timing point at time */
-struct timing* b_timing_at(struct beatmap* b, double time);
-
-/* return parent timing point of t, or t if it's a timing change */
-struct timing* b_timing_parent(struct beatmap* b,
-    struct timing* t);
 
 #ifndef OPPAI_NOPARSER
 /* ------------------------------------------------------------- */
@@ -778,81 +771,55 @@ void mods_apply(uint32_t mods,
 /* ------------------------------------------------------------- */
 /* beatmap                                                       */
 
-struct timing* b_timing_at(struct beatmap* b, double time)
-{
-    int32_t i;
-
-    for (i = b->ntiming_points - 1; i >= 0; --i)
-    {
-        struct timing* cur = &b->timing_points[i];
-
-        if (cur->time <= time) {
-            return cur;
-        }
-    }
-
-    return &b->timing_points[0];
-}
-
-struct timing* b_timing_parent(struct beatmap* b, struct timing* t)
-{
-    int32_t i;
-    struct timing* res = 0;
-
-    if (t->change) {
-        return t;
-    }
-
-    for (i = b->ntiming_points - 1; i >= 0; --i)
-    {
-        struct timing* cur = &b->timing_points[i];
-
-        if (cur->time <= t->time && cur->change)
-        {
-            if (!res || cur->time > res->time) {
-                res = cur;
-            }
-        }
-    }
-
-    if (!res) {
-        info("W: orphan timing section, using 1st one instead\n");
-        res = &b->timing_points[0];
-    }
-
-    return res;
-}
-
 int32_t b_max_combo(struct beatmap* b)
 {
     int32_t res = b->nobjects;
     int32_t i;
+
+    double infinity = strtod("inf", 0);
+    double tnext = -infinity;
+    int32_t tindex = -1;
+    double px_per_beat = infinity;
 
     /* slider ticks */
     for (i = 0; i < b->nobjects; ++i)
     {
         struct object* o = &b->objects[i];
         struct slider* sl;
-        struct timing* t;
-        double sv_multiplier, px_per_beat, num_beats;
         int32_t ticks;
+        double num_beats;
 
         if (!(o->type & OBJ_SLIDER)) {
             continue;
         }
 
-        sl = (struct slider*)o->pdata;
+        /* keep track of the current timing point without searching
+           the entire array for every object.
+           should be a nice performance boost */
+        while (o->time >= tnext)
+        {
+            double sv_multiplier;
+            struct timing* t;
 
-        /* find which timing section the slider belongs to */
-        t = b_timing_at(b, o->time);
+            ++tindex;
 
-        /* calculate slider velocity multiplier */
-        sv_multiplier = 1;
-        if (!t->change && t->ms_per_beat < 0) {
-            sv_multiplier = (-100.0 / t->ms_per_beat);
+            if (b->ntiming_points > tindex + 1) {
+                tnext = b->timing_points[tindex + 1].time;
+            } else {
+                tnext = infinity;
+            }
+
+            t = &b->timing_points[tindex];
+
+            sv_multiplier = 1.0;
+            if (!t->change && t->ms_per_beat < 0) {
+                sv_multiplier = -100.0 / t->ms_per_beat;
+            }
+
+            px_per_beat = b->sv * 100.0 * sv_multiplier;
         }
 
-        px_per_beat = b->sv * 100.0 * sv_multiplier;
+        sl = (struct slider*)o->pdata;
         num_beats = (sl->distance * sl->repetitions) / px_per_beat;
 
         /* sliders get 2 + ticks combo (head, tail and ticks)
