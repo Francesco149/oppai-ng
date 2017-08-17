@@ -1062,7 +1062,7 @@ output:
     {
         info(
             "output module '%s' does not exist. "
-            "check 'oppai - -o?'",
+            "check 'oppai - -o?'\n",
             output_name
         );
         return 1;
