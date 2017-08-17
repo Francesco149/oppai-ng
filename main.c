@@ -552,6 +552,15 @@ output_sig(output_debug)
         return;
     }
 
+    for (i = 0; i < map->ntiming_points; ++i)
+    {
+        struct timing* t = &map->timing_points[i];
+        printf(
+            "timing %gms %g %d\n", t->time, t->ms_per_beat,
+            t->change
+        );
+    }
+
     for (i = 0; i < map->nobjects; ++i)
     {
         struct object* o = &map->objects[i];
