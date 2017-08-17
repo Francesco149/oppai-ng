@@ -651,7 +651,7 @@ const modules[] =
         "binary",
         output_binary,
         { "binary stream of values, encoded in little endian.\n"
-        "negative code values indicate an error, which matches"
+        "negative code values indicate an error, which matches "
         "the error codes defined in oppai.c\n"
         "for an example on how to read this in C, check out "
         "examples/binary.c in oppai-ng's source\n"
