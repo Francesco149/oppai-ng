@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 0
-#define OPPAI_VERSION_PATCH 1
+#define OPPAI_VERSION_PATCH 2
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -2231,7 +2231,7 @@ void pp_handle_default_params(struct pp_params* p)
     }
 
     if (p->n300 == 0xFFFF) {
-        p->n300 = p->nobjects;
+        p->n300 = p->nobjects - p->n100 - p->n50 - p->nmiss;
     }
 }
 
