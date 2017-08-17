@@ -90,6 +90,12 @@ void usage()
         "    base circle size override\n"
         "    dedault: map's base circle size\n"
         "    example: CS6.5\n"
+        "\n"
+        "-st[n]\n"
+        "    the maximum 1/2 bpm that is considered "
+        "singletappable for the singletap stats.\n"
+        "    default: 240\n"
+        "    example: -st260\n"
     );
 }
 
@@ -796,8 +802,10 @@ int main(int argc, char* argv[])
 #   define OVERRIDE_AR ((uint32_t)1<<0)
 #   define OVERRIDE_OD ((uint32_t)1<<1)
 #   define OVERRIDE_CS ((uint32_t)1<<2)
+#   define OVERRIDE_SINGLETAP_THRESHOLD ((uint32_t)1<<3)
 
     float ar_override = 0, od_override = 0, cs_override = 0;
+    double singletap_threshold = 125.0;
 
     /* parse arguments ----------------------------------------- */
     me = argv[0];
@@ -866,6 +874,15 @@ int main(int argc, char* argv[])
                 return 0;
             }
 
+            continue;
+        }
+
+        if (strlen(a) >= 3 && !memcmp(a, "-st", 3) &&
+            sscanf(a + 3, "%lf", &singletap_threshold) == 1)
+        {
+            singletap_threshold =
+                (60000.0 / singletap_threshold) / 2.0;
+            overrides |= OVERRIDE_SINGLETAP_THRESHOLD;
             continue;
         }
 
@@ -1000,6 +1017,10 @@ int main(int argc, char* argv[])
     result = d_init(&stars);
     if (result < 0) {
         goto output;
+    }
+
+    if (overrides & OVERRIDE_SINGLETAP_THRESHOLD) {
+        stars.singletap_threshold = singletap_threshold;
     }
 
     result = d_calc(&stars, &map, mods);
