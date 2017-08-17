@@ -153,9 +153,10 @@ int main()
         read_dbl(p + 8), read_dbl(p + 16));
     p += 24;
 
-    printf("%hu spacing singletaps, %hu timing singletaps, "
-        "%hu notes within singletap threshold\n", read2(p),
-        read2(p + 2), read2(p + 4));
+    /* note: skipping deprecated value at p + 2 */
+    printf("%hu spacing singletaps, "
+        "%hu notes within singletap threshold\n",
+        read2(p), read2(p + 4));
     p += 6;
 
     puts("");

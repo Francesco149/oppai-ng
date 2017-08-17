@@ -171,10 +171,6 @@ output_sig(output_text)
     printf("%hu spacing singletaps (%g%%)\n", stars->nsingles,
         stars->nsingles / (double)total_objs * 100.0);
 
-    printf("%hu timing singletaps (%g%%)\n",
-        stars->nsingles_timing,
-        stars->nsingles_timing / (double)total_objs * 100.0);
-
     printf("%hu notes within singletap bpm threshold (%g%%)\n",
         stars->nsingles_threshold,
         stars->nsingles_threshold / (double)total_objs * 100.0);
@@ -314,16 +310,16 @@ output_sig(output_json)
         "\"num_spinners\":%hu,\"misses\":%hu,"
         "\"score_version\":%u,\"stars\":%.17g,"
         "\"speed_stars\":%.17g,\"aim_stars\":%.17g,"
-        "\"nsingles\":%hu,\"nsingles_timing\":%hu,"
-        "\"nsingles_threshold\":%hu,\"aim_pp\":%.17g,"
-        "\"speed_pp\":%.17g,\"acc_pp\":%.17g,\"pp\":%.17g}",
+        "\"nsingles\":%hu,\"nsingles_threshold\":%hu,"
+        "\"aim_pp\":%.17g,\"speed_pp\":%.17g,\"acc_pp\":%.17g,"
+        "\"pp\":%.17g}",
         mods_str, params->mods, mapstats->od, mapstats->ar,
         mapstats->cs, mapstats->hp, params->combo,
         params->max_combo, map->ncircles, map->nsliders,
         map->nspinners, params->nmiss, params->score_version,
         stars->total, stars->speed, stars->aim, stars->nsingles,
-        stars->nsingles_timing, stars->nsingles_threshold,
-        pp->aim, pp->speed, pp->acc, pp->total
+        stars->nsingles_threshold, pp->aim, pp->speed, pp->acc,
+        pp->total
     );
 }
 #endif /* OPPAI_NOJSON */
@@ -404,16 +400,15 @@ output_sig(output_csv)
         "combo;%d\nmax_combo;%d\nnum_circles;%hu\n"
         "num_sliders;%hu\nnum_spinners;%hu\nmisses;%hu\n"
         "score_version;%u\nstars;%.17g\nspeed_stars;%.17g\n"
-        "aim_stars;%.17g\nnsingles;%hu\nnsingles_timing;%hu\n"
-        "nsingles_threshold;%hu\naim_pp;%.17g\nspeed_pp;%.17g\n"
-        "acc_pp;%.17g\npp;%.17g",
+        "aim_stars;%.17g\nnsingles;%hu\nnsingles_threshold;%hu\n"
+        "aim_pp;%.17g\nspeed_pp;%.17g\nacc_pp;%.17g\npp;%.17g",
         mods_str, params->mods, mapstats->od, mapstats->ar,
         mapstats->cs, mapstats->hp, params->combo,
         params->max_combo, map->ncircles, map->nsliders,
         map->nspinners, params->nmiss, params->score_version,
         stars->total, stars->speed, stars->aim, stars->nsingles,
-        stars->nsingles_timing, stars->nsingles_threshold,
-        pp->aim, pp->speed, pp->acc, pp->total
+        stars->nsingles_threshold, pp->aim, pp->speed, pp->acc,
+        pp->total
     );
 }
 #endif /* OPPAI_NOCSV */
@@ -526,7 +521,7 @@ output_sig(output_binary)
     write_dbl(stars->speed);
     write_dbl(stars->aim);
     write2(stars->nsingles);
-    write2(stars->nsingles_timing);
+    write2(0);
     write2(stars->nsingles_threshold);
     write_dbl(pp->aim);
     write_dbl(pp->speed);
@@ -679,8 +674,9 @@ const modules[] =
         "uint16_t ncircles, uint16_t nsliders, uint16_t nspinner, "
         "uint32_t score_version, double total_stars, ",
         "double speed_stars, double aim_stars, uint16_t nsingles, "
-        "uint16_t nsingles_timing, uint16_t nsingles_threshold, "
-        "double aim_pp, double speed_pp, double acc_pp, double pp",
+        "uint16_t deprecated (always 0), "
+        "uint16_t nsingles_threshold, double aim_pp, "
+        "double speed_pp, double acc_pp, double pp",
         0 }
     },
 #endif /* OPPAI_NOBINARY */

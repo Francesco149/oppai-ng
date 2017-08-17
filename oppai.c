@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 0
-#define OPPAI_VERSION_PATCH 7
+#define OPPAI_VERSION_PATCH 8
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -300,7 +300,6 @@ struct diff_calc
     double aim;
     double speed;
     uint16_t nsingles;
-    uint16_t nsingles_timing;
     uint16_t nsingles_threshold;
 };
 
@@ -1953,20 +1952,8 @@ int32_t d_calc(struct diff_calc* d, struct beatmap* b,
         {
             struct object* prev = &d->b->objects[i - 1];
             double interval = o->time - prev->time;
-            double one_half_threshold;
 
             interval /= mapstats.speed;
-
-            one_half_threshold =
-                b_timing_parent(
-                    b, b_timing_at(b, o->time)
-                )->ms_per_beat / 2;
-
-            one_half_threshold /= mapstats.speed;
-
-            if (interval >= one_half_threshold) {
-                ++d->nsingles_timing;
-            }
 
             if (interval >= d->singletap_threshold) {
                 ++d->nsingles_threshold;
