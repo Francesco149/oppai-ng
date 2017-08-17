@@ -29,3 +29,5 @@ tar tf "$folder".tar.xz
 readelf --dynamic "$folder"/oppai
 ldd "$folder"/oppai
 
+rm -rf "$folder"
+
