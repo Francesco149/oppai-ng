@@ -145,20 +145,20 @@ $ ./build
 $ time -v ./oppai_test
 ...
     Command being timed: "./oppai_test"
-    User time (seconds): 9.66
-    System time (seconds): 0.05
+    User time (seconds): 9.09
+    System time (seconds): 0.06
     Percent of CPU this job got: 99%
-    Elapsed (wall clock) time (h:mm:ss or m:ss): 0m 9.72s
+    Elapsed (wall clock) time (h:mm:ss or m:ss): 0m 9.15s
     Average shared text size (kbytes): 0
     Average unshared data size (kbytes): 0
     Average stack size (kbytes): 0
     Average total size (kbytes): 0
-    Maximum resident set size (kbytes): 11888
+    Maximum resident set size (kbytes): 11840
     Average resident set size (kbytes): 0
     Major (requiring I/O) page faults: 0
-    Minor (reclaiming a frame) page faults: 305
-    Voluntary context switches: 0
-    Involuntary context switches: 73
+    Minor (reclaiming a frame) page faults: 304
+    Voluntary context switches: 1
+    Involuntary context switches: 39
     Swaps: 0
     File system inputs: 0
     File system outputs: 0
