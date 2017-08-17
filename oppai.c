@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 0
-#define OPPAI_VERSION_PATCH 3
+#define OPPAI_VERSION_PATCH 4
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -2228,7 +2228,7 @@ internalfn
 void pp_handle_default_params(struct pp_params* p)
 {
     if (p->combo < 0) {
-        p->combo = p->max_combo;
+        p->combo = p->max_combo - p->nmiss;
     }
 
     if (p->n300 == 0xFFFF) {
