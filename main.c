@@ -88,7 +88,7 @@ void usage()
         "\n"
         "cs[n]\n"
         "    base circle size override\n"
-        "    dedault: map's base circle size\n"
+        "    default: map's base circle size\n"
         "    example: CS6.5\n"
         "\n"
         "-st[n]\n"
