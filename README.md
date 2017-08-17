@@ -10,6 +10,7 @@ memory usage (~4-6x less), smaller and easier to read codebase
 
 - [installing (linux)](#installing-linux)
 - [installing (windows)](#installing-windows)
+- [installing (osx)](#installing-osx)
 - [usage](#usage)
 - [oppai-ng vs old oppai](#oppai-ng-vs-old-oppai)
 - [compile from source (windows)](#compile-from-source-windows)
@@ -39,6 +40,18 @@ optionally add oppai's folder to your ```PATH``` environment
 variable for easy access. you can find a guide
 [here](https://www.howtogeek.com/118594/how-to-edit-your-system-path-for-easy-command-line-access/)
 if you don't know how.
+
+# installing (osx)
+## via homebrew
+```sh
+brew install --HEAD pmrowla/homebrew-tap/oppai-ng
+```
+Note that installing with ```--HEAD``` is recommended but not required.
+Installing from homebrew will place the ```oppai``` executable in your homebrew path.
+
+## manually
+Follow the same steps as for linux but substitute ```curl -O``` for ```wget``` since wget is not distributed by default in osx.
+The same caveat applies if you want to run the test suite - you will need to edit the ```download_suite``` script to use curl.
 
 # usage
 you can run oppai with no arguments to check the documentation.
