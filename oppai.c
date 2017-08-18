@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 0
-#define OPPAI_VERSION_PATCH 13
+#define OPPAI_VERSION_PATCH 14
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -97,11 +97,18 @@ char const* errstr(int32_t err);
 #define OBJ_SLIDER (1<<1)
 #define OBJ_SPINNER (1<<3)
 
+#define SOUND_NONE ((uint8_t)0)
+#define SOUND_NORMAL ((uint8_t)1<<0)
+#define SOUND_WHISTLE ((uint8_t)1<<1)
+#define SOUND_FINISH ((uint8_t)1<<2)
+#define SOUND_CLAP ((uint8_t)1<<3)
+
 /* data about a single hitobject */
 struct object
 {
     double time; /* milliseconds */
     uint8_t type;
+    uint8_t sound_type; /* only parsed for taiko maps */
 
     /* should be casted to struct circle or slider based on type
        should only be set/used when all parsing is done */
@@ -141,6 +148,7 @@ struct timing
 };
 
 #define MODE_STD 0
+#define MODE_TAIKO 1
 
 struct beatmap
 {
@@ -1180,7 +1188,13 @@ int32_t p_general(struct parser* pa, struct slice* line)
     {
         sscanf(value.start, "%d", &pa->b->mode);
 
-        if (pa->b->mode != MODE_STD) {
+        switch (pa->b->mode)
+        {
+        case MODE_STD:
+        case MODE_TAIKO:
+            break;
+
+        default:
             return ERR_NOTIMPLEMENTED;
         }
     }
@@ -1334,6 +1348,21 @@ int32_t p_objects(struct parser* pa, struct slice* line)
     /* not in byte range, expecting 0-255 */
     if (tmp_type & 0xFFFFFF00) {
         return parse_err(SYNTAX, elements[3]);
+    }
+
+    if (pa->b->mode == MODE_TAIKO)
+    {
+        uint32_t tmp_sound_type;
+
+        if (sscanf(elements[4].start, "%u", &tmp_sound_type) != 1) {
+            return parse_err(SYNTAX, elements[4]);
+        }
+
+        if (tmp_sound_type & 0xFFFFFF00) {
+            return parse_err(SYNTAX, elements[4]);
+        }
+
+        obj.sound_type = (uint8_t)(tmp_sound_type & 0xFF);
     }
 
     obj.type = (uint8_t)(tmp_type & 0xFF);
