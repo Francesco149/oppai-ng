@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 0
-#define OPPAI_VERSION_PATCH 11
+#define OPPAI_VERSION_PATCH 12
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -1296,7 +1296,7 @@ int32_t p_timing(struct parser* pa, struct slice* line)
 }
 
 internalfn
-int32_t p_objects_std(struct parser* pa, struct slice* line)
+int32_t p_objects(struct parser* pa, struct slice* line)
 {
     struct object obj;
     int32_t nelements;
@@ -1487,7 +1487,7 @@ int32_t p_line(struct parser* pa, struct slice* line)
     }
 
     else if (!strcmp(pa->section, "HitObjects")) {
-        n = p_objects_std(pa, line);
+        n = p_objects(pa, line);
     }
 
     return n;
