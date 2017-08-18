@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 0
-#define OPPAI_VERSION_PATCH 15
+#define OPPAI_VERSION_PATCH 16
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -1326,6 +1326,7 @@ int32_t p_objects(struct parser* pa, struct slice* line)
     obj.nsound_types = 0;
     obj.sound_types = 0;
     obj.sound_types_off = -1;
+    obj.data_off = -1;
 
     nelements = slice_split(line, ",", elements, 11, &err);
     if (err < 0)
@@ -1402,10 +1403,8 @@ int32_t p_objects(struct parser* pa, struct slice* line)
     }
 
     /* ?,?,?,?,?,end_time,custom_sample_banks */
-    else if (obj.type & OBJ_SPINNER)
-    {
+    else if (obj.type & OBJ_SPINNER) {
         ++pa->b->nspinners;
-        obj.data_off = 0;
     }
 
     /* x,y,time,type,sound_type,points,repetitions,distance,
