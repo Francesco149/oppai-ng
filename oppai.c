@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 0
-#define OPPAI_VERSION_PATCH 12
+#define OPPAI_VERSION_PATCH 13
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -1663,10 +1663,11 @@ double const weight_scaling[] = { 1400, 26.25 };
 #define EXTREME_SCALING_FACTOR 0.5
 
 #define PLAYFIELD_WIDTH 512.0 /* in osu!pixels */
+#define PLAYFIELD_HEIGHT 384.0
 
 /* spinners position */
 double const playfield_center[] = {
-    PLAYFIELD_WIDTH / 2, PLAYFIELD_WIDTH / 2
+    PLAYFIELD_WIDTH / 2, PLAYFIELD_HEIGHT / 2
 };
 
 /* strains are calculated by analyzing the map in chunks and then
