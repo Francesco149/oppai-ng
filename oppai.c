@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 0
-#define OPPAI_VERSION_PATCH 14
+#define OPPAI_VERSION_PATCH 15
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -108,7 +108,11 @@ struct object
 {
     double time; /* milliseconds */
     uint8_t type;
-    uint8_t sound_type; /* only parsed for taiko maps */
+
+    /* only parsed for taiko maps */
+    int32_t nsound_types;
+    int32_t sound_types_off;
+    uint8_t* sound_types;
 
     /* should be casted to struct circle or slider based on type
        should only be set/used when all parsing is done */
@@ -1319,6 +1323,9 @@ int32_t p_objects(struct parser* pa, struct slice* line)
     uint32_t tmp_type;
 
     obj.is_single = 0;
+    obj.nsound_types = 0;
+    obj.sound_types = 0;
+    obj.sound_types_off = -1;
 
     nelements = slice_split(line, ",", elements, 11, &err);
     if (err < 0)
@@ -1353,16 +1360,22 @@ int32_t p_objects(struct parser* pa, struct slice* line)
     if (pa->b->mode == MODE_TAIKO)
     {
         uint32_t tmp_sound_type;
+        uint8_t sound_type;
 
-        if (sscanf(elements[4].start, "%u", &tmp_sound_type) != 1) {
+        if (sscanf(elements[4].start, "%u", &tmp_sound_type) != 1)
             return parse_err(SYNTAX, elements[4]);
-        }
 
         if (tmp_sound_type & 0xFFFFFF00) {
             return parse_err(SYNTAX, elements[4]);
         }
 
-        obj.sound_type = (uint8_t)(tmp_sound_type & 0xFF);
+        obj.nsound_types = 1;
+        obj.sound_types_off = pa->object_data.top;
+        sound_type = (uint8_t)(tmp_sound_type & 0xFF);
+
+        if (!m_push(&pa->object_data, &sound_type, 1)) {
+            return ERR_OOM;
+        }
     }
 
     obj.type = (uint8_t)(tmp_type & 0xFF);
@@ -1426,6 +1439,53 @@ int32_t p_objects(struct parser* pa, struct slice* line)
             sscanf(e[7].start, "%lf", &sli.distance) != 1)
         {
             return parse_err(SYNTAX, e[7]);
+        }
+
+        /* per-node sound types */
+        if (pa->b->mode == MODE_TAIKO &&
+            nelements > 8 && slice_len(&elements[8]) > 0)
+        {
+            struct slice p = elements[8];
+            uint32_t tmp_sound_type;
+            int32_t i, nodes;
+            uint8_t* sound_types;
+
+            /* repeats + head and tail
+               no repeats is 1 repetition, so subtract 1 */
+            nodes = mymax(0, sli.repetitions - 1) + 2;
+
+            /* note that this wastes the 1 byte previously
+               allocated for the single sound type, no big deal */
+            obj.sound_types_off = pa->object_data.top;
+            sound_types = (uint8_t*)pa->object_data.buf +
+                obj.sound_types_off;
+
+            if (!m_reserve(&pa->object_data, nodes)) {
+                return ERR_OOM;
+            }
+
+            for (i = 0; i < nodes; ++i)
+            {
+                struct slice node;
+                int32_t n;
+
+                /* we also want the last trailing element so
+                   remember to swallow ERR_MORE */
+                n = consume_until(pa, &p, "|", &node);
+                if (n < 0 && n != ERR_MORE) {
+                    pa->lastpos = p;
+                    return n;
+                }
+
+                if (sscanf(node.start, "%u", &tmp_sound_type) != 1)
+                    return parse_err(SYNTAX, node);
+
+                if (tmp_sound_type & 0xFFFFFF00) {
+                    return parse_err(SYNTAX, node);
+                }
+
+                sound_types[i] = (uint8_t)tmp_sound_type;
+            }
         }
 
         if (!p_push_slider(pa, &sli)) {
@@ -1653,6 +1713,13 @@ int32_t p_map(struct parser* pa, struct beatmap* b, FILE* f)
     {
         struct object* o = &b->objects[n];
         o->pdata = pa->object_data.buf + o->data_off;
+
+        if (o->sound_types_off < 0) {
+            continue;
+        }
+
+        o->sound_types = (uint8_t*)pa->object_data.buf +
+            o->sound_types_off;
     }
 
     return res;
