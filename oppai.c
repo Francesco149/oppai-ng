@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 1
+#define OPPAI_VERSION_PATCH 2
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -802,6 +802,11 @@ int32_t b_max_combo(struct beatmap* b)
     if (!b->ntiming_points) {
         info("beatmap has no timing points\n");
         return ERR_FORMAT;
+    }
+
+    /* apparently spinners in taiko don't add combo */
+    if (b->mode == MODE_TAIKO) {
+        res -= b->nspinners;
     }
 
     /* slider ticks */
