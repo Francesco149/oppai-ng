@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 0
-#define OPPAI_VERSION_PATCH 19
+#define OPPAI_VERSION_PATCH 20
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -295,6 +295,7 @@ void mods_apply(uint32_t mods,
    instance can be re-used in subsequent calls to d_calc */
 struct diff_calc
 {
+    double speed_mul;
     double interval_end;
     double max_strain;
     struct memstack highest_strains;
@@ -1854,7 +1855,7 @@ int dbl_desc(void const* a, void const* b)
 internalfn
 int32_t d_update_max_strains(struct diff_calc* d,
     double decay_base, double cur_time, double prev_time,
-    double cur_strain, double prev_strain, double speed_mul)
+    double cur_strain, double prev_strain)
 {
     /* make previous peak strain decay until the current obj */
     while (cur_time > d->interval_end)
@@ -1872,7 +1873,7 @@ int32_t d_update_max_strains(struct diff_calc* d,
             (d->interval_end - prev_time) / 1000.0);
 
         d->max_strain = prev_strain * decay;
-        d->interval_end += STRAIN_STEP * speed_mul;
+        d->interval_end += STRAIN_STEP * d->speed_mul;
     }
 
     d->max_strain = mymax(d->max_strain, cur_strain);
@@ -1893,7 +1894,7 @@ int32_t d_calc_individual(uint8_t type,
     double weight = 1.0;
 
     d->max_strain = 0.0;
-    d->interval_end = STRAIN_STEP * speed_mul;
+    d->interval_end = STRAIN_STEP * d->speed_mul;
 
     d->highest_strains.top = 0;
 
@@ -1903,11 +1904,11 @@ int32_t d_calc_individual(uint8_t type,
         struct object* o = &d->b->objects[i];
         struct object* prev = &d->b->objects[i - 1];
 
-        d_calc_strain(type, o, prev, speed_mul);
+        d_calc_strain(type, o, prev, d->speed_mul);
 
         result = d_update_max_strains(d, decay_base[type],
             o->time, prev->time, o->strains[type],
-            prev->strains[type], speed_mul);
+            prev->strains[type]);
 
         if (result < 0) {
             return result;
@@ -1951,6 +1952,7 @@ int32_t d_calc(struct diff_calc* d, struct beatmap* b,
     /* apply mods and calculate circle radius at this CS */
     mapstats.cs = b->cs;
     mods_apply(mods, &mapstats, APPLY_CS);
+    d->speed_mul = mapstats.speed;
 
     radius =
         (PLAYFIELD_WIDTH / 16.0) *
@@ -1988,13 +1990,12 @@ int32_t d_calc(struct diff_calc* d, struct beatmap* b,
     }
 
     /* calculate speed and aim stars */
-    res = d_calc_individual(DIFF_SPEED, d, mapstats.speed,
-        &d->speed);
+    res = d_calc_individual(DIFF_SPEED, d, &d->speed);
     if (res < 0) {
         return res;
     }
 
-    res = d_calc_individual(DIFF_AIM, d, mapstats.speed, &d->aim);
+    res = d_calc_individual(DIFF_AIM, d, &d->aim);
     if (res < 0) {
         return res;
     }
