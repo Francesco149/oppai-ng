@@ -50,8 +50,8 @@
    instance per thread if you need to process maps in parallel */
 
 #define OPPAI_VERSION_MAJOR 1
-#define OPPAI_VERSION_MINOR 0
-#define OPPAI_VERSION_PATCH 21
+#define OPPAI_VERSION_MINOR 1
+#define OPPAI_VERSION_PATCH 0
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -1939,22 +1939,15 @@ int32_t d_calc_individual(uint8_t type, struct diff_calc* d,
     return 0;
 }
 
-int32_t d_calc(struct diff_calc* d, struct beatmap* b,
-    uint32_t mods)
+internalfn
+int32_t d_std(struct diff_calc* d, uint32_t mods)
 {
+    struct beatmap* b = d->b;
     int32_t i;
     int32_t res;
     double radius;
     double scaling_factor;
     struct beatmap_stats mapstats;
-
-    if (b->mode != MODE_STD) {
-        info("only osu! standard diff calc is implemented at the "
-            "moment.\n");
-        return ERR_NOTIMPLEMENTED;
-    }
-
-    d->b = b;
 
     /* apply mods and calculate circle radius at this CS */
     mapstats.cs = b->cs;
@@ -2037,6 +2030,326 @@ int32_t d_calc(struct diff_calc* d, struct beatmap* b,
     }
 
     return 0;
+}
+
+/* ------------------------------------------------------------- */
+/* taiko diff calc                                               */
+
+#define TAIKO_STAR_SCALING_FACTOR 0.04125
+#define TAIKO_TYPE_CHANGE_BONUS 0.75 /* object type change bonus */
+#define TAIKO_RHYTHM_CHANGE_BONUS 1.0
+#define TAIKO_RHYTHM_CHANGE_BASE_THRESHOLD 0.2
+#define TAIKO_RHYTHM_CHANGE_BASE 2.0
+
+struct taiko_object
+{
+    int hit;
+    double strain;
+    double time;
+    double time_elapsed;
+    int rim;
+
+    /* streak of hits of the same type (rim/center) */
+    int32_t same_since;
+
+    /* was the last hit type change at an even same_since count?
+       -1 if there is no previous switch (for example if the
+       previous object was not a hit */
+    int last_switch_even;
+};
+
+internalfn                           /* object type change bonus */
+double taiko_change_bonus(struct taiko_object* cur,
+    struct taiko_object* prev)
+{
+    if (prev->rim != cur->rim)
+    {
+        cur->last_switch_even = prev->same_since % 2 == 0;
+
+        if (prev->last_switch_even >= 0 &&
+            prev->last_switch_even != cur->last_switch_even)
+        {
+            return TAIKO_TYPE_CHANGE_BONUS;
+        }
+    }
+
+    else
+    {
+        cur->last_switch_even = prev->last_switch_even;
+        cur->same_since = prev->same_since + 1;
+    }
+
+    return 0;
+}
+
+internalfn                                /* rhythm change bonus */
+double taiko_rhythm_bonus(struct taiko_object* cur,
+    struct taiko_object* prev)
+{
+    double ratio;
+    double diff;
+
+    if (cur->time_elapsed == 0 || prev->time_elapsed == 0) {
+        return 0;
+    }
+
+    ratio = mymax(prev->time_elapsed / cur->time_elapsed,
+        cur->time_elapsed / prev->time_elapsed);
+
+    if (ratio >= 8) {
+        return 0;
+    }
+
+    /* this is log base TAIKO_RHYTHM_CHANGE_BASE of ratio */
+    diff = fmod(log(ratio) / log(TAIKO_RHYTHM_CHANGE_BASE), 1.0);
+
+    /* threshold that determines whether the rhythm changed enough
+       to be worthy of the bonus */
+    if (diff > TAIKO_RHYTHM_CHANGE_BASE_THRESHOLD &&
+        diff < 1 - TAIKO_RHYTHM_CHANGE_BASE_THRESHOLD)
+    {
+        return TAIKO_RHYTHM_CHANGE_BONUS;
+    }
+
+    return 0;
+}
+
+internalfn
+void taiko_strain(struct taiko_object* cur,
+    struct taiko_object* prev, double speed_mul)
+{
+    double decay;
+    double addition = 1;
+    double factor = 1.0;
+
+    decay = pow(decay_base[0], cur->time_elapsed / 1000.0);
+
+    /* we only have strains for hits, also ignore objects that are
+       more than 1 second apart */
+    if (prev->hit && cur->hit && cur->time - prev->time < 1000.0)
+    {
+        addition += taiko_change_bonus(cur, prev);
+        addition += taiko_rhythm_bonus(cur, prev);
+    }
+
+    /* 300+bpm streams nerf? */
+    if (cur->time_elapsed < 50.0) {
+        factor = 0.4 + 0.6 * cur->time_elapsed / 50.0;
+    }
+
+    cur->strain = prev->strain * decay + addition * factor;
+}
+
+internalfn
+void swap_ptrs(void** a, void** b)
+{
+    void* tmp;
+    tmp = *a;
+    *a = *b;
+    *b = tmp;
+}
+
+internalfn
+int32_t d_taiko(struct diff_calc* d, uint32_t mods)
+{
+    double infinity = strtod("inf", 0);
+    struct beatmap* b = d->b;
+
+    int32_t i;
+    struct beatmap_stats mapstats;
+
+    /* this way we can swap cur and prev without copying */
+    struct taiko_object curprev[2];
+    struct taiko_object* cur = &curprev[0];
+    struct taiko_object* prev = &curprev[1];
+
+    /* these values keep track of the current timing point and
+       corresponding beat spacing. these are used to convert
+       sliders to taiko streams if they are suitable */
+
+    double tnext = -infinity; /* start time of next timing point */
+    int32_t tindex = -1; /* timing point index */
+    double beat_len = infinity; /* beat spacing */
+    double duration = 0; /* duration of the hit object */
+    double tick_spacing = -infinity; /* slider tick spacing */
+
+    int32_t result;
+
+    mods_apply(mods, &mapstats, 0);
+
+    d->highest_strains.top = 0;
+    d->max_strain = 0.0;
+    d->interval_end = STRAIN_STEP * mapstats.speed;
+    d->speed_mul = mapstats.speed;
+
+    /* TODO: separate taiko conversion into its own function
+       so that it can be reused? probably slower, but cleaner,
+       more modular and more readable */
+    for (i = 0; i < b->nobjects; ++i)
+    {
+        struct object* o = &b->objects[i];
+
+        cur->hit = (o->type & OBJ_CIRCLE) != 0;
+        cur->time = o->time;
+
+        if (i > 0)
+        {
+            cur->time_elapsed =
+                (cur->time - prev->time) / mapstats.speed;
+        }
+        else {
+            cur->time_elapsed = infinity;
+        }
+
+        cur->strain = 1;
+        cur->same_since = 1;
+        cur->last_switch_even = -1;
+
+        cur->rim = (*o->sound_types &
+            (SOUND_CLAP|SOUND_WHISTLE)) != 0;
+
+        if (o->type & OBJ_SLIDER)
+        {
+            /* TODO: too much indentation, pull this out */
+            struct slider* sl = (struct slider*)o->pdata;
+            int32_t isound = 0;
+            double j;
+
+            /* keep track of timing point */
+            /* TODO: see if it's possible to make some generic
+               timing point iterator to avoid duplicate code for
+               this and b_max_combo */
+            while (o->time >= tnext)
+            {
+                double sv_multiplier;
+                double velocity;
+                struct timing* t;
+
+                ++tindex;
+
+                if (b->ntiming_points > tindex + 1) {
+                    tnext = b->timing_points[tindex + 1].time;
+                } else {
+                    tnext = infinity;
+                }
+
+                t = &b->timing_points[tindex];
+
+                sv_multiplier = 1.0;
+                if (!t->change && t->ms_per_beat < 0) {
+                    sv_multiplier = -100.0 / t->ms_per_beat;
+                }
+
+                beat_len = t->ms_per_beat;
+
+                /* format-specific quirk */
+                if (b->format_version < 8) {
+                    beat_len *= sv_multiplier;
+                }
+
+                /* this is similar to what we do in b_max_combo
+                   with px_per_beat */
+                velocity = 100.0 * b->sv / beat_len;
+                duration = sl->distance * sl->repetitions
+                    / velocity;
+
+                /* if slider is shorter than 1 beat, cut tick to
+                   exactly the length of the slider */
+                tick_spacing =
+                    mymin(
+                        beat_len / b->tick_rate,
+                        duration / sl->repetitions
+                    );
+            }
+
+            /* drum roll, ignore */
+            if (tick_spacing <= 0 || duration >= 2 * beat_len) {
+                goto continue_loop;
+            }
+
+            /* sliders that meet the requirements will
+               become streams of the slider's tick rate */
+            for (j = o->time;
+                 j < o->time + duration + tick_spacing / 8;
+                 j += tick_spacing)
+            {
+                cur->rim = (o->sound_types[isound] &
+                    (SOUND_CLAP|SOUND_WHISTLE)) != 0;
+                cur->hit = 1;
+                cur->time = j;
+
+                cur->time_elapsed =
+                    (cur->time - prev->time) / mapstats.speed;
+                cur->strain = 1;
+                cur->same_since = 1;
+                cur->last_switch_even = -1;
+
+                /* update strains for this hit */
+                if (i > 0)
+                {
+                    taiko_strain(cur, prev, mapstats.speed);
+
+                    result = d_update_max_strains(d, decay_base[0],
+                        cur->time, prev->time, cur->strain,
+                        prev->strain);
+
+                    if (result < 0) {
+                        return result;
+                    }
+                }
+
+                /* loop through the slider's sounds */
+                ++isound;
+                isound %= o->nsound_types;
+
+                swap_ptrs((void**)&prev, (void**)&cur);
+            }
+
+            /* since we processed the slider as multiple hits,
+               we must skip the prev/cur swap which we already did
+               in the above loop */
+            continue;
+        }
+
+continue_loop:
+        /* update strains for hits and other object types */
+        if (i > 0)
+        {
+            taiko_strain(cur, prev, mapstats.speed);
+
+            result = d_update_max_strains(d, decay_base[0],
+                cur->time, prev->time, cur->strain, prev->strain);
+
+            if (result < 0) {
+                return result;
+            }
+        }
+
+        swap_ptrs((void**)&prev, (void**)&cur);
+    }
+
+    d->total = d_weigh_strains(d) * TAIKO_STAR_SCALING_FACTOR;
+
+    return 0;
+}
+
+/* ------------------------------------------------------------- */
+
+int32_t d_calc(struct diff_calc* d, struct beatmap* b,
+    uint32_t mods)
+{
+    d->b = b;
+
+    switch (b->mode)
+    {
+    case MODE_STD:
+        return d_std(d, mods);
+    case MODE_TAIKO:
+        return d_taiko(d, mods);
+    }
+
+    info("this gamemode is not yet supported\n");
+    return ERR_NOTIMPLEMENTED;
 }
 #endif
 
