@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 0
-#define OPPAI_VERSION_PATCH 20
+#define OPPAI_VERSION_PATCH 21
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -1882,16 +1882,35 @@ int32_t d_update_max_strains(struct diff_calc* d,
 }
 
 internalfn
-int32_t d_calc_individual(uint8_t type,
-    struct diff_calc* d, double speed_mul, double* result)
+double d_weigh_strains(struct diff_calc* d)
 {
-    uint16_t i;
-
+    int32_t i;
     int32_t nstrains = 0;
     double* strains;
 
     double difficulty = 0.0;
     double weight = 1.0;
+
+    strains = (double*)d->highest_strains.buf;
+    nstrains = d->highest_strains.top / sizeof(double);
+
+    /* sort strains from highest to lowest */
+    qsort(strains, nstrains, sizeof(double), dbl_desc);
+
+    for (i = 0; i < nstrains; ++i)
+    {
+        difficulty += strains[i] * weight;
+        weight *= DECAY_WEIGHT;
+    }
+
+    return difficulty;
+}
+
+internalfn
+int32_t d_calc_individual(uint8_t type, struct diff_calc* d,
+    double* result)
+{
+    uint16_t i;
 
     d->max_strain = 0.0;
     d->interval_end = STRAIN_STEP * d->speed_mul;
@@ -1915,19 +1934,7 @@ int32_t d_calc_individual(uint8_t type,
         }
     }
 
-    strains = (double*)d->highest_strains.buf;
-    nstrains = d->highest_strains.top / sizeof(double);
-
-    /* sort strains from highest to lowest */
-    qsort(strains, nstrains, sizeof(double), dbl_desc);
-
-    for (i = 0; i < nstrains; ++i)
-    {
-        difficulty += strains[i] * weight;
-        weight *= DECAY_WEIGHT;
-    }
-
-    *result = difficulty;
+    *result = d_weigh_strains(d);
 
     return 0;
 }
