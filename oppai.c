@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 0
+#define OPPAI_VERSION_PATCH 1
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -798,6 +798,11 @@ int32_t b_max_combo(struct beatmap* b)
     double tnext = -infinity;
     int32_t tindex = -1;
     double px_per_beat = infinity;
+
+    if (!b->ntiming_points) {
+        info("beatmap has no timing points\n");
+        return ERR_FORMAT;
+    }
 
     /* slider ticks */
     for (i = 0; i < b->nobjects; ++i)
@@ -2175,6 +2180,11 @@ int32_t d_taiko(struct diff_calc* d, uint32_t mods)
 
     int32_t result;
 
+    if (!b->ntiming_points) {
+        info("beatmap has no timing points\n");
+        return ERR_FORMAT;
+    }
+
     mods_apply(mods, &mapstats, 0);
 
     d->highest_strains.top = 0;
@@ -2635,6 +2645,9 @@ int32_t b_ppv2(struct beatmap* map, struct pp_calc* pp,
     double aim, double speed, uint32_t mods)
 {
     int32_t max_combo = b_max_combo(map);
+    if (max_combo < 0) {
+        return max_combo;
+    }
 
     return ppv2x(pp, map->mode, aim, speed, map->ar, map->od,
         max_combo, map->nsliders, map->ncircles,
@@ -2647,7 +2660,12 @@ int32_t b_ppv2p(struct beatmap* map, struct pp_calc* pp,
 {
     p->base_ar = map->ar;
     p->base_od = map->od;
+
     p->max_combo = b_max_combo(map);
+    if (p->max_combo < 0) {
+        return p->max_combo;
+    }
+
     p->nsliders = map->nsliders;
     p->ncircles = map->ncircles;
     p->nobjects = (uint16_t)map->nobjects;
