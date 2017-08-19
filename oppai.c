@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 0
-#define OPPAI_VERSION_PATCH 16
+#define OPPAI_VERSION_PATCH 17
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -156,6 +156,7 @@ struct timing
 
 struct beatmap
 {
+    int32_t format_version;
     int32_t mode;
 
     char* title;
@@ -199,6 +200,8 @@ struct slice
 /* beatmap parser's state */
 struct parser
 {
+    int magic_found;
+
     /* if a parsing error occurs last line and portion of the line
        that was being parsed are stored in these two slices */
     struct slice lastpos;
@@ -876,6 +879,8 @@ int32_t b_max_combo(struct beatmap* b)
 internalfn
 void p_reset(struct parser* pa, struct beatmap* b)
 {
+    pa->magic_found = 0;
+
     memset(pa->section, 0, sizeof(pa->section));
     memset(&pa->lastpos, 0, sizeof(pa->lastpos));
     memset(&pa->lastline, 0, sizeof(pa->lastline));
@@ -1081,36 +1086,6 @@ char* skip_bom(char* buf)
     /* TODO: other encodings */
 
     return p;
-}
-
-/* checks if f is a beatmap and skips bom if present */
-internalfn
-int is_beatmap(FILE* f)
-{
-    char const* const magic = "osu file format v";
-    size_t const magic_len = 17;
-
-    char buf[64];
-    char* p = buf;
-    size_t toread;
-
-    if (fread(buf, 1, 3, f) != 3) {
-        perror("fread");
-        return 0;
-    }
-
-    p = skip_bom(buf);
-
-    toread = magic_len - (3 - (p - buf));
-    if (fread(buf + 3, 1, toread, f) != toread) {
-        perror("fread");
-        return 0;
-    }
-
-    /* TODO: maybe read until next line? can't seek back because
-             f could be stdin or pretty much anything */
-
-    return strncmp(p, magic, strlen(magic)) == 0;
 }
 
 internalfn
@@ -1506,6 +1481,18 @@ int32_t p_line(struct parser* pa, struct slice* line)
 {
     int32_t n = 0;
 
+    if (sscanf(skip_bom(line->start), "osu file format v%d",
+        &pa->b->format_version) == 1)
+    {
+        pa->magic_found = 1;
+        return (int32_t)(line->end - line->start);
+    }
+
+    if (!pa->magic_found) {
+        info("not a valid .osu file\n");
+        return ERR_FORMAT;
+    }
+
     if (line->start >= line->end) {
         /* empty line */
         return 0;
@@ -1594,10 +1581,6 @@ int32_t p_map(struct parser* pa, struct beatmap* b, FILE* f)
 
     if (!f) {
         return ERR_IO;
-    }
-
-    if (!is_beatmap(f)) {
-        return ERR_FORMAT;
     }
 
     p_reset(pa, b);
