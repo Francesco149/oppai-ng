@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 0
-#define OPPAI_VERSION_PATCH 18
+#define OPPAI_VERSION_PATCH 19
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -295,6 +295,8 @@ void mods_apply(uint32_t mods,
    instance can be re-used in subsequent calls to d_calc */
 struct diff_calc
 {
+    double interval_end;
+    double max_strain;
     struct memstack highest_strains;
     struct beatmap* b;
 
@@ -1850,6 +1852,35 @@ int dbl_desc(void const* a, void const* b)
 }
 
 internalfn
+int32_t d_update_max_strains(struct diff_calc* d,
+    double decay_base, double cur_time, double prev_time,
+    double cur_strain, double prev_strain, double speed_mul)
+{
+    /* make previous peak strain decay until the current obj */
+    while (cur_time > d->interval_end)
+    {
+        double decay;
+        void* p;
+
+        p = m_push(&d->highest_strains,
+            &d->max_strain, sizeof(double));
+        if (!p) {
+            return ERR_OOM;
+        }
+
+        decay = pow(decay_base,
+            (d->interval_end - prev_time) / 1000.0);
+
+        d->max_strain = prev_strain * decay;
+        d->interval_end += STRAIN_STEP * speed_mul;
+    }
+
+    d->max_strain = mymax(d->max_strain, cur_strain);
+
+    return 0;
+}
+
+internalfn
 int32_t d_calc_individual(uint8_t type,
     struct diff_calc* d, double speed_mul, double* result)
 {
@@ -1858,44 +1889,33 @@ int32_t d_calc_individual(uint8_t type,
     int32_t nstrains = 0;
     double* strains;
 
-    double max_strain = 0.0;
     double difficulty = 0.0;
     double weight = 1.0;
-    double interval_end = STRAIN_STEP * speed_mul;
+
+    d->max_strain = 0.0;
+    d->interval_end = STRAIN_STEP * speed_mul;
 
     d->highest_strains.top = 0;
 
     for (i = 1; i < d->b->nobjects; ++i)
     {
+        int32_t result;
         struct object* o = &d->b->objects[i];
         struct object* prev = &d->b->objects[i - 1];
 
         d_calc_strain(type, o, prev, speed_mul);
 
-        /* make previous peak strain decay until the current obj */
-        while (o->time > interval_end)
-        {
-            double decay;
-            void* p;
+        result = d_update_max_strains(d, decay_base[type],
+            o->time, prev->time, o->strains[type],
+            prev->strains[type], speed_mul);
 
-            p = m_push(&d->highest_strains,
-                &max_strain, sizeof(double));
-            if (!p) {
-                return ERR_OOM;
-            }
-            ++nstrains;
-
-            decay = pow(decay_base[type],
-                (interval_end - prev->time) / 1000.0);
-
-            max_strain = prev->strains[type] * decay;
-            interval_end += STRAIN_STEP * speed_mul;
+        if (result < 0) {
+            return result;
         }
-
-        max_strain = mymax(max_strain, o->strains[type]);
     }
 
     strains = (double*)d->highest_strains.buf;
+    nstrains = d->highest_strains.top / sizeof(double);
 
     /* sort strains from highest to lowest */
     qsort(strains, nstrains, sizeof(double), dbl_desc);
