@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 0
-#define OPPAI_VERSION_PATCH 17
+#define OPPAI_VERSION_PATCH 18
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -1481,14 +1481,15 @@ int32_t p_line(struct parser* pa, struct slice* line)
 {
     int32_t n = 0;
 
-    if (sscanf(skip_bom(line->start), "osu file format v%d",
-        &pa->b->format_version) == 1)
+    if (!pa->magic_found)
     {
-        pa->magic_found = 1;
-        return (int32_t)(line->end - line->start);
-    }
+        if (sscanf(skip_bom(line->start), "osu file format v%d",
+            &pa->b->format_version) == 1)
+        {
+            pa->magic_found = 1;
+            return (int32_t)(line->end - line->start);
+        }
 
-    if (!pa->magic_found) {
         info("not a valid .osu file\n");
         return ERR_FORMAT;
     }
