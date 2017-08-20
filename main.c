@@ -96,6 +96,18 @@ void usage()
         "singletappable for the singletap stats.\n"
         "    default: 240\n"
         "    example: -st260\n"
+        "\n"
+    );
+
+    info(
+        "-m[n]\n"
+        "    gamemode id override for converted maps\n"
+        "    default: uses the map's gamemode\n"
+        "    example: -m1\n"
+        "\n"
+        "-taiko\n"
+        "    forces gamemode to taiko for converted maps\n"
+        "    default: disabled\n"
     );
 }
 
@@ -824,9 +836,11 @@ int main(int argc, char* argv[])
 #   define OVERRIDE_OD ((uint32_t)1<<1)
 #   define OVERRIDE_CS ((uint32_t)1<<2)
 #   define OVERRIDE_SINGLETAP_THRESHOLD ((uint32_t)1<<3)
+#   define OVERRIDE_MODE ((uint32_t)1<<4)
 
     float ar_override = 0, od_override = 0, cs_override = 0;
     double singletap_threshold = 125.0;
+    uint32_t mode_override = MODE_STD;
 
     /* parse arguments ----------------------------------------- */
     me = argv[0];
@@ -959,6 +973,17 @@ int main(int argc, char* argv[])
             continue;
         }
 
+        if (sscanf(a, "-m%u", &mode_override) == 1) {
+            overrides |= OVERRIDE_MODE;
+            continue;
+        }
+
+        if (!strcmp(a, "-taiko")) {
+            overrides |= OVERRIDE_MODE;
+            mode_override = MODE_TAIKO;
+            continue;
+        }
+
         /* this should be last because it uppercase's the string */
         if (*a == '+')
         {
@@ -1006,6 +1031,11 @@ int main(int argc, char* argv[])
     result = p_init(pstate);
     if (result < 0) {
         goto output;
+    }
+
+    if (overrides & OVERRIDE_MODE) {
+        pstate->mode_override = mode_override;
+        pstate->flags = PARSER_OVERRIDE_MODE;
     }
 
     result = p_map(pstate, &map, f);
