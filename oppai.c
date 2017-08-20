@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 8
+#define OPPAI_VERSION_PATCH 9
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -343,11 +343,18 @@ struct pp_calc
 /* default scoring system used by ppv2() and ppv2p() */
 #define PP_DEFAULT_SCORING 1
 
-/* simplest possible call, calculates ppv2 for SS */
+/* simplest possible call, calculates ppv2 for SS
+
+   this also works for other modes by ignoring some parameters:
+   - taiko only uses pp, mode, speed, max_combo, base_od, mods */
 int32_t ppv2(struct pp_calc* pp, uint32_t mode, double aim,
     double speed, float base_ar, float base_od, int32_t max_combo,
     uint16_t nsliders, uint16_t ncircles, uint16_t nobjects,
     uint32_t mods);
+
+/* simplest possible call for taiko ppv2 SS */
+int32_t taiko_ppv2(struct pp_calc* pp, double speed,
+    uint16_t max_combo, float base_od, uint32_t mods);
 
 /* parameters for ppv2p */
 struct pp_params
@@ -2464,7 +2471,8 @@ continue_loop:
         swap_ptrs((void**)&prev, (void**)&cur);
     }
 
-    d->total = d_weigh_strains(d) * TAIKO_STAR_SCALING_FACTOR;
+    d->total =
+    d->speed = d_weigh_strains(d) * TAIKO_STAR_SCALING_FACTOR;
 
     return 0;
 }
@@ -2589,7 +2597,7 @@ double base_pp(double stars)
 }
 
 internalfn
-int32_t ppv2x(struct pp_calc* pp, uint32_t mode, double aim,
+int32_t ppv2x(struct pp_calc* pp, double aim,
     double speed, float base_ar, float base_od, int32_t max_combo,
     uint16_t nsliders, uint16_t ncircles, uint16_t nobjects,
     uint32_t mods, int32_t combo, uint16_t n300, uint16_t n100,
@@ -2614,11 +2622,6 @@ int32_t ppv2x(struct pp_calc* pp, uint32_t mode, double aim,
     /* acc used for pp is different in scorev1 because it ignores
        sliders */
     double real_acc;
-
-    if (mode != MODE_STD) {
-        info("ppv2 is only implemented for std at the moment\n");
-        return ERR_NOTIMPLEMENTED;
-    }
 
     memset(pp, 0, sizeof(struct pp_calc));
 
@@ -2758,6 +2761,91 @@ int32_t ppv2x(struct pp_calc* pp, uint32_t mode, double aim,
     return 0;
 }
 
+/* ------------------------------------------------------------- */
+/* taiko pp calc                                                 */
+
+internalfn
+int32_t taiko_ppv2x(struct pp_calc* pp, double stars,
+    uint16_t max_combo, float base_od, uint16_t n150,
+    uint16_t nmiss, uint16_t combo, uint32_t mods)
+{
+    struct beatmap_stats mapstats;
+    uint16_t n300 = max_combo - n150 - nmiss;
+    int32_t result;
+    double length_bonus;
+    double final_multiplier;
+
+    /* calculate stats with mods */
+    mapstats.od = base_od;
+    result = mods_apply_m(MODE_TAIKO, mods, &mapstats, APPLY_OD);
+    if (result < 0) {
+        return result;
+    }
+
+    pp->accuracy = taiko_acc_calc(n300, n150, nmiss);
+
+    /* base acc pp */
+    pp->acc = pow(150.0 / mapstats.odms, 1.1);
+    pp->acc *= pow(pp->accuracy, 15.0) * 22.0;
+
+    /* length bonus */
+    pp->acc *= mymin(1.15, pow(max_combo / 1500.0, 0.3));
+
+    /* base speed pp */
+    pp->speed = pow(5.0 * mymax(1.0, stars / 0.0075) - 4.0, 2.0);
+    pp->speed /= 100000.0;
+
+    /* length bonus (not the same as acc length bonus) */
+    length_bonus = 1.0 + 0.1 * mymin(1.0, max_combo / 1500.0);
+    pp->speed *= length_bonus;
+
+    /* miss penality */
+    pp->speed *= pow(0.985, nmiss);
+
+    /* combo scaling (removed?) */
+    /*
+    if (max_combo > 0)
+    {
+        pp->speed *=
+            mymin(pow(combo, 0.5) / pow(max_combo, 0.5), 1.0);
+    }
+    */
+
+    /* speed mod bonuses */
+    if (mods & MODS_HD) {
+        pp->speed *= 1.025;
+    }
+
+    if (mods & MODS_FL) {
+        pp->speed *= 1.05 * length_bonus;
+    }
+
+    /* acc scaling */
+    pp->speed *= pp->accuracy;
+
+    final_multiplier = 1.1;
+
+    /* overall mod bonuses */
+    if (mods & MODS_NF) {
+        final_multiplier *= 0.90;
+    }
+
+    if (mods & MODS_HD) {
+        final_multiplier *= 1.10;
+    }
+
+    pp->total =
+        pow(
+            pow(pp->speed, 1.1) + pow(pp->acc, 1.1),
+            1.0 / 1.1
+        ) * final_multiplier;
+
+    return 0;
+}
+
+/* ------------------------------------------------------------- */
+/* common pp calc stuff                                          */
+
 void pp_init(struct pp_params* p)
 {
     p->mode = MODE_STD;
@@ -2781,14 +2869,31 @@ void pp_handle_default_params(struct pp_params* p)
     }
 }
 
+int32_t taiko_ppv2(struct pp_calc* pp, double speed,
+    uint16_t max_combo, float base_od, uint32_t mods)
+{
+    return taiko_ppv2x(pp, speed, max_combo, base_od, 0, 0,
+        max_combo, mods);
+}
+
 int32_t ppv2(struct pp_calc* pp, uint32_t mode, double aim,
     double speed, float base_ar, float base_od, int32_t max_combo,
     uint16_t nsliders, uint16_t ncircles, uint16_t nobjects,
     uint32_t mods)
 {
-    return ppv2x(pp, mode, aim, speed, base_ar, base_od, max_combo,
-        nsliders, ncircles, nobjects, mods, max_combo,
-        nobjects, 0, 0, 0, PP_DEFAULT_SCORING);
+    switch (mode)
+    {
+    case MODE_STD:
+        return ppv2x(pp, aim, speed, base_ar, base_od,
+            max_combo, nsliders, ncircles, nobjects, mods,
+            max_combo, nobjects, 0, 0, 0, PP_DEFAULT_SCORING);
+
+    case MODE_TAIKO:
+        return taiko_ppv2(pp, speed, max_combo, base_od, mods);
+    }
+
+    info("this mode is not yet supported for ppv2\n");
+    return ERR_NOTIMPLEMENTED;
 }
 
 int32_t ppv2p(struct pp_calc* pp, struct pp_params* p)
@@ -2796,10 +2901,22 @@ int32_t ppv2p(struct pp_calc* pp, struct pp_params* p)
     pp_handle_default_params(p);
 
     /* TODO: replace ppv2x with this? */
-    return ppv2x(pp, p->mode, p->aim, p->speed, p->base_ar,
-        p->base_od, p->max_combo, p->nsliders, p->ncircles,
-        p->nobjects, p->mods, p->combo, p->n300, p->n100, p->n50,
-        p->nmiss, p->score_version);
+
+    switch (p->mode)
+    {
+    case MODE_STD:
+        return ppv2x(pp, p->aim, p->speed, p->base_ar, p->base_od,
+            p->max_combo, p->nsliders, p->ncircles, p->nobjects,
+            p->mods, p->combo, p->n300, p->n100, p->n50, p->nmiss,
+            p->score_version);
+
+    case MODE_TAIKO:
+        return taiko_ppv2x(pp, p->speed, p->max_combo, p->base_od,
+            p->n100, p->nmiss, p->combo, p->mods);
+    }
+
+    info("this mode is not yet supported for ppv2p\n");
+    return ERR_NOTIMPLEMENTED;
 }
 
 int32_t b_ppv2(struct beatmap* map, struct pp_calc* pp,
@@ -2810,10 +2927,21 @@ int32_t b_ppv2(struct beatmap* map, struct pp_calc* pp,
         return max_combo;
     }
 
-    return ppv2x(pp, map->mode, aim, speed, map->ar, map->od,
-        max_combo, map->nsliders, map->ncircles,
-        (uint16_t)map->nobjects, mods, max_combo,
-        (uint16_t)map->nobjects, 0, 0, 0, PP_DEFAULT_SCORING);
+    switch (map->mode)
+    {
+    case MODE_STD:
+        return ppv2x(pp, aim, speed, map->ar, map->od, max_combo,
+            map->nsliders, map->ncircles, (uint16_t)map->nobjects,
+            mods, max_combo, (uint16_t)map->nobjects, 0, 0, 0,
+            PP_DEFAULT_SCORING);
+
+    case MODE_TAIKO:
+        return taiko_ppv2x(pp, speed, max_combo, map->od, 0, 0,
+            max_combo, mods);
+    }
+
+    info("this mode is not yet supported for b_ppv2\n");
+    return ERR_NOTIMPLEMENTED;
 }
 
 int32_t b_ppv2p(struct beatmap* map, struct pp_calc* pp,
