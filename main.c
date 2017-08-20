@@ -108,6 +108,18 @@ void usage()
         "-taiko\n"
         "    forces gamemode to taiko for converted maps\n"
         "    default: disabled\n"
+        "\n"
+        "[n]speed\n"
+        "    override speed stars. "
+        "useful for maps with incorrect star rating\n"
+        "    default: uses computed speed stars\n"
+        "    example: 3.5speed\n"
+        "\n"
+        "[n]aim\n"
+        "    override aim stars. "
+        "useful for maps with incorrect star rating\n"
+        "    default: uses computed aim stars\n"
+        "    example: 2.4aim\n"
     );
 }
 
@@ -837,10 +849,13 @@ int main(int argc, char* argv[])
 #   define OVERRIDE_CS ((uint32_t)1<<2)
 #   define OVERRIDE_SINGLETAP_THRESHOLD ((uint32_t)1<<3)
 #   define OVERRIDE_MODE ((uint32_t)1<<4)
+#   define OVERRIDE_SPEED ((uint32_t)1<<5)
+#   define OVERRIDE_AIM ((uint32_t)1<<6)
 
     float ar_override = 0, od_override = 0, cs_override = 0;
     double singletap_threshold = 125.0;
     uint32_t mode_override = MODE_STD;
+    double speed_override = 0, aim_override = 0;
 
     /* parse arguments ----------------------------------------- */
     me = argv[0];
@@ -984,6 +999,20 @@ int main(int argc, char* argv[])
             continue;
         }
 
+        if (!cmpsuffix(a, "speed") &&
+            sscanf(a, "%lf", &speed_override) == 1)
+        {
+            overrides |= OVERRIDE_SPEED;
+            continue;
+        }
+
+        if (!cmpsuffix(a, "aim") &&
+            sscanf(a, "%lf", &aim_override) == 1)
+        {
+            overrides |= OVERRIDE_AIM;
+            continue;
+        }
+
         /* this should be last because it uppercase's the string */
         if (*a == '+')
         {
@@ -1077,6 +1106,19 @@ int main(int argc, char* argv[])
     result = d_calc(&stars, &map, mods);
     if (result < 0) {
         goto output;
+    }
+
+    if (overrides & OVERRIDE_AIM) {
+        stars.aim = aim_override;
+    }
+
+    if (overrides & OVERRIDE_SPEED)
+    {
+        stars.speed = speed_override;
+
+        if (map.mode == MODE_TAIKO) {
+            stars.total = stars.speed;
+        }
     }
 
     /* pp calc ------------------------------------------------- */
