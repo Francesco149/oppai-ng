@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 3
+#define OPPAI_VERSION_PATCH 4
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -392,10 +392,19 @@ int32_t b_ppv2(struct beatmap* map, struct pp_calc* pp,
 double acc_calc(uint16_t n300, uint16_t n100, uint16_t n50,
     uint16_t misses);
 
+/* calculate taiko accuracy (0.0 - 1.0) */
+double taiko_acc_calc(uint16_t n300, uint16_t n150,
+    uint16_t nmisses);
+
 /* round percent accuracy to closest amount of 300s, 100s, 50s */
 void acc_round(double acc_percent, uint16_t nobjects,
     uint16_t nmisses, uint16_t* n300, uint16_t* n100,
     uint16_t* n50);
+
+/* round percent accuracy to closest amount of 300s and 150s
+   (taiko) */
+void taiko_acc_round(double acc_percent, uint16_t nobjects,
+    uint16_t nmisses, uint16_t* n300, uint16_t* n150);
 
 /* ############################################################# */
 /* ################### END OF THE INTERFACE #################### */
@@ -2403,7 +2412,7 @@ int32_t d_calc(struct diff_calc* d, struct beatmap* b,
 #endif
 
 /* ------------------------------------------------------------- */
-/* pp calc                                                       */
+/* acc calc                                                      */
 
 double acc_calc(uint16_t n300, uint16_t n100, uint16_t n50,
     uint16_t misses)
@@ -2456,6 +2465,41 @@ void acc_round(double acc_percent, uint16_t nobjects,
 
     *n300 = nobjects - *n100 - *n50 - misses;
 }
+
+double taiko_acc_calc(uint16_t n300, uint16_t n150, uint16_t nmiss)
+{
+    uint16_t total_hits = n300 + n150 + nmiss;
+    double acc = 0;
+
+    if (total_hits > 0) {
+        acc = (n150 * 150.0 + n300 * 300.0) / (total_hits * 300.0);
+    }
+
+    return acc;
+}
+
+void taiko_acc_round(double acc_percent, uint16_t nobjects,
+    uint16_t nmisses, uint16_t* n300, uint16_t* n150)
+{
+    uint16_t max300;
+    double maxacc;
+
+    nmisses = mymin(nobjects, nmisses);
+    max300 = nobjects - nmisses;
+    maxacc = acc_calc(max300, 0, 0, nmisses) * 100.0;
+    acc_percent = mymax(0.0, mymin(maxacc, acc_percent));
+
+    /* just some black magic maths from wolfram alpha */
+    *n150 = (uint16_t)
+        round_oppai(-2.0 * ((acc_percent * 0.01 - 1.0) *
+            nobjects + nmisses));
+
+    *n150 = mymin(max300, *n150);
+    *n300 = nobjects - *n150 - nmisses;
+}
+
+/* ------------------------------------------------------------- */
+/* std pp calc                                                   */
 
 #ifndef OPPAI_NOPP
 /* some kind of formula to get a base pp value from stars */
