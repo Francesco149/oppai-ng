@@ -1039,7 +1039,7 @@ int main(int argc, char* argv[])
     mapstats.od = map.od;
     mapstats.hp = map.hp;
 
-    mods_apply(mods, &mapstats, APPLY_ALL);
+    mods_apply_m(map.mode, mods, &mapstats, APPLY_ALL);
 
     params.aim = stars.aim;
     params.speed = stars.speed;
@@ -1047,8 +1047,30 @@ int main(int argc, char* argv[])
 
     if (use_percent)
     {
-        acc_round(acc_percent, (uint16_t)map.nobjects,
-            params.nmiss, &params.n300, &params.n100, &params.n50);
+        switch (map.mode)
+        {
+        case MODE_STD:
+            acc_round(acc_percent, (uint16_t)map.nobjects,
+                params.nmiss, &params.n300, &params.n100,
+                &params.n50);
+            break;
+
+        case MODE_TAIKO:
+        {
+            int32_t taiko_max_combo = b_max_combo(&map);
+
+            if (taiko_max_combo < 0) {
+                result = taiko_max_combo;
+                goto output;
+            }
+
+            params.max_combo = (uint16_t)taiko_max_combo;
+
+            taiko_acc_round(acc_percent, (uint16_t)taiko_max_combo,
+                params.nmiss, &params.n300, &params.n100);
+            break;
+        }
+        }
     }
 
     result = b_ppv2p(&map, &pp, &params);
