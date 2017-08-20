@@ -10,10 +10,6 @@
 
 #include <float.h>
 
-#ifdef OPPAI_NOSTDINT
-typedef unsigned long long int uint64_t;
-#endif
-
 #define STRINGIFY_(x) #x
 #define STRINGIFY(x) STRINGIFY_(x)
 

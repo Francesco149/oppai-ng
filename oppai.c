@@ -51,14 +51,16 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 17
+#define OPPAI_VERSION_PATCH 18
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
+typedef long long int int64_t;
 typedef int int32_t;
 typedef short int16_t;
 typedef char int8_t;
 
+typedef unsigned long long int uint64_t;
 typedef unsigned int uint32_t;
 typedef unsigned short uint16_t;
 typedef unsigned char uint8_t;
@@ -474,6 +476,14 @@ char const* errstr(int32_t err)
 /* ------------------------------------------------------------- */
 /* math                                                          */
 
+internalfn
+double get_inf()
+{
+    const uint64_t raw = 0x7FF0000000000000LL;
+    double* p = (double*)&raw;
+    return *p;
+}
+
 /* dst = a - b */
 internalfn
 void v2f_sub(double* dst, double* a, double* b)
@@ -852,7 +862,7 @@ int32_t b_max_combo(struct beatmap* b)
     int32_t res = b->nobjects;
     int32_t i;
 
-    double infinity = strtod("inf", 0);
+    double infinity = get_inf();
     double tnext = -infinity;
     int32_t tindex = -1;
 
@@ -2300,7 +2310,7 @@ void swap_ptrs(void** a, void** b)
 internalfn
 int32_t d_taiko(struct diff_calc* d, uint32_t mods)
 {
-    double infinity = strtod("inf", 0);
+    double infinity = get_inf();
     struct beatmap* b = d->b;
 
     int32_t i;
