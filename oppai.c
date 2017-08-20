@@ -2927,7 +2927,7 @@ int32_t ppv2p(struct pp_calc* pp, struct pp_params* p)
     case MODE_STD:
         return ppv2x(pp, p->aim, p->speed, p->base_ar, p->base_od,
             p->max_combo, p->nsliders, p->ncircles,
-            (uint16_t)p->nobjects, p->mods, p->combo, p->n300,
+            p->nobjects, p->mods, p->combo, p->n300,
             p->n100, p->n50, p->nmiss, p->score_version);
 
     case MODE_TAIKO:
