@@ -359,7 +359,7 @@ int32_t ppv2(struct pp_calc* pp, uint32_t mode, double aim,
 
 /* simplest possible call for taiko ppv2 SS */
 int32_t taiko_ppv2(struct pp_calc* pp, double speed,
-    uint16_t max_combo, float base_od, uint32_t mods);
+    int32_t max_combo, float base_od, uint32_t mods);
 
 /* parameters for ppv2p */
 struct pp_params
@@ -2782,11 +2782,11 @@ int32_t ppv2x(struct pp_calc* pp, double aim,
 
 internalfn
 int32_t taiko_ppv2x(struct pp_calc* pp, double stars,
-    uint16_t max_combo, float base_od, uint16_t n150,
+    int32_t max_combo, float base_od, uint16_t n150,
     uint16_t nmiss, uint32_t mods)
 {
     struct beatmap_stats mapstats;
-    uint16_t n300 = max_combo - n150 - nmiss;
+    uint16_t n300 = (uint16_t)max_combo - n150 - nmiss;
     int32_t result;
     double length_bonus;
     double final_multiplier;
@@ -2864,7 +2864,7 @@ int32_t taiko_ppv2x(struct pp_calc* pp, double stars,
 }
 
 int32_t taiko_ppv2(struct pp_calc* pp, double speed,
-    uint16_t max_combo, float base_od, uint32_t mods)
+    int32_t max_combo, float base_od, uint32_t mods)
 {
     return taiko_ppv2x(pp, speed, max_combo, base_od, 0, 0, mods);
 }
