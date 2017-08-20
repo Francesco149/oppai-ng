@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 7
+#define OPPAI_VERSION_PATCH 8
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -2294,6 +2294,7 @@ int32_t d_taiko(struct diff_calc* d, uint32_t mods)
 
     double tnext = -infinity; /* start time of next timing point */
     int32_t tindex = -1; /* timing point index */
+    double ms_per_beat = 0; /* last timing change */
     double beat_len = infinity; /* beat spacing */
     double duration = 0; /* duration of the hit object */
     double tick_spacing = -infinity; /* slider tick spacing */
@@ -2366,11 +2367,16 @@ int32_t d_taiko(struct diff_calc* d, uint32_t mods)
                 t = &b->timing_points[tindex];
 
                 sv_multiplier = 1.0;
-                if (!t->change && t->ms_per_beat < 0) {
+
+                if (t->change) {
+                    ms_per_beat = t->ms_per_beat;
+                }
+
+                else if (t->ms_per_beat < 0) {
                     sv_multiplier = -100.0 / t->ms_per_beat;
                 }
 
-                beat_len = t->ms_per_beat;
+                beat_len = ms_per_beat;
 
                 /* format-specific quirk */
                 if (b->format_version < 8) {
