@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 4
+#define OPPAI_VERSION_PATCH 5
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -832,6 +832,9 @@ void mods_apply(uint32_t mods,
 /* ------------------------------------------------------------- */
 /* beatmap                                                       */
 
+/* TODO: somehow merge this with diff calc or beatmap parse
+   so it doesn't waste another loop tracking timing points. */
+internalfn
 int32_t b_max_combo(struct beatmap* b)
 {
     int32_t res = b->nobjects;
@@ -840,16 +843,23 @@ int32_t b_max_combo(struct beatmap* b)
     double infinity = strtod("inf", 0);
     double tnext = -infinity;
     int32_t tindex = -1;
-    double px_per_beat = infinity;
+
+    double px_per_beat = infinity; /* for std sliders */
+
+    /* taiko */
+    double ms_per_beat = 0; /* last timing change */
+    double beat_len = infinity; /* beat spacing */
+    double duration = 0; /* duration of the hit object */
+    double tick_spacing = -infinity; /* slider tick spacing */
 
     if (!b->ntiming_points) {
         info("beatmap has no timing points\n");
         return ERR_FORMAT;
     }
 
-    /* apparently spinners in taiko don't add combo */
+    /* spinners don't give combo in taiko */
     if (b->mode == MODE_TAIKO) {
-        res -= b->nspinners;
+        res -= b->nspinners + b->nsliders;
     }
 
     /* slider ticks */
@@ -863,6 +873,8 @@ int32_t b_max_combo(struct beatmap* b)
         if (!(o->type & OBJ_SLIDER)) {
             continue;
         }
+
+        sl = (struct slider*)o->pdata;
 
         /* keep track of the current timing point without searching
            the entire array for every object.
@@ -887,10 +899,58 @@ int32_t b_max_combo(struct beatmap* b)
                 sv_multiplier = -100.0 / t->ms_per_beat;
             }
 
-            px_per_beat = b->sv * 100.0 * sv_multiplier;
+            switch (b->mode)
+            {
+            case MODE_STD:
+                px_per_beat = b->sv * 100.0 * sv_multiplier;
+                break;
+
+            case MODE_TAIKO:
+            {
+                /* see d_taiko for details on what this does */
+                double velocity;
+
+                if (t->change) {
+                    ms_per_beat = t->ms_per_beat;
+                }
+
+                beat_len = ms_per_beat;
+
+                if (b->format_version < 8) {
+                    beat_len *= sv_multiplier;
+                }
+
+                velocity = 100.0 * b->sv / beat_len;
+                duration = sl->distance * sl->repetitions
+                    / velocity;
+
+                tick_spacing =
+                    mymin(
+                        beat_len / b->tick_rate,
+                        duration / sl->repetitions
+                    );
+                break;
+            }
+
+            default:
+                return ERR_NOTIMPLEMENTED;
+            }
         }
 
-        sl = (struct slider*)o->pdata;
+        if (b->mode == MODE_TAIKO)
+        {
+            if (tick_spacing <= 0 || duration >= 2 * beat_len) {
+                continue;
+            }
+
+            res += (int32_t)ceil(
+                (duration + tick_spacing / 8) / tick_spacing
+            );
+
+            continue;
+        }
+
+        /* std slider ticks */
         num_beats = (sl->distance * sl->repetitions) / px_per_beat;
 
         /* sliders get 2 + ticks combo (head, tail and ticks)
