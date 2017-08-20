@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 9
+#define OPPAI_VERSION_PATCH 10
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -197,10 +197,15 @@ struct slice
     char* end; /* *(end - 1) is the last character */
 };
 
+#define PARSER_OVERRIDE_MODE ((uint32_t)1<<0) /* mode_override */
+
 /* beatmap parser's state */
 struct parser
 {
     int magic_found;
+
+    int32_t flags;
+    int32_t mode_override;
 
     /* if a parsing error occurs last line and portion of the line
        that was being parsed are stored in these two slices */
@@ -1287,7 +1292,12 @@ int32_t p_general(struct parser* pa, struct slice* line)
 
     if (!slice_cmp(&name, "Mode"))
     {
-        sscanf(value.start, "%d", &pa->b->mode);
+        if (pa->flags & PARSER_OVERRIDE_MODE) {
+            pa->b->mode = pa->mode_override;
+        }
+        else if (sscanf(value.start, "%d", &pa->b->mode) != 1) {
+            return parse_err(SYNTAX, value);
+        }
 
         switch (pa->b->mode)
         {
