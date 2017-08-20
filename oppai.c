@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 6
+#define OPPAI_VERSION_PATCH 7
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -1967,12 +1967,11 @@ int dbl_desc(void const* a, void const* b)
 internalfn
 int32_t d_update_max_strains(struct diff_calc* d,
     double decay_base, double cur_time, double prev_time,
-    double cur_strain, double prev_strain)
+    double cur_strain, double prev_strain, int first_obj)
 {
     /* make previous peak strain decay until the current obj */
     while (cur_time > d->interval_end)
     {
-        double decay;
         void* p;
 
         p = m_push(&d->highest_strains,
@@ -1981,10 +1980,17 @@ int32_t d_update_max_strains(struct diff_calc* d,
             return ERR_OOM;
         }
 
-        decay = pow(decay_base,
-            (d->interval_end - prev_time) / 1000.0);
+        if (first_obj) {
+            d->max_strain = 0;
+        }
+        else
+        {
+            double decay;
+            decay = pow(decay_base,
+                (d->interval_end - prev_time) / 1000.0);
+            d->max_strain = prev_strain * decay;
+        }
 
-        d->max_strain = prev_strain * decay;
         d->interval_end += STRAIN_STEP * d->speed_mul;
     }
 
@@ -2029,17 +2035,24 @@ int32_t d_calc_individual(uint8_t type, struct diff_calc* d,
 
     d->highest_strains.top = 0;
 
-    for (i = 1; i < d->b->nobjects; ++i)
+    for (i = 0; i < d->b->nobjects; ++i)
     {
         int32_t result;
         struct object* o = &d->b->objects[i];
-        struct object* prev = &d->b->objects[i - 1];
+        struct object* prev = 0;
+        double prev_time = 0, prev_strain = 0;
 
-        d_calc_strain(type, o, prev, d->speed_mul);
+        if (i > 0)
+        {
+            prev = &d->b->objects[i - 1];
+            d_calc_strain(type, o, prev, d->speed_mul);
+            prev_time = prev->time;
+            prev_strain = prev->strains[type];
+        }
 
         result = d_update_max_strains(d, decay_base[type],
-            o->time, prev->time, o->strains[type],
-            prev->strains[type]);
+            o->time, prev_time, o->strains[type], prev_strain,
+            i == 0);
 
         if (result < 0) {
             return result;
@@ -2228,7 +2241,7 @@ double taiko_rhythm_bonus(struct taiko_object* cur,
 
 internalfn
 void taiko_strain(struct taiko_object* cur,
-    struct taiko_object* prev, double speed_mul)
+    struct taiko_object* prev)
 {
     double decay;
     double addition = 1;
@@ -2402,17 +2415,17 @@ int32_t d_taiko(struct diff_calc* d, uint32_t mods)
                 cur->last_switch_even = -1;
 
                 /* update strains for this hit */
-                if (i > 0)
-                {
-                    taiko_strain(cur, prev, mapstats.speed);
+                if (i > 0 || j > o->time) {
+                    taiko_strain(cur, prev);
+                }
 
-                    result = d_update_max_strains(d, decay_base[0],
-                        cur->time, prev->time, cur->strain,
-                        prev->strain);
+                result = d_update_max_strains(d, decay_base[0],
+                    cur->time, prev->time, cur->strain,
+                    prev->strain, i == 0 && j == o->time);
+                /* warning: j check might fail, doublecheck this */
 
-                    if (result < 0) {
-                        return result;
-                    }
+                if (result < 0) {
+                    return result;
                 }
 
                 /* loop through the slider's sounds */
@@ -2430,16 +2443,16 @@ int32_t d_taiko(struct diff_calc* d, uint32_t mods)
 
 continue_loop:
         /* update strains for hits and other object types */
-        if (i > 0)
-        {
-            taiko_strain(cur, prev, mapstats.speed);
+        if (i > 0) {
+            taiko_strain(cur, prev);
+        }
 
-            result = d_update_max_strains(d, decay_base[0],
-                cur->time, prev->time, cur->strain, prev->strain);
+        result = d_update_max_strains(d, decay_base[0],
+            cur->time, prev->time, cur->strain, prev->strain,
+            i == 0);
 
-            if (result < 0) {
-                return result;
-            }
+        if (result < 0) {
+            return result;
         }
 
         swap_ptrs((void**)&prev, (void**)&cur);
