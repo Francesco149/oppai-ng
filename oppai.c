@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 2
+#define OPPAI_VERSION_PATCH 3
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -264,6 +264,7 @@ struct beatmap_stats
 {
     float ar, od, cs, hp;
     float speed; /* multiplier */
+    float odms;
 };
 
 /* flags bits for mods_apply */
@@ -277,13 +278,19 @@ struct beatmap_stats
    contain the base stats. flags specifies which stats are touched.
    initial speed will always be automatically set to 1
 
+   returns 0 on success, or < 0 for errors
+
    example:
 
        struct beatmap_stats s;
        s.ar = 9;
-       mods_apply(MODS_DT, &s, APPLY_AR);
+       mods_apply_m(MODE_STD, MODS_DT, &s, APPLY_AR);
        // s.ar is now 10.33, s.speed is now 1.5
 */
+int32_t mods_apply_m(uint32_t mode, uint32_t mods,
+    struct beatmap_stats* s, uint32_t flags);
+
+/* legacy function, calls mods_apply(MODE_STD, mods, s, flags) */
 void mods_apply(uint32_t mods,
     struct beatmap_stats* s, uint32_t flags);
 
@@ -682,25 +689,39 @@ void* m_at(struct memstack* m, int32_t off)
 /* ------------------------------------------------------------- */
 /* mods                                                          */
 
-#define OD0_MS 79.5f
-#define OD10_MS 19.5f
+float const od10_ms[] = { 19.5f, 19.5f }; /* std, taiko */
+float const od0_ms[] = { 79.5f, 49.5f };
 #define AR0_MS 1800.f
 #define AR5_MS 1200.f
 #define AR10_MS 450.f
 
-#define OD_MS_STEP 6.f
+float const od_ms_step[] = { 6.f, 3.f };
 #define AR_MS_STEP1 120.f /* ar0-5 */
 #define AR_MS_STEP2 150.f /* ar5-10 */
 
-void mods_apply(uint32_t mods,
+int32_t mods_apply_m(uint32_t mode, uint32_t mods,
     struct beatmap_stats* s, uint32_t flags)
 {
     float od_ar_hp_multiplier;
 
+    switch (mode)
+    {
+    case MODE_STD:
+    case MODE_TAIKO:
+        break;
+
+    default:
+        info("this gamemode is not yet supported for mods calc\n");
+        return ERR_NOTIMPLEMENTED;
+    }
+
     s->speed = 1.f;
 
-    if (!(mods & MODS_MAP_CHANGING)) {
-        return;
+    if (!(mods & MODS_MAP_CHANGING))
+    {
+        uint32_t m = mode;
+        s->odms = od0_ms[m] - (float)ceil(od_ms_step[m] * s->od);
+        return 0;
     }
 
     /* speed */
@@ -713,7 +734,7 @@ void mods_apply(uint32_t mods,
     }
 
     if (!flags) {
-        return;
+        return 0;
     }
 
     /* global multipliers */
@@ -730,17 +751,18 @@ void mods_apply(uint32_t mods,
     /* od */
     if (flags & APPLY_OD)
     {
-        float odms;
+        uint32_t m = mode;
 
         s->od *= od_ar_hp_multiplier;
-        odms = OD0_MS - (float)ceil(OD_MS_STEP * s->od);
+        s->odms = od0_ms[m] - (float)ceil(od_ms_step[m] * s->od);
 
         /* stats must be capped to 0-10 before HT/DT which brings
            them to a range of -4.42 to 11.08 for OD and -5 to 11
            for AR */
-        odms = mymin(OD0_MS, mymax(OD10_MS, odms));
-        odms /= s->speed; /* apply speed-changing mods */
-        s->od = (OD0_MS - odms) / OD_MS_STEP; /* back to stat */
+        s->odms = mymin(od0_ms[m], mymax(od10_ms[m], s->odms));
+        s->odms /= s->speed; /* apply speed-changing mods */
+        s->od = (od0_ms[m] - s->odms) / od_ms_step[m];
+        /* back to stat */
     }
 
     /* ar */
@@ -783,6 +805,18 @@ void mods_apply(uint32_t mods,
     /* hp */
     if (flags & APPLY_HP) {
         s->hp = mymin(s->hp * od_ar_hp_multiplier, 10);
+    }
+
+    return 0;
+}
+
+void mods_apply(uint32_t mods,
+    struct beatmap_stats* s, uint32_t flags)
+{
+    int32_t n;
+    n = mods_apply_m(MODE_STD, mods, s, flags);
+    if (n < 0) {
+        info("W: mods_apply failed: %s\n", errstr(n));
     }
 }
 
