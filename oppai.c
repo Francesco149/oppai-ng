@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 5
+#define OPPAI_VERSION_PATCH 6
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -1017,10 +1017,9 @@ void p_reset(struct parser* pa, struct beatmap* b)
 
     if (b)
     {
-        b->nobjects = 0;
-        b->ncircles = 0;
-        b->nsliders = 0;
-        b->nspinners = 0;
+        memset(b, 0, sizeof(struct beatmap));
+        b->ar = b->cs = b->hp = b->od = 5.0f;
+        b->sv = b->tick_rate = 1.0;
     }
 }
 
