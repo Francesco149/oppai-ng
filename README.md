@@ -4,9 +4,8 @@ difficulty and pp calculator for osu!
 
 this is a pure C89 rewrite of
 [oppai](https://github.com/Francesco149/oppai) with much lower
-memory usage (~4-6x less), smaller and easier to read codebase
-(~5 times less code), executable size (~7x smaller on linux),
-~45% better performance and slightly faster compile time.
+memory usage, smaller and easier to read codebase
+executable size and better performance.
 
 experimental taiko support is now available and appears to give
 correct values for actual taiko maps. converted maps are still
