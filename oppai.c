@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 16
+#define OPPAI_VERSION_PATCH 17
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -1582,6 +1582,12 @@ int32_t p_objects(struct parser* pa, struct slice* line)
                     pa->lastpos = p;
                     return n;
                 }
+
+                if (p.start >= p.end) {
+                    break;
+                }
+
+                p.start += n + 1;
 
                 if (sscanf(node.start, "%u", &tmp_sound_type) != 1)
                     return parse_err(SYNTAX, node);
