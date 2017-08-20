@@ -9,3 +9,5 @@ tags
 *.swp
 /test/test_suite
 /test/oppai_test
+*.o
+*.so
