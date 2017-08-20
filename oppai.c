@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 13
+#define OPPAI_VERSION_PATCH 14
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -2891,19 +2891,20 @@ int32_t ppv2(struct pp_calc* pp, uint32_t mode, double aim,
     uint16_t nsliders, uint16_t ncircles, uint16_t nobjects,
     uint32_t mods)
 {
-    switch (mode)
-    {
-    case MODE_STD:
-        return ppv2x(pp, aim, speed, base_ar, base_od,
-            max_combo, nsliders, ncircles, nobjects, mods,
-            max_combo, nobjects, 0, 0, 0, PP_DEFAULT_SCORING);
+    struct pp_params params;
 
-    case MODE_TAIKO:
-        return taiko_ppv2(pp, speed, max_combo, base_od, mods);
-    }
+    pp_init(&params);
+    params.mode = mode;
+    params.aim = aim, params.speed = speed;
+    params.base_ar = base_ar;
+    params.base_od = base_od;
+    params.max_combo = max_combo;
+    params.nsliders = nsliders;
+    params.ncircles = ncircles;
+    params.nobjects = nobjects;
+    params.mods = mods;
 
-    info("this mode is not yet supported for ppv2\n");
-    return ERR_NOTIMPLEMENTED;
+    return ppv2p(pp, &params);
 }
 
 int32_t ppv2p(struct pp_calc* pp, struct pp_params* p)
@@ -2932,26 +2933,25 @@ int32_t ppv2p(struct pp_calc* pp, struct pp_params* p)
 int32_t b_ppv2(struct beatmap* map, struct pp_calc* pp,
     double aim, double speed, uint32_t mods)
 {
+    struct pp_params params;
+
     int32_t max_combo = b_max_combo(map);
     if (max_combo < 0) {
         return max_combo;
     }
 
-    switch (map->mode)
-    {
-    case MODE_STD:
-        return ppv2x(pp, aim, speed, map->ar, map->od, max_combo,
-            map->nsliders, map->ncircles, (uint16_t)map->nobjects,
-            mods, max_combo, (uint16_t)map->nobjects, 0, 0, 0,
-            PP_DEFAULT_SCORING);
+    pp_init(&params);
+    params.mode = map->mode;
+    params.aim = aim, params.speed = speed;
+    params.base_ar = map->ar;
+    params.base_od = map->od;
+    params.max_combo = max_combo;
+    params.nsliders = map->nsliders;
+    params.ncircles = map->ncircles;
+    params.nobjects = map->nobjects;
+    params.mods = mods;
 
-    case MODE_TAIKO:
-        return taiko_ppv2x(pp, speed, max_combo, map->od, 0, 0,
-            max_combo, mods);
-    }
-
-    info("this mode is not yet supported for b_ppv2\n");
-    return ERR_NOTIMPLEMENTED;
+    return ppv2p(pp, &params);
 }
 
 int32_t b_ppv2p(struct beatmap* map, struct pp_calc* pp,
