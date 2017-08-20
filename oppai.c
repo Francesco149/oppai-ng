@@ -2926,9 +2926,9 @@ int32_t ppv2p(struct pp_calc* pp, struct pp_params* p)
     {
     case MODE_STD:
         return ppv2x(pp, p->aim, p->speed, p->base_ar, p->base_od,
-            p->max_combo, p->nsliders, p->ncircles, p->nobjects,
-            p->mods, p->combo, p->n300, p->n100, p->n50, p->nmiss,
-            p->score_version);
+            p->max_combo, p->nsliders, p->ncircles,
+            (uint16_t)p->nobjects, p->mods, p->combo, p->n300,
+            p->n100, p->n50, p->nmiss, p->score_version);
 
     case MODE_TAIKO:
         return taiko_ppv2x(pp, p->speed, p->max_combo, p->base_od,
@@ -2957,7 +2957,7 @@ int32_t b_ppv2(struct beatmap* map, struct pp_calc* pp,
     params.max_combo = max_combo;
     params.nsliders = map->nsliders;
     params.ncircles = map->ncircles;
-    params.nobjects = map->nobjects;
+    params.nobjects = (uint16_t)map->nobjects;
     params.mods = mods;
 
     return ppv2p(pp, &params);
