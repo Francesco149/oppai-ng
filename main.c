@@ -193,13 +193,13 @@ output_sig(output_text)
     printf("%hu circles, %hu sliders, %hu spinners\n",
         map->ncircles, map->nsliders, map->nspinners);
 
-    printf("%d/%dx\n", params->combo, params->max_combo);
-
     /* -1 because first object can't be evaluated */
     total_objs = map->ncircles + map->nsliders - 1;
 
     if (map->mode == MODE_STD)
     {
+        printf("%d/%dx\n", params->combo, params->max_combo);
+
         printf("%hu spacing singletaps (%g%%)\n", stars->nsingles,
             stars->nsingles / (double)total_objs * 100.0);
 
@@ -212,7 +212,9 @@ output_sig(output_text)
         printf("%g stars (%g aim, %g speed)\n", stars->total,
             stars->aim, stars->speed);
     }
-    else {
+    else
+    {
+        printf("%d max combo\n", params->max_combo);
         printf("%g stars\n", stars->total);
     }
 

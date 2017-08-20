@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 15
+#define OPPAI_VERSION_PATCH 16
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -2777,7 +2777,7 @@ int32_t ppv2x(struct pp_calc* pp, double aim,
 internalfn
 int32_t taiko_ppv2x(struct pp_calc* pp, double stars,
     uint16_t max_combo, float base_od, uint16_t n150,
-    uint16_t nmiss, uint16_t combo, uint32_t mods)
+    uint16_t nmiss, uint32_t mods)
 {
     struct beatmap_stats mapstats;
     uint16_t n300 = max_combo - n150 - nmiss;
@@ -2817,7 +2817,11 @@ int32_t taiko_ppv2x(struct pp_calc* pp, double stars,
     if (max_combo > 0)
     {
         pp->speed *=
-            mymin(pow(combo, 0.5) / pow(max_combo, 0.5), 1.0);
+            mymin(
+                pow(max_combo - nmiss, 0.5) /
+                    pow(max_combo, 0.5),
+                1.0
+            );
     }
     */
 
@@ -2856,8 +2860,7 @@ int32_t taiko_ppv2x(struct pp_calc* pp, double stars,
 int32_t taiko_ppv2(struct pp_calc* pp, double speed,
     uint16_t max_combo, float base_od, uint32_t mods)
 {
-    return taiko_ppv2x(pp, speed, max_combo, base_od, 0, 0,
-        max_combo, mods);
+    return taiko_ppv2x(pp, speed, max_combo, base_od, 0, 0, mods);
 }
 
 /* ------------------------------------------------------------- */
@@ -2923,7 +2926,7 @@ int32_t ppv2p(struct pp_calc* pp, struct pp_params* p)
 
     case MODE_TAIKO:
         return taiko_ppv2x(pp, p->speed, p->max_combo, p->base_od,
-            p->n100, p->nmiss, p->combo, p->mods);
+            p->n100, p->nmiss, p->mods);
     }
 
     info("this mode is not yet supported for ppv2p\n");
