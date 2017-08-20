@@ -182,8 +182,14 @@ you can expect oppai memory usage to be under 4 mb most of the time
 with the raw parsed beatmap data not taking more than ~800k even
 for a 15 minute marathon.
 
-the codebase has ~5x less lines than legacy oppai, making it easy
-to read and use as a single header library
+the codebase has ~3-4x less lines than legacy oppai, making it easy
+to read and use as a single header library. not only it is smaller,
+but it now also implements both taiko and osu, so more features
+than legacy oppai.
+
+the osu! pp and diff calc alone would be around ~3k LOC including
+the cli, which would be 5x less lines than legacy oppai for the
+same functionality.
 
 ```sh
 $ cd ~/src/oppai
@@ -209,14 +215,14 @@ $ sloc *.c
 
 ---------- Result ------------
 
-            Physical :  3332
-              Source :  2349
-             Comment :  393
+            Physical :  4123
+              Source :  2906
+             Comment :  492
  Single-line comment :  1
-       Block comment :  392
-               Mixed :  49
-               Empty :  659
-               To Do :  6
+       Block comment :  491
+               Mixed :  64
+               Empty :  811
+               To Do :  9
 
 Number of files read :  2
 
