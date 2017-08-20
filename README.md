@@ -9,8 +9,9 @@ executable size and better performance.
 
 experimental taiko support is now available and appears to give
 correct values for actual taiko maps. converted maps are still
-unreliable and might be completely off (use ```-m1``` or
-```-taiko``` to convert a std map to taiko).
+unreliable due to incorrect slider conversion and might be
+completely off (use ```-m1``` or ```-taiko``` to convert a std map
+to taiko).
 
 - [installing (linux)](#installing-linux)
 - [installing (windows)](#installing-windows)
