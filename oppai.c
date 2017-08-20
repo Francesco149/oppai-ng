@@ -2853,6 +2853,13 @@ int32_t taiko_ppv2x(struct pp_calc* pp, double stars,
     return 0;
 }
 
+int32_t taiko_ppv2(struct pp_calc* pp, double speed,
+    uint16_t max_combo, float base_od, uint32_t mods)
+{
+    return taiko_ppv2x(pp, speed, max_combo, base_od, 0, 0,
+        max_combo, mods);
+}
+
 /* ------------------------------------------------------------- */
 /* common pp calc stuff                                          */
 
@@ -2877,13 +2884,6 @@ void pp_handle_default_params(struct pp_params* p)
     if (p->n300 == 0xFFFF) {
         p->n300 = p->nobjects - p->n100 - p->n50 - p->nmiss;
     }
-}
-
-int32_t taiko_ppv2(struct pp_calc* pp, double speed,
-    uint16_t max_combo, float base_od, uint32_t mods)
-{
-    return taiko_ppv2x(pp, speed, max_combo, base_od, 0, 0,
-        max_combo, mods);
 }
 
 int32_t ppv2(struct pp_calc* pp, uint32_t mode, double aim,
