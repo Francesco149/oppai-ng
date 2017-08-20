@@ -8,6 +8,11 @@ memory usage (~4-6x less), smaller and easier to read codebase
 (~5 times less code), executable size (~7x smaller on linux),
 ~45% better performance and slightly faster compile time.
 
+experimental taiko support is now available and appears to give
+correct values for actual taiko maps. converted maps are still
+unreliable and might be completely off (use ```-m1``` or
+```-taiko``` to convert a std map to taiko).
+
 - [installing (linux)](#installing-linux)
 - [installing (windows)](#installing-windows)
 - [installing (osx)](#installing-osx)
