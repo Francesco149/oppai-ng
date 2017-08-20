@@ -157,8 +157,14 @@ output_sig(output_text)
     stars->aim = twodec(stars->aim);
     stars->speed = twodec(stars->speed);
 
-    printf("AR%g OD%g CS%g HP%g\n", mapstats->ar, mapstats->od,
-        mapstats->cs, mapstats->hp);
+    printf("AR%g OD%g ", mapstats->ar, mapstats->od);
+
+    if (map->mode == MODE_STD) {
+        printf("CS%g ", mapstats->cs);
+    }
+
+    printf("HP%g\n", mapstats->hp);
+    printf("300 hitwindow: %g ms\n", mapstats->odms);
 
     printf("%hu circles, %hu sliders, %hu spinners\n",
         map->ncircles, map->nsliders, map->nspinners);
@@ -168,20 +174,30 @@ output_sig(output_text)
     /* -1 because first object can't be evaluated */
     total_objs = map->ncircles + map->nsliders - 1;
 
-    printf("%hu spacing singletaps (%g%%)\n", stars->nsingles,
-        stars->nsingles / (double)total_objs * 100.0);
+    if (map->mode == MODE_STD)
+    {
+        printf("%hu spacing singletaps (%g%%)\n", stars->nsingles,
+            stars->nsingles / (double)total_objs * 100.0);
 
-    printf("%hu notes within singletap bpm threshold (%g%%)\n",
-        stars->nsingles_threshold,
-        stars->nsingles_threshold / (double)total_objs * 100.0);
+        printf("%hu notes within singletap bpm threshold (%g%%)\n",
+            stars->nsingles_threshold,
+            stars->nsingles_threshold/(double)total_objs * 100.0);
 
-    puts("");
+        puts("");
 
-    printf("%g stars (%g aim, %g speed)\n", stars->total,
-        stars->aim, stars->speed);
+        printf("%g stars (%g aim, %g speed)\n", stars->total,
+            stars->aim, stars->speed);
+    }
+    else {
+        printf("%g stars\n", stars->total);
+    }
 
     printf("%g%%\n", twodec(pp->accuracy * 100));
-    printf("%g aim pp\n", twodec(pp->aim));
+
+    if (map->mode == MODE_STD) {
+        printf("%g aim pp\n", twodec(pp->aim));
+    }
+
     printf("%g speed pp\n", twodec(pp->speed));
     printf("%g acc pp\n\n", twodec(pp->acc));
     printf("%g pp\n", twodec(pp->total));
