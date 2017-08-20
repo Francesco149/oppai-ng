@@ -5,7 +5,7 @@ dir=$(dirname $0)
 git pull origin master
 
 echo -e "\nCompiling and Stripping"
-. "$dir"/build -static -no-pie || exit 1
+make clean && make release
 
 echo -e "\nPackaging"
 folder="oppai-$(./oppai -version)-"
@@ -31,3 +31,4 @@ ldd "$folder"/oppai
 
 rm -rf "$folder"
 
+echo -e "\nDone"
