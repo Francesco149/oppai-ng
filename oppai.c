@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 18
+#define OPPAI_VERSION_PATCH 19
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -99,11 +99,11 @@ char const* errstr(int32_t err);
 #define OBJ_SLIDER (1<<1)
 #define OBJ_SPINNER (1<<3)
 
-#define SOUND_NONE ((uint8_t)0)
-#define SOUND_NORMAL ((uint8_t)1<<0)
-#define SOUND_WHISTLE ((uint8_t)1<<1)
-#define SOUND_FINISH ((uint8_t)1<<2)
-#define SOUND_CLAP ((uint8_t)1<<3)
+#define SOUND_NONE 0
+#define SOUND_NORMAL (1<<0)
+#define SOUND_WHISTLE (1<<1)
+#define SOUND_FINISH (1<<2)
+#define SOUND_CLAP (1<<3)
 
 /* data about a single hitobject */
 struct object
