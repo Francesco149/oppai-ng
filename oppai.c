@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 19
+#define OPPAI_VERSION_PATCH 20
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -2665,11 +2665,11 @@ int32_t ppv2x(struct pp_calc* pp, double aim,
         case 1:
             /* scorev1 ignores sliders since they are free 300s */
             /* apparently it also ignores spinners... */
-            real_acc = acc_calc(n300 - nsliders - nspinners,
-                n100, n50, nmiss);
-
             /* can go negative if we miss everything */
-            real_acc = mymax(0.0, real_acc);
+            real_acc = acc_calc(
+                mymax(0, (int32_t)n300 - nsliders - nspinners),
+                n100, n50, nmiss
+            );
             break;
 
         case 2:
