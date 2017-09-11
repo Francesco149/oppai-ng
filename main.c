@@ -1025,11 +1025,8 @@ int main(int argc, char* argv[])
             m(NOMOD)
 #undef m
 
-            if (mods != MODS_NOMOD)
-            {
-                mods_str = a + 1;
-                continue;
-            }
+            mods_str = a + 1;
+            continue;
         }
 
         info(">%s\n", a);
