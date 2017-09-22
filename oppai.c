@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 21
+#define OPPAI_VERSION_PATCH 22
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -2796,7 +2796,8 @@ int32_t taiko_ppv2x(struct pp_calc* pp, double stars,
     uint16_t nmiss, uint32_t mods)
 {
     struct beatmap_stats mapstats;
-    uint16_t n300 = (uint16_t)max_combo - n150 - nmiss;
+    uint16_t n300 = (uint16_t)
+        mymax(0, (int)max_combo - n150 - nmiss);
     int32_t result;
     double length_bonus;
     double final_multiplier;
