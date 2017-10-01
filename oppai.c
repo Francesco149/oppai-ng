@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 23
+#define OPPAI_VERSION_PATCH 24
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -2396,7 +2396,7 @@ int32_t d_taiko(struct diff_calc* d, uint32_t mods)
             /* TODO: see if it's possible to make some generic
                timing point iterator to avoid duplicate code for
                this and b_max_combo */
-            while (o->time >= tnext)
+            while (o->time > tnext)
             {
                 double sv_multiplier;
                 double velocity;
@@ -2422,16 +2422,16 @@ int32_t d_taiko(struct diff_calc* d, uint32_t mods)
                     sv_multiplier = -100.0 / t->ms_per_beat;
                 }
 
-                beat_len = ms_per_beat;
+                beat_len = ms_per_beat / sv_multiplier;
+                velocity = 100.0 * b->sv / beat_len;
 
                 /* format-specific quirk */
-                if (b->format_version < 8) {
+                if (b->format_version >= 8) {
                     beat_len *= sv_multiplier;
                 }
 
                 /* this is similar to what we do in b_max_combo
                    with px_per_beat */
-                velocity = 100.0 * b->sv / beat_len;
                 duration = sl->distance * sl->repetitions
                     / velocity;
 
