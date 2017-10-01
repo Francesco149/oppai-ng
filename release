@@ -9,7 +9,7 @@ echo -e "\nCompiling and Stripping"
 
 echo -e "\nPackaging"
 folder="oppai-$(./oppai -version)-"
-folder="${folder}$(uname | tr '[:upper:]' '[:lower:]')-$(uname -m)"
+folder="${folder}$(gcc -dumpmachine)"
 
 mkdir -p "$folder"
 mv ./oppai $folder/oppai
