@@ -2,10 +2,12 @@
 
 dir=$(dirname $0)
 
+olddir=$(pwd)
+cd $dir
 git pull origin master
 
 echo -e "\nCompiling and Stripping"
-. "$dir"/build -static -no-pie || exit 1
+./build -static -no-pie || exit 1
 
 echo -e "\nPackaging"
 folder="oppai-$(./oppai -version)-"
@@ -30,4 +32,5 @@ readelf --dynamic "$folder"/oppai
 ldd "$folder"/oppai
 
 rm -rf "$folder"
+cd $olddir
 
