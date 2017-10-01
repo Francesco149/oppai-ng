@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 22
+#define OPPAI_VERSION_PATCH 23
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -160,6 +160,7 @@ struct beatmap
 {
     int32_t format_version;
     int32_t mode;
+    int32_t original_mode; /* the mode the beatmap was meant for */
 
     char* title;
     char* title_unicode;
@@ -932,6 +933,11 @@ int32_t b_max_combo(struct beatmap* b)
                 /* see d_taiko for details on what this does */
                 double velocity;
 
+                if (b->original_mode == MODE_TAIKO) {
+                    /* no slider conversion for taiko -> taiko */
+                    continue;
+                }
+
                 if (t->change) {
                     ms_per_beat = t->ms_per_beat;
                 }
@@ -1302,11 +1308,14 @@ int32_t p_general(struct parser* pa, struct slice* line)
 
     if (!slice_cmp(&name, "Mode"))
     {
+        if (sscanf(value.start, "%d", &pa->b->original_mode) != 1){
+            return parse_err(SYNTAX, value);
+        }
+
         if (pa->flags & PARSER_OVERRIDE_MODE) {
             pa->b->mode = pa->mode_override;
-        }
-        else if (sscanf(value.start, "%d", &pa->b->mode) != 1) {
-            return parse_err(SYNTAX, value);
+        } else {
+            pa->b->mode = pa->b->original_mode;
         }
 
         switch (pa->b->mode)
@@ -2371,6 +2380,10 @@ int32_t d_taiko(struct diff_calc* d, uint32_t mods)
 
         cur->rim = (*o->sound_types &
             (SOUND_CLAP|SOUND_WHISTLE)) != 0;
+
+        if (b->original_mode == MODE_TAIKO) {
+            goto continue_loop;
+        }
 
         if (o->type & OBJ_SLIDER)
         {
