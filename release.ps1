@@ -5,7 +5,7 @@
 
 $dir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 
-pushd "$dir"
+Push-Location "$dir"
 git pull origin master
 
 Write-Host ""
@@ -23,9 +23,9 @@ $folder = $folder + $Matches[2]
 mkdir $folder
 Move-Item oppai.exe $folder
 git archive HEAD --prefix=src\ -o $folder\src.zip
-cd $folder
+Set-Location $folder
 &7z x src.zip
-cd ..
+Set-Location ..
 
 if (Test-Path "$folder.zip") {
     Remove-Item "$folder.zip"
@@ -39,4 +39,4 @@ Write-Host "> Result:" -Foreground Yellow -Background Black
 &7z l "$folder.zip"
 
 Remove-Item $folder -Force -Recurse
-popd
+Pop-Location
