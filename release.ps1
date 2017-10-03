@@ -21,7 +21,7 @@ $clout = &cl 2>&1
 "$clout" -match "^(Microsoft.*for )([a-z0-9\-_]+)" | Out-Null
 $folder = $folder + $Matches[2]
 mkdir $folder
-Move-Item oppai.exe $folder
+Copy-Item oppai.exe $folder
 git archive HEAD --prefix=src\ -o $folder\src.zip
 Set-Location $folder
 &7z x src.zip
