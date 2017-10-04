@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 24
+#define OPPAI_VERSION_PATCH 25
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -752,7 +752,11 @@ int32_t mods_apply_m(uint32_t mode, uint32_t mods,
     if (!(mods & MODS_MAP_CHANGING))
     {
         uint32_t m = mode;
-        s->odms = od0_ms[m] - (float)ceil(od_ms_step[m] * s->od);
+        if (flags & APPLY_OD)
+        {
+            s->odms = od0_ms[m] -
+                (float)ceil(od_ms_step[m] * s->od);
+        }
         return 0;
     }
 
