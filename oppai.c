@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 25
+#define OPPAI_VERSION_PATCH 26
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -1452,6 +1452,7 @@ int32_t p_objects(struct parser* pa, struct slice* line)
     struct slice elements[11];
     uint32_t tmp_type;
 
+    memset(&obj.strains, 0, sizeof(obj.strains));
     obj.is_single = 0;
     obj.nsound_types = 0;
     obj.sound_types = 0;
