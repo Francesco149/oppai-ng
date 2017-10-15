@@ -8,8 +8,6 @@
 #define OPPAI_IMPLEMENTATION
 #include "oppai.c"
 
-#include <float.h>
-
 #define STRINGIFY_(x) #x
 #define STRINGIFY(x) STRINGIFY_(x)
 
@@ -278,7 +276,7 @@ internalfn
 void fix_json_dbl(double* v)
 {
     if (is_inf(*v)) {
-        *v = DBL_MAX;
+        *v = -1;
     }
 
     if (is_nan(*v)) {
