@@ -2,6 +2,7 @@
 
 cflags="-std=c89 -pedantic"
 cflags="$cflags -O3"
+cflags="$cflags -fno-strict-aliasing"
 cflags="$cflags -Wno-variadic-macros -Wno-long-long -Wall"
 cflags="$cflags -ffunction-sections -fdata-sections"
 cflags="$cflags -g0 -fno-unwind-tables -s"
