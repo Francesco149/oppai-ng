@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 19
+#define OPPAI_VERSION_PATCH 29
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -160,6 +160,7 @@ struct beatmap
 {
     int32_t format_version;
     int32_t mode;
+    int32_t original_mode; /* the mode the beatmap was meant for */
 
     char* title;
     char* title_unicode;
@@ -758,7 +759,11 @@ int32_t mods_apply_m(uint32_t mode, uint32_t mods,
     if (!(mods & MODS_MAP_CHANGING))
     {
         uint32_t m = mode;
-        s->odms = od0_ms[m] - (float)ceil(od_ms_step[m] * s->od);
+        if (flags & APPLY_OD)
+        {
+            s->odms = od0_ms[m] -
+                (float)ceil(od_ms_step[m] * s->od);
+        }
         return 0;
     }
 
@@ -932,12 +937,21 @@ int32_t b_max_combo(struct beatmap* b)
             {
             case MODE_STD:
                 px_per_beat = b->sv * 100.0 * sv_multiplier;
+
+                if (b->format_version < 8) {
+                    px_per_beat /= sv_multiplier;
+                }
                 break;
 
             case MODE_TAIKO:
             {
                 /* see d_taiko for details on what this does */
                 double velocity;
+
+                if (b->original_mode == MODE_TAIKO) {
+                    /* no slider conversion for taiko -> taiko */
+                    continue;
+                }
 
                 if (t->change) {
                     ms_per_beat = t->ms_per_beat;
@@ -1309,11 +1323,14 @@ int32_t p_general(struct parser* pa, struct slice* line)
 
     if (!slice_cmp(&name, "Mode"))
     {
+        if (sscanf(value.start, "%d", &pa->b->original_mode) != 1){
+            return parse_err(SYNTAX, value);
+        }
+
         if (pa->flags & PARSER_OVERRIDE_MODE) {
             pa->b->mode = pa->mode_override;
-        }
-        else if (sscanf(value.start, "%d", &pa->b->mode) != 1) {
-            return parse_err(SYNTAX, value);
+        } else {
+            pa->b->mode = pa->b->original_mode;
         }
 
         switch (pa->b->mode)
@@ -1446,6 +1463,7 @@ int32_t p_objects(struct parser* pa, struct slice* line)
     struct slice elements[11];
     uint32_t tmp_type;
 
+    memset(&obj.strains, 0, sizeof(obj.strains));
     obj.is_single = 0;
     obj.nsound_types = 0;
     obj.sound_types = 0;
@@ -1638,7 +1656,10 @@ int32_t p_line(struct parser* pa, struct slice* line)
 
     if (!pa->magic_found)
     {
-        if (sscanf(skip_bom(line->start), "osu file format v%d",
+        line->start = skip_bom(line->start);
+        slice_trim(line);
+
+        if (sscanf(line->start, "osu file format v%d",
             &pa->b->format_version) == 1)
         {
             pa->magic_found = 1;
@@ -2561,6 +2582,10 @@ int32_t d_taiko(struct diff_calc* d, uint32_t mods)
         cur->rim = (*o->sound_types &
             (SOUND_CLAP|SOUND_WHISTLE)) != 0;
 
+        if (b->original_mode == MODE_TAIKO) {
+            goto continue_loop;
+        }
+
         if (o->type & OBJ_SLIDER)
         {
             /* TODO: too much indentation, pull this out */
@@ -2572,7 +2597,7 @@ int32_t d_taiko(struct diff_calc* d, uint32_t mods)
             /* TODO: see if it's possible to make some generic
                timing point iterator to avoid duplicate code for
                this and b_max_combo */
-            while (o->time >= tnext)
+            while (o->time > tnext)
             {
                 double sv_multiplier;
                 double velocity;
@@ -2598,16 +2623,16 @@ int32_t d_taiko(struct diff_calc* d, uint32_t mods)
                     sv_multiplier = -100.0 / t->ms_per_beat;
                 }
 
-                beat_len = ms_per_beat;
+                beat_len = ms_per_beat / sv_multiplier;
+                velocity = 100.0 * b->sv / beat_len;
 
                 /* format-specific quirk */
-                if (b->format_version < 8) {
+                if (b->format_version >= 8) {
                     beat_len *= sv_multiplier;
                 }
 
                 /* this is similar to what we do in b_max_combo
                    with px_per_beat */
-                velocity = 100.0 * b->sv / beat_len;
                 duration = sl->distance * sl->repetitions
                     / velocity;
 
@@ -2854,11 +2879,11 @@ int32_t ppv2x(struct pp_calc* pp, double aim,
         case 1:
             /* scorev1 ignores sliders since they are free 300s */
             /* apparently it also ignores spinners... */
-            real_acc = acc_calc(n300 - nsliders - nspinners,
-                n100, n50, nmiss);
-
             /* can go negative if we miss everything */
-            real_acc = mymax(0.0, real_acc);
+            real_acc = acc_calc(
+                mymax(0, (int32_t)n300 - nsliders - nspinners),
+                n100, n50, nmiss
+            );
             break;
 
         case 2:
@@ -2985,7 +3010,8 @@ int32_t taiko_ppv2x(struct pp_calc* pp, double stars,
     uint16_t nmiss, uint32_t mods)
 {
     struct beatmap_stats mapstats;
-    uint16_t n300 = (uint16_t)max_combo - n150 - nmiss;
+    uint16_t n300 = (uint16_t)
+        mymax(0, (int)max_combo - n150 - nmiss);
     int32_t result;
     double length_bonus;
     double final_multiplier;

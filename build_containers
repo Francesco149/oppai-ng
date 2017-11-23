@@ -1,0 +1,10 @@
+#!/bin/sh
+
+dir=$(dirname $0)
+for d in $dir/docker/*
+do
+    bn=$(basename $d)
+    cp $d/Dockerfile .
+    docker build -t "oppai-ng:$bn" .
+    rm Dockerfile
+done
