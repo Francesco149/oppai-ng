@@ -48,6 +48,8 @@
 
 /* all structs are not thread safe, use one parser, diff_calc, etc
    instance per thread if you need to process maps in parallel */
+#define _CRT_SECURE_NO_WARNINGS
+#define OPPAI_IMPLEMENTATION
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
@@ -3227,7 +3229,7 @@ __declspec(dllexport) double __stdcall  get_ppv2(uint8_t* data,size_t data_size,
     d_calc(&stars, &map, mods);
 
 	max_combo = b_max_combo(&map);
-	if (max_combo < 0) 
+	if (max_combo <= 0) 
 		return NAN;
 	if (map.nobjects < nmiss || map.nobjects < n100 || map.nobjects < n50)
 		return NAN;
