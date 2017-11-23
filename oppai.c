@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 28
+#define OPPAI_VERSION_PATCH 29
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -930,6 +930,10 @@ int32_t b_max_combo(struct beatmap* b)
             {
             case MODE_STD:
                 px_per_beat = b->sv * 100.0 * sv_multiplier;
+
+                if (b->format_version < 8) {
+                    px_per_beat /= sv_multiplier;
+                }
                 break;
 
             case MODE_TAIKO:
