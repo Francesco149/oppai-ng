@@ -17,6 +17,7 @@ to taiko).
 - [installing (windows)](#installing-windows)
 - [installing (osx)](#installing-osx)
 - [usage](#usage)
+- [implementations for other programming languages](#implementations-for-other-programming-languages)
 - [oppai-ng vs old oppai](#oppai-ng-vs-old-oppai)
 - [compile from source (windows)](#compile-from-source-windows)
 - [using oppai as a library or making bindings](#using-oppai-as-a-library-or-making-bindings)
@@ -90,6 +91,19 @@ while on windows it's a bit more verbose (powershell):
 
 I got the .osu file url from "Grab latest .osu file" on the
 beatmap's page.
+
+# implementations for other programming languages
+I implemented oppai as a library for many other programming
+languages. If you feel like making your own implementation and
+want it listed here, open an issue or pull request. the requirement
+is that it should pass the same test suite that oppai-ng passes.
+
+note: these aren't just native bindings unless stated otherwise.
+
+* [ojsama (javascript)](https://github.com/Francesco149/ojsama)
+* [koohii (java)](https://github.com/Francesco149/koohii) . this
+  is currently being used in tillerino.
+* [pyttanko (python)](https://github.com/Francesco149/pyttanko)
 
 # oppai-ng vs old oppai
 executable size is around 7 times smaller:
