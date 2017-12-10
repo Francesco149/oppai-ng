@@ -1024,22 +1024,34 @@ int main(int argc, char* argv[])
         /* this should be last because it uppercase's the string */
         if (*a == '+')
         {
-            for (p = a; *p; ++p) {
+            mods_str = a + 1;
+
+            for (p = mods_str; *p; ++p) {
                 *p = uppercase(*p);
             }
 
 #           define m(mod) \
-            if (strstr(a + 1, #mod)) { mods |= MODS_##mod; } \
+            if (!strncmp(p, #mod, strlen(#mod))) { \
+                mods |= MODS_##mod; \
+                p += strlen(#mod); \
+                continue; \
+            } \
 
-            m(NF) m(EZ) m(HD) m(HR) m(DT) m(HT) m(NC) m(FL) m(SO)
-            m(NOMOD)
+            for (p = mods_str; *p;)
+            {
+                m(NF) m(EZ) m(HD) m(HR) m(DT) m(HT) m(NC) m(FL)
+                m(SO) m(NOMOD)
+
+                if (!strncmp(p, "TD", 2)) {
+                    mods |= MODS_TOUCH_DEVICE;
+                    p += 2;
+                    continue;
+                }
+
+                ++p;
+            }
 #undef m
 
-            if (strstr(a + 1, "TD")) {
-                mods |= MODS_TOUCH_DEVICE;
-            }
-
-            mods_str = a + 1;
             continue;
         }
 

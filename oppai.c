@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 30
+#define OPPAI_VERSION_PATCH 31
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
