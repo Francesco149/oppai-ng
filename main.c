@@ -103,12 +103,19 @@ void usage()
         "    forces gamemode to taiko for converted maps\n"
         "    default: disabled\n"
         "\n"
+        "-touch\n"
+        "    calculates pp for touchscreen / touch devices. can \n"
+        "    also be specified as mod TD\n"
+        "\n"
         "[n]speed\n"
         "    override speed stars. "
         "useful for maps with incorrect star rating\n"
         "    default: uses computed speed stars\n"
         "    example: 3.5speed\n"
         "\n"
+    );
+
+    info(
         "[n]aim\n"
         "    override aim stars. "
         "useful for maps with incorrect star rating\n"
@@ -1009,6 +1016,11 @@ int main(int argc, char* argv[])
             continue;
         }
 
+        if (!strcmp(a, "-touch")) {
+            mods |= MODS_TOUCH_DEVICE;
+            continue;
+        }
+
         /* this should be last because it uppercase's the string */
         if (*a == '+')
         {
@@ -1022,6 +1034,10 @@ int main(int argc, char* argv[])
             m(NF) m(EZ) m(HD) m(HR) m(DT) m(HT) m(NC) m(FL) m(SO)
             m(NOMOD)
 #undef m
+
+            if (strstr(a + 1, "TD")) {
+                mods |= MODS_TOUCH_DEVICE;
+            }
 
             mods_str = a + 1;
             continue;

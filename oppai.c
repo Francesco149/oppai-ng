@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 29
+#define OPPAI_VERSION_PATCH 30
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -257,6 +257,7 @@ int32_t p_map(struct parser* pa, struct beatmap* b, FILE* f);
 #define MODS_NOMOD 0
 #define MODS_NF ((uint32_t)1<<0)
 #define MODS_EZ ((uint32_t)1<<1)
+#define MODS_TOUCH_DEVICE ((uint32_t)1<<2)
 #define MODS_HD ((uint32_t)1<<3)
 #define MODS_HR ((uint32_t)1<<4)
 #define MODS_DT ((uint32_t)1<<6)
@@ -2180,6 +2181,10 @@ int32_t d_std(struct diff_calc* d, uint32_t mods)
     }
 
     d->aim = sqrt(d->aim) * STAR_SCALING_FACTOR;
+    if (mods & MODS_TOUCH_DEVICE) {
+        d->aim = pow(d->aim, 0.8);
+    }
+
     d->speed = sqrt(d->speed) * STAR_SCALING_FACTOR;
 
     /* calculate total star rating */
