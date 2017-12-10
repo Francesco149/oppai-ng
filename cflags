@@ -21,15 +21,12 @@ else
     cc=${cc:-gcc}
 fi
 
-(
-    uname -a
-    echo $cc
-    echo $cflags
-    echo $ldflags
-    $cc --version
-    $cc -dumpmachine
-) \
-> flags.log
+uname -a > flags.log
+echo $cc >> flags.log
+echo $cflags >> flags.log
+echo $ldflags >> flags.log
+$cc --version >> flags.log
+$cc -dumpmachine >> flags.log
 
 export cflags="$cflags"
 export ldflags="$ldflags"
