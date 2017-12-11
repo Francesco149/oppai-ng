@@ -6,7 +6,7 @@
 $dir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 
 Push-Location "$dir"
-git pull origin master
+git pull origin master -q
 
 Write-Host ""
 Write-Host "########################" -Foreground Yellow -Background Black
