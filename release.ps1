@@ -17,8 +17,8 @@ Write-Host ""
 Write-Host "########################" -Foreground Yellow -Background Black
 Write-Host "> Packaging" -Foreground Yellow -Background Black
 $folder = "oppai-" + $(.\oppai.exe -version) + "-windows-"
-$clout = &cl 2>&1
-"$clout" -match "^(Microsoft.*for )([a-z0-9\-_]+)" | Out-Null
+$clout = & cl 2>&1 | %{ "$_" }
+"$clout" -match "(Microsoft.*for )([a-z0-9\-_]+)" | Out-Null
 $folder = $folder + $Matches[2]
 mkdir $folder
 Copy-Item oppai.exe $folder
