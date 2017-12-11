@@ -7,4 +7,5 @@ cl  -D_CRT_SECURE_NO_WARNINGS=1 ^
     -O2 ^
     -nologo -MT -Gm- -GR- -EHsc -W4 ^
     main.c ^
-    -Feoppai.exe
+    -Feoppai.exe ^
+    || EXIT /B 1
