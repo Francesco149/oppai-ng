@@ -48,6 +48,8 @@
 
 /* all structs are not thread safe, use one parser, diff_calc, etc
    instance per thread if you need to process maps in parallel */
+#define _CRT_SECURE_NO_WARNINGS
+#define OPPAI_IMPLEMENTATION
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
@@ -247,6 +249,13 @@ void p_free(struct parser* pa);
 
    returns n. bytes processed on success, < 0 on failure */
 int32_t p_map(struct parser* pa, struct beatmap* b, FILE* f);
+
+/*KedamaOvO Add*/
+int32_t p_map_mem(struct parser* pa,struct beatmap* b,uint8_t* data,size_t data_size);
+
+__declspec(dllexport)double __stdcall get_ppv2(uint8_t* data, size_t data_size, uint32_t mods, int _50, int _100, int miss, int combo);
+
+/*KedamaOvO Add*/
 
 #endif /* OPPAI_NOPARSER */
 
@@ -1739,6 +1748,188 @@ int32_t p_line(struct parser* pa, struct slice* line)
     return n;
 }
 
+struct fmem_t
+{
+    uint8_t* data;
+    size_t size;
+    size_t offset;
+};
+
+struct fmem_t* mopen(uint8_t* data,size_t size)
+{
+    struct fmem_t* m;
+    m=(struct fmem_t*)malloc(sizeof(struct fmem_t));
+    m->data=data;
+    m->size=size;
+    m->offset=0;
+    return m;
+}
+
+size_t mread(uint8_t* dst,size_t size,struct fmem_t* mem)
+{
+    size_t nread=size;
+    if(size>mem->size-mem->offset)
+        nread=mem->size-mem->offset;
+    memcpy(dst,mem->data+mem->offset,nread);
+
+    mem->offset+=nread;
+    return nread;
+}
+
+size_t meof(struct fmem_t* mem)
+{
+    return mem->offset>=mem->size;
+}
+
+int mclose(struct fmem_t* mem)
+{
+    free(mem);
+    return 0;
+}
+
+int32_t p_map_mem(struct parser* pa,struct beatmap* b,uint8_t* data,size_t data_size)
+{
+    int32_t res = 0;
+    char* pbuf;
+    int32_t bufsize;
+    int32_t n;
+    int32_t nread;
+
+    b->ar = b->od = b->cs = b->hp = 5;
+    b->sv = b->tick_rate = 1;
+
+    if (!data||data_size==0) {
+        return ERR_IO;
+    }
+
+    p_reset(pa, b);
+
+    struct fmem_t* m = mopen(data,data_size);
+
+    /* points to free space in the buffer */
+    pbuf = pa->buf;
+
+    /* reading loop */
+    for (;;)
+    {
+        /* complete lines in the current chunk */
+        uint32_t nlines = 0;
+        struct slice s; /* points to the remaining data in buf */
+        int more_data;
+
+        bufsize = (int32_t)sizeof(pa->buf) -
+            (int32_t)(pbuf - pa->buf);
+
+        nread = (int32_t)mread(pbuf,bufsize, m);
+        if (!nread) {
+            /* eof */
+            break;
+        }
+
+        more_data = !meof(m);
+
+        s.start = pa->buf;
+        s.end = pbuf + nread;
+
+        /* parsing loop */
+        for (; s.start < s.end; )
+        {
+            struct slice line;
+
+            n = consume_until(pa, &s, "\n", &line);
+            if (n < 0)
+            {
+                if (n != ERR_MORE) {
+                    return n;
+                }
+
+                if (!nlines) {
+                    /* line doesn't fit the entire buffer */
+                    return parse_err(TRUNCATED, s);
+                }
+
+                /* we will finish reading this line later */
+                if (more_data) {
+                    break;
+                }
+
+                /* EOF, so we must process the remaining data
+                   as a line */
+                line = s;
+                n = (int32_t)(s.end - s.start);
+            }
+
+            else {
+                ++n; /* also skip the \n */
+            }
+
+            res += n;
+            s.start += n;
+            ++nlines;
+
+            n = p_line(pa, &line);
+            if (n < 0) {
+                return n;
+            }
+
+            res += n;
+        }
+
+        /* done parsing what we read, prepare to read some more */
+
+        /* move remaining data to the beginning of buf */
+        memmove(pa->buf, s.start, s.end - s.start);
+
+        /* adjust pbuf to point to free space */
+        pbuf = pa->buf + (s.end - s.start);
+    }
+
+    if (pa->title_unicode < 0) {
+        pa->title_unicode = pa->title;
+    }
+
+    if (pa->artist_unicode < 0) {
+        pa->artist_unicode = pa->artist;
+    }
+
+    /* copy parser values over to the beatmap struct */
+
+#define s(x) \
+    if (pa->x != -1) { \
+        b->x = p_strings_at(pa, pa->x); \
+    } else { \
+        b->x = "(null)"; \
+    }
+
+    s(artist) s(artist_unicode) s(title) s(title_unicode)
+    s(creator) s(version)
+#undef s
+
+    b->nobjects = p_nobjects(pa);
+    b->objects = p_get_objects(pa);
+    b->ntiming_points = p_ntiming(pa);
+    b->timing_points = p_get_timing(pa);
+
+    /* now it's safe to store pointers to the memstacks since we
+       are done pushing stuff to them */
+    for (n = 0; n < b->nobjects; ++n)
+    {
+        struct object* o = &b->objects[n];
+        o->pdata = pa->object_data.buf + o->data_off;
+
+        if (o->sound_types_off < 0) {
+            continue;
+        }
+
+        o->sound_types = (uint8_t*)pa->object_data.buf +
+            o->sound_types_off;
+    }
+
+    mclose(m);
+    return res;
+}
+
+
 int32_t p_map(struct parser* pa, struct beatmap* b, FILE* f)
 {
     int32_t res = 0;
@@ -3023,6 +3214,56 @@ int32_t b_ppv2p(struct beatmap* map, struct pp_calc* pp,
 
     return ppv2p(pp, p);
 }
+
+/*KedamaOvO Add*/
+__declspec(dllexport) double __stdcall  get_ppv2(uint8_t* data,size_t data_size,uint32_t mods, int n50, int n100, int nmiss, int combo)
+{
+    struct parser pstate;
+    struct beatmap map;
+
+    struct diff_calc stars;
+    struct pp_calc pp;
+	struct pp_params params;
+
+	int32_t max_combo = 0;
+
+    p_init(&pstate);
+    p_map_mem(&pstate, &map, data,data_size);
+
+    d_init(&stars);
+    d_calc(&stars, &map, mods);
+
+	max_combo = b_max_combo(&map);
+	if (max_combo <= 0) 
+		return NAN;
+	if (map.nobjects < nmiss || map.nobjects < n100 || map.nobjects < n50)
+		return NAN;
+
+    pp_init(&params);
+    params.mode = map.mode;
+	params.aim = stars.aim;
+	params.speed = stars.speed;
+    params.base_ar = map.ar;
+    params.base_od = map.od;
+    params.max_combo = max_combo;
+    params.nsliders = map.nsliders;
+    params.ncircles = map.ncircles;
+    params.nobjects = (uint16_t)map.nobjects;
+    params.mods = mods;
+	params.combo = combo;
+	params.nmiss = nmiss;
+	params.n300 = (uint16_t)(map.nobjects - n100 - n50 - nmiss);
+	params.n100 = n100;
+	params.n50 = n50;
+
+    b_ppv2p(&map, &pp,&params);
+
+	p_free(&pstate);
+	d_free(&stars);
+	
+    return pp.total;
+}
+
 #endif /* OPPAI_NOPP */
 
 #endif /* OPPAI_IMPLEMENTATION */

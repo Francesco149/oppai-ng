@@ -9,3 +9,13 @@ tags
 *.swp
 /test/test_suite
 /test/oppai_test
+
+*.lib
+
+*.dll
+
+*.exp
+
+*.o
+
+\.vs/
