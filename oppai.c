@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 32
+#define OPPAI_VERSION_PATCH 33
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -1744,9 +1744,7 @@ int32_t p_line(struct parser* pa, struct slice* line)
 internalfn
 void p_begin(struct parser* pa, struct beatmap* b)
 {
-    b->ar = b->od = b->cs = b->hp = 5;
     b->sv = b->tick_rate = 1;
-
     p_reset(pa, b);
 }
 
