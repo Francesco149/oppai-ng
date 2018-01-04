@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 35
+#define OPPAI_VERSION_PATCH 36
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -1345,6 +1345,34 @@ int32_t p_general(struct parser* pa, struct slice* line)
 }
 
 internalfn
+double p_double(struct slice const* value, int* success)
+{
+    double res;
+    char* p = value->start;
+
+    if (*p == '-') {
+        res = -1;
+        ++p;
+    } else {
+        res = 1;
+    }
+
+    /* infinity symbol */
+    if (!strncmp(p, "\xe2\x88\x9e", 3))
+    {
+        res *= get_inf();
+        *success = 1;
+    }
+
+    else {
+        *success = sscanf(value->start, "%lf", &res) == 1;
+    }
+    /* if it fails we can just use default values */
+
+    return res;
+}
+
+internalfn
 int32_t p_difficulty(struct parser* pa, struct slice* line)
 {
     int32_t n;
@@ -1382,8 +1410,8 @@ int32_t p_difficulty(struct parser* pa, struct slice* line)
     }
 
     if (dst) {
-        sscanf(value.start, "%f", dst);
-        /* if it fails we can just use default values */
+        int success;
+        *dst = p_double(&value, &success);
     }
 
     return n;
@@ -1402,6 +1430,7 @@ int32_t p_timing(struct parser* pa, struct slice* line)
     int32_t err = 0;
     struct slice split[8];
     struct timing t;
+    int success;
 
     t.change = 1;
 
@@ -1428,11 +1457,13 @@ int32_t p_timing(struct parser* pa, struct slice* line)
         slice_trim(&split[i]);
     }
 
-    if (sscanf(split[0].start, "%lf", &t.time) != 1) {
+    t.time = p_double(&split[0], &success);
+    if (!success) {
         return parse_err(SYNTAX, split[0]);
     }
 
-    if (sscanf(split[1].start, "%lf", &t.ms_per_beat) != 1) {
+    t.ms_per_beat = p_double(&split[1], &success);
+    if (!success) {
         return parse_err(SYNTAX, split[1]);
     }
 
@@ -1460,6 +1491,7 @@ int32_t p_objects(struct parser* pa, struct slice* line)
     int32_t err = 0;
     struct slice elements[11];
     uint32_t tmp_type;
+    int success;
 
     memset(&obj.strains, 0, sizeof(obj.strains));
     obj.is_single = 0;
@@ -1485,7 +1517,8 @@ int32_t p_objects(struct parser* pa, struct slice* line)
         return parse_err(SYNTAX, *line);
     }
 
-    if (sscanf(elements[2].start, "%lf", &obj.time) != 1) {
+    obj.time = p_double(&elements[2], &success);
+    if (!success) {
         return parse_err(SYNTAX, elements[2]);
     }
 
@@ -1527,11 +1560,13 @@ int32_t p_objects(struct parser* pa, struct slice* line)
 
         ++pa->b->ncircles;
 
-        if (sscanf(elements[0].start, "%lf", &c.pos[0]) != 1) {
+        c.pos[0] = p_double(&elements[0], &success);
+        if (!success) {
             return parse_err(SYNTAX, elements[0]);
         }
 
-        if (sscanf(elements[1].start, "%lf", &c.pos[1]) != 1) {
+        c.pos[1] = p_double(&elements[1], &success);
+        if (!success) {
             return parse_err(SYNTAX, elements[1]);
         }
 
@@ -1562,22 +1597,26 @@ int32_t p_objects(struct parser* pa, struct slice* line)
             return parse_err(SYNTAX, *line);
         }
 
-        if (sscanf(e[0].start, "%lf", &sli.pos[0]) != 1) {
-            return parse_err(SYNTAX, *line);
+        sli.pos[0] = p_double(&e[0], &success);
+        if (!success) {
+            return parse_err(SYNTAX, e[0]);
         }
 
-        if (sscanf(e[1].start, "%lf", &sli.pos[1]) != 1) {
-            return parse_err(SYNTAX, *line);
+        sli.pos[1] = p_double(&e[1], &success);
+        if (!success) {
+            return parse_err(SYNTAX, e[1]);
         }
 
         if (sscanf(e[6].start, "%u", &sli.repetitions) != 1) {
             return parse_err(SYNTAX, e[6]);
         }
 
-        if (nelements > 7 &&
-            sscanf(e[7].start, "%lf", &sli.distance) != 1)
+        if (nelements > 7)
         {
-            return parse_err(SYNTAX, e[7]);
+            sli.distance = p_double(&e[7], &success);
+            if (!success) {
+                return parse_err(SYNTAX, e[7]);
+            }
         }
 
         /* per-node sound types */
