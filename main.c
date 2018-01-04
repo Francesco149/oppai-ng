@@ -945,11 +945,11 @@ int main(int argc, char* argv[])
 
             if (!strcmp(output_name, "?"))
             {
-                int32_t i;
+                int32_t j;
                 int32_t nmodules =
                     sizeof(modules) / sizeof(modules[0]);
 
-                for (i = 0; i < nmodules; ++i)
+                for (j = 0; j < nmodules; ++j)
                 {
                     char const* const* d = modules[i].description;
                     puts(modules[i].name);

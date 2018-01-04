@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 37
+#define OPPAI_VERSION_PATCH 38
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -1392,7 +1392,7 @@ int32_t p_difficulty(struct parser* pa, struct slice* line)
 
     if (dst) {
         int success;
-        *dst = p_double(&value, &success);
+        *dst = (float)p_double(&value, &success);
     }
 
     return n;
@@ -2123,7 +2123,7 @@ int dbl_desc(void const* a, void const* b)
 
 internalfn
 int32_t d_update_max_strains(struct diff_calc* d,
-    double decay_base, double cur_time, double prev_time,
+    double decay_factor, double cur_time, double prev_time,
     double cur_strain, double prev_strain, int first_obj)
 {
     /* make previous peak strain decay until the current obj */
@@ -2143,7 +2143,7 @@ int32_t d_update_max_strains(struct diff_calc* d,
         else
         {
             double decay;
-            decay = pow(decay_base,
+            decay = pow(decay_factor,
                 (d->interval_end - prev_time) / 1000.0);
             d->max_strain = prev_strain * decay;
         }
@@ -2194,7 +2194,7 @@ int32_t d_calc_individual(uint8_t type, struct diff_calc* d,
 
     for (i = 0; i < d->b->nobjects; ++i)
     {
-        int32_t result;
+        int32_t err;
         struct object* o = &d->b->objects[i];
         struct object* prev = 0;
         double prev_time = 0, prev_strain = 0;
@@ -2207,12 +2207,12 @@ int32_t d_calc_individual(uint8_t type, struct diff_calc* d,
             prev_strain = prev->strains[type];
         }
 
-        result = d_update_max_strains(d, decay_base[type],
+        err = d_update_max_strains(d, decay_base[type],
             o->time, prev_time, o->strains[type], prev_strain,
             i == 0);
 
-        if (result < 0) {
-            return result;
+        if (err < 0) {
+            return err;
         }
     }
 
