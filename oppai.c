@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 36
+#define OPPAI_VERSION_PATCH 37
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -206,8 +206,6 @@ struct slice
 /* beatmap parser's state */
 struct parser
 {
-    int magic_found;
-
     int32_t flags;
     int32_t mode_override;
 
@@ -1035,8 +1033,6 @@ int32_t b_max_combo(struct beatmap* b)
 internalfn
 void p_reset(struct parser* pa, struct beatmap* b)
 {
-    pa->magic_found = 0;
-
     memset(pa->section, 0, sizeof(pa->section));
     memset(&pa->lastpos, 0, sizeof(pa->lastpos));
     memset(&pa->lastline, 0, sizeof(pa->lastline));
@@ -1226,21 +1222,6 @@ int32_t p_property(struct parser* pa, struct slice const* s,
     slice_trim(value);
 
     return (int32_t)(s->end - s->start);
-}
-
-internalfn
-char* skip_bom(char* buf)
-{
-    char* p = buf;
-    uint8_t const utf8_bom[] = { 0xEF, 0xBB, 0xBF };
-
-    if (!memcmp(buf, utf8_bom, sizeof(utf8_bom))) {
-        p += sizeof(utf8_bom);
-    }
-
-    /* TODO: other encodings */
-
-    return p;
 }
 
 internalfn
@@ -1691,22 +1672,6 @@ int32_t p_line(struct parser* pa, struct slice* line)
 {
     int32_t n = 0;
 
-    if (!pa->magic_found)
-    {
-        line->start = skip_bom(line->start);
-        slice_trim(line);
-
-        if (sscanf(line->start, "osu file format v%d",
-            &pa->b->format_version) == 1)
-        {
-            pa->magic_found = 1;
-            return (int32_t)(line->end - line->start);
-        }
-
-        info("not a valid .osu file\n");
-        return ERR_FORMAT;
-    }
-
     if (line->start >= line->end) {
         /* empty line */
         return 0;
@@ -1777,6 +1742,21 @@ int32_t p_line(struct parser* pa, struct slice* line)
 
     else if (!strcmp(pa->section, "HitObjects")) {
         n = p_objects(pa, line);
+    }
+
+    else
+    {
+        char* p = line->start;
+        char const* fmt_str = "file format v";
+        for (; p < line->end && strncmp(p, fmt_str, 13); ++p);
+        p += 13;
+
+        if (p < line->end)
+        {
+            if (sscanf(p, "%d", &pa->b->format_version) == 1) {
+                return (int32_t)(line->end - line->start);
+            }
+        }
     }
 
     return n;
