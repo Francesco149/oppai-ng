@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 31
+#define OPPAI_VERSION_PATCH 32
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -1741,6 +1741,62 @@ int32_t p_line(struct parser* pa, struct slice* line)
     return n;
 }
 
+internalfn
+void p_begin(struct parser* pa, struct beatmap* b)
+{
+    b->ar = b->od = b->cs = b->hp = 5;
+    b->sv = b->tick_rate = 1;
+
+    p_reset(pa, b);
+}
+
+internalfn
+void p_copy_metadata(struct parser* pa, struct beatmap* b)
+{
+    int32_t n;
+
+    if (pa->title_unicode < 0) {
+        pa->title_unicode = pa->title;
+    }
+
+    if (pa->artist_unicode < 0) {
+        pa->artist_unicode = pa->artist;
+    }
+
+    /* copy parser values over to the beatmap struct */
+
+#define s(x) \
+    if (pa->x != -1) { \
+        b->x = p_strings_at(pa, pa->x); \
+    } else { \
+        b->x = "(null)"; \
+    }
+
+    s(artist) s(artist_unicode) s(title) s(title_unicode)
+    s(creator) s(version)
+#undef s
+
+    b->nobjects = p_nobjects(pa);
+    b->objects = p_get_objects(pa);
+    b->ntiming_points = p_ntiming(pa);
+    b->timing_points = p_get_timing(pa);
+
+    /* now it's safe to store pointers to the memstacks since we
+       are done pushing stuff to them */
+    for (n = 0; n < b->nobjects; ++n)
+    {
+        struct object* o = &b->objects[n];
+        o->pdata = pa->object_data.buf + o->data_off;
+
+        if (o->sound_types_off < 0) {
+            continue;
+        }
+
+        o->sound_types = (uint8_t*)pa->object_data.buf +
+            o->sound_types_off;
+    }
+}
+
 int32_t p_map(struct parser* pa, struct beatmap* b, FILE* f)
 {
     int32_t res = 0;
@@ -1749,14 +1805,11 @@ int32_t p_map(struct parser* pa, struct beatmap* b, FILE* f)
     int32_t n;
     int32_t nread;
 
-    b->ar = b->od = b->cs = b->hp = 5;
-    b->sv = b->tick_rate = 1;
+    p_begin(pa, b);
 
     if (!f) {
         return ERR_IO;
     }
-
-    p_reset(pa, b);
 
     /* points to free space in the buffer */
     pbuf = pa->buf;
@@ -1836,46 +1889,7 @@ int32_t p_map(struct parser* pa, struct beatmap* b, FILE* f)
         pbuf = pa->buf + (s.end - s.start);
     }
 
-    if (pa->title_unicode < 0) {
-        pa->title_unicode = pa->title;
-    }
-
-    if (pa->artist_unicode < 0) {
-        pa->artist_unicode = pa->artist;
-    }
-
-    /* copy parser values over to the beatmap struct */
-
-#define s(x) \
-    if (pa->x != -1) { \
-        b->x = p_strings_at(pa, pa->x); \
-    } else { \
-        b->x = "(null)"; \
-    }
-
-    s(artist) s(artist_unicode) s(title) s(title_unicode)
-    s(creator) s(version)
-#undef s
-
-    b->nobjects = p_nobjects(pa);
-    b->objects = p_get_objects(pa);
-    b->ntiming_points = p_ntiming(pa);
-    b->timing_points = p_get_timing(pa);
-
-    /* now it's safe to store pointers to the memstacks since we
-       are done pushing stuff to them */
-    for (n = 0; n < b->nobjects; ++n)
-    {
-        struct object* o = &b->objects[n];
-        o->pdata = pa->object_data.buf + o->data_off;
-
-        if (o->sound_types_off < 0) {
-            continue;
-        }
-
-        o->sound_types = (uint8_t*)pa->object_data.buf +
-            o->sound_types_off;
-    }
+    p_copy_metadata(pa, b);
 
     return res;
 }
@@ -1886,18 +1900,15 @@ int32_t p_map_mem(struct parser* pa, struct beatmap* b, char* data,
     int32_t res = 0;
     int32_t n;
 
-    b->ar = b->od = b->cs = b->hp = 5;
-    b->sv = b->tick_rate = 1;
-
-    if (!data||data_size==0) {
-        return ERR_IO;
-    }
-
-    p_reset(pa, b);
-
     /* complete lines in the current chunk */
     uint32_t nlines = 0;
     struct slice s; /* points to the remaining data in buf */
+
+    p_begin(pa, b);
+
+    if (!data || data_size == 0) {
+        return ERR_IO;
+    }
 
     s.start = data;
     s.end = data + data_size;
@@ -1940,46 +1951,7 @@ int32_t p_map_mem(struct parser* pa, struct beatmap* b, char* data,
         res += n;
     }
 
-    if (pa->title_unicode < 0) {
-        pa->title_unicode = pa->title;
-    }
-
-    if (pa->artist_unicode < 0) {
-        pa->artist_unicode = pa->artist;
-    }
-
-    /* copy parser values over to the beatmap struct */
-
-#define s(x) \
-    if (pa->x != -1) { \
-        b->x = p_strings_at(pa, pa->x); \
-    } else { \
-        b->x = "(null)"; \
-    }
-
-    s(artist) s(artist_unicode) s(title) s(title_unicode)
-    s(creator) s(version)
-#undef s
-
-    b->nobjects = p_nobjects(pa);
-    b->objects = p_get_objects(pa);
-    b->ntiming_points = p_ntiming(pa);
-    b->timing_points = p_get_timing(pa);
-
-    /* now it's safe to store pointers to the memstacks since we
-       are done pushing stuff to them */
-    for (n = 0; n < b->nobjects; ++n)
-    {
-        struct object* o = &b->objects[n];
-        o->pdata = pa->object_data.buf + o->data_off;
-
-        if (o->sound_types_off < 0) {
-            continue;
-        }
-
-        o->sound_types = (uint8_t*)pa->object_data.buf +
-            o->sound_types_off;
-    }
+    p_copy_metadata(pa, b);
 
     return res;
 }
