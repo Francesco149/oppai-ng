@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 33
+#define OPPAI_VERSION_PATCH 34
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -201,6 +201,7 @@ struct slice
 };
 
 #define PARSER_OVERRIDE_MODE ((uint32_t)1<<0) /* mode_override */
+#define PARSER_FOUND_AR ((uint32_t)1<<1)
 
 /* beatmap parser's state */
 struct parser
@@ -1365,6 +1366,7 @@ int32_t p_difficulty(struct parser* pa, struct slice* line)
 
     else if (!slice_cmp(&name, "ApproachRate")) {
         dst = &pa->b->ar;
+        pa->flags |= PARSER_FOUND_AR;
     }
 
     else if (!slice_cmp(&name, "HPDrainRate")) {
@@ -1792,6 +1794,11 @@ void p_copy_metadata(struct parser* pa, struct beatmap* b)
 
         o->sound_types = (uint8_t*)pa->object_data.buf +
             o->sound_types_off;
+    }
+
+    if (!(pa->flags & PARSER_FOUND_AR)) {
+        /* in old maps ar = od */
+        b->ar = b->od;
     }
 }
 
