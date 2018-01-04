@@ -247,7 +247,7 @@ void p_free(struct parser* pa);
 
    returns n. bytes processed on success, < 0 on failure */
 int32_t p_map(struct parser* pa, struct beatmap* b, FILE* f);
-int32_t p_map_mem(struct parser* pa,struct beatmap* b,uint8_t* data,size_t data_size);
+int32_t p_map_mem(struct parser* pa,struct beatmap* b,char* data,size_t data_size);
 
 #endif /* OPPAI_NOPARSER */
 
@@ -1879,13 +1879,10 @@ int32_t p_map(struct parser* pa, struct beatmap* b, FILE* f)
     return res;
 }
 
-int32_t p_map_mem(struct parser* pa,struct beatmap* b,uint8_t* data,size_t data_size)
+int32_t p_map_mem(struct parser* pa,struct beatmap* b,char* data,size_t data_size)
 {
     int32_t res = 0;
-    //char* pbuf;
-    int32_t bufsize;
     int32_t n;
-    int32_t nread;
 
     b->ar = b->od = b->cs = b->hp = 5;
     b->sv = b->tick_rate = 1;
