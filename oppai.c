@@ -247,7 +247,8 @@ void p_free(struct parser* pa);
 
    returns n. bytes processed on success, < 0 on failure */
 int32_t p_map(struct parser* pa, struct beatmap* b, FILE* f);
-int32_t p_map_mem(struct parser* pa,struct beatmap* b,char* data,size_t data_size);
+int32_t p_map_mem(struct parser* pa, struct beatmap* b, char* data,
+    size_t data_size);
 
 #endif /* OPPAI_NOPARSER */
 
@@ -1879,7 +1880,8 @@ int32_t p_map(struct parser* pa, struct beatmap* b, FILE* f)
     return res;
 }
 
-int32_t p_map_mem(struct parser* pa,struct beatmap* b,char* data,size_t data_size)
+int32_t p_map_mem(struct parser* pa, struct beatmap* b, char* data,
+    size_t data_size)
 {
     int32_t res = 0;
     int32_t n;
@@ -1898,7 +1900,7 @@ int32_t p_map_mem(struct parser* pa,struct beatmap* b,char* data,size_t data_siz
     struct slice s; /* points to the remaining data in buf */
 
     s.start = data;
-    s.end = data+data_size;
+    s.end = data + data_size;
 
     /* parsing loop */
     for (; s.start < s.end; )
@@ -1914,7 +1916,7 @@ int32_t p_map_mem(struct parser* pa,struct beatmap* b,char* data,size_t data_siz
 
             if (!nlines) {
                 /* line doesn't fit the entire buffer */
-                    return parse_err(TRUNCATED, s);
+                return parse_err(TRUNCATED, s);
             }
 
             /* EOF, so we must process the remaining data
