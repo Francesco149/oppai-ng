@@ -22,8 +22,8 @@ global char const* me = "oppai";
 internalfn
 void usage()
 {
-    // logo by flesnuk
-    // https://github.com/Francesco149/oppai-ng/issues/10
+    /* logo by flesnuk
+    https://github.com/Francesco149/oppai-ng/issues/10 */
 
     info(
         "     /\xe2\x8e\xbb\xe2\x8e\xbb\xe2\x8e\xbb\xe2\x8e\xbb"
