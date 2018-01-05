@@ -93,10 +93,10 @@ I got the .osu file url from "Grab latest .osu file" on the
 beatmap's page.
 
 # implementations for other programming languages
-I implemented oppai as a library for many other programming
-languages. If you feel like making your own implementation and
-want it listed here, open an issue or pull request. the requirement
-is that it should pass the same test suite that oppai-ng passes.
+oppai has been implemented for many other programming languages.
+If you feel like making your own implementation and want it listed
+here, open an issue or pull request. the requirement is that it
+should pass the same test suite that oppai-ng passes.
 
 note: these aren't just native bindings unless stated otherwise.
 
