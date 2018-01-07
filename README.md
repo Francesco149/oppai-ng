@@ -104,7 +104,9 @@ note: these aren't just native bindings unless stated otherwise.
 * [koohii (java)](https://github.com/Francesco149/koohii) . this
   is currently being used in tillerino.
 * [pyttanko (python)](https://github.com/Francesco149/pyttanko)
-* [oppai5 (golang)](https://github.com/flesnuk/oppai5)
+* [oppai5 (golang)](https://github.com/flesnuk/oppai5) (by flesnuk)
+* [OppaiSharp (C#)](https://github.com/HoLLy-HaCKeR/OppaiSharp)
+  (by HoLLy)
 
 # oppai-ng vs old oppai
 executable size is around 7 times smaller:
