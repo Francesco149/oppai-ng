@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 39
+#define OPPAI_VERSION_PATCH 40
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -1139,7 +1139,7 @@ char* p_strings_at(struct parser* p, int32_t off) {
 int32_t nop(int32_t x) { return x; }
 
 #define parse_warn(e, line) \
-    info(e), print_line(line), nop(0)
+    info(e), info("\n"), print_line(line), nop(0)
 
 /* consume until any of the characters in separators is found */
 internalfn
