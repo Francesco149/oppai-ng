@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 38
+#define OPPAI_VERSION_PATCH 39
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -1136,6 +1136,11 @@ char* p_strings_at(struct parser* p, int32_t off) {
         pa->lastpos = (lastpos_), \
         ERR_##e
 
+int32_t nop(int32_t x) { return x; }
+
+#define parse_warn(e, line) \
+    info(e), print_line(line), nop(0)
+
 /* consume until any of the characters in separators is found */
 internalfn
 int32_t consume_until(struct parser* pa, struct slice const* s,
@@ -1233,7 +1238,7 @@ int32_t p_metadata(struct parser* pa, struct slice* line)
 
     n = p_property(pa, line, &name, &value);
     if (n < 0) {
-        return n;
+        return parse_warn("W: malformed metadata line", line);
     }
 
     if (!pa->strings.buf) {
@@ -1296,7 +1301,7 @@ int32_t p_general(struct parser* pa, struct slice* line)
 
     n = p_property(pa, line, &name, &value);
     if (n < 0) {
-        return n;
+        return parse_warn("W: malformed general line", line);
     }
 
     if (!slice_cmp(&name, "Mode"))
@@ -1362,7 +1367,7 @@ int32_t p_difficulty(struct parser* pa, struct slice* line)
 
     n = p_property(pa, line, &name, &value);
     if (n < 0) {
-        return n;
+        return parse_warn("W: malformed difficulty line", line);
     }
 
     if (!slice_cmp(&name, "CircleSize")) {
@@ -1429,7 +1434,7 @@ int32_t p_timing(struct parser* pa, struct slice* line)
     }
 
     if (n < 2) {
-        return parse_err(SYNTAX, *line);
+        return parse_warn("W: malformed timing point", line);
     }
 
     res = (int32_t)(split[n - 1].end - line->start);
@@ -1440,21 +1445,22 @@ int32_t p_timing(struct parser* pa, struct slice* line)
 
     t.time = p_double(&split[0], &success);
     if (!success) {
-        return parse_err(SYNTAX, split[0]);
+        return parse_warn("W: malformed timing point time", line);
     }
 
     t.ms_per_beat = p_double(&split[1], &success);
     if (!success) {
-        return parse_err(SYNTAX, split[1]);
+        return parse_warn("W: malformed timing point ms_per_beat",
+            line);
     }
 
     if (n >= 7)
     {
         if (slice_len(&split[6]) < 1) {
-            return parse_err(SYNTAX, split[6]);
+            t.change = 1;
+        } else {
+            t.change = *split[6].start != '0';
         }
-
-        t.change = *split[6].start != '0';
     }
 
     if (!p_push_timing(pa, &t)) {
@@ -1495,21 +1501,23 @@ int32_t p_objects(struct parser* pa, struct slice* line)
     }
 
     if (nelements < 5) {
-        return parse_err(SYNTAX, *line);
+        return parse_warn("W: malformed hitobject", line);
     }
 
     obj.time = p_double(&elements[2], &success);
     if (!success) {
-        return parse_err(SYNTAX, elements[2]);
+        return parse_warn("W: malformed hitobject time", line);
     }
 
     if (sscanf(elements[3].start, "%u", &tmp_type) != 1) {
-        return parse_err(SYNTAX, elements[3]);
+        parse_warn("W: malformed hitobject type", line);
+        tmp_type = OBJ_CIRCLE;
     }
 
     /* not in byte range, expecting 0-255 */
     if (tmp_type & 0xFFFFFF00) {
-        return parse_err(SYNTAX, elements[3]);
+        parse_warn("W: out of range hitobject type", line);
+        tmp_type = OBJ_CIRCLE;
     }
 
     if (pa->b->mode == MODE_TAIKO)
@@ -1518,10 +1526,15 @@ int32_t p_objects(struct parser* pa, struct slice* line)
         uint8_t sound_type;
 
         if (sscanf(elements[4].start, "%u", &tmp_sound_type) != 1)
-            return parse_err(SYNTAX, elements[4]);
+        {
+            parse_warn("W: malformed hitobject sound type", line);
+            tmp_sound_type = SOUND_NORMAL;
+        }
 
         if (tmp_sound_type & 0xFFFFFF00) {
-            return parse_err(SYNTAX, elements[4]);
+            parse_warn("W: out of range hitobject sound type",
+                line);
+            tmp_sound_type = SOUND_NORMAL;
         }
 
         obj.nsound_types = 1;
@@ -1543,12 +1556,14 @@ int32_t p_objects(struct parser* pa, struct slice* line)
 
         c.pos[0] = p_double(&elements[0], &success);
         if (!success) {
-            return parse_err(SYNTAX, elements[0]);
+            return parse_warn("W: malformed circle position",
+                line);
         }
 
         c.pos[1] = p_double(&elements[1], &success);
         if (!success) {
-            return parse_err(SYNTAX, elements[1]);
+            return parse_warn("W: malformed circle position",
+                line);
         }
 
         if (!p_push_circle(pa, &c)) {
@@ -1575,28 +1590,32 @@ int32_t p_objects(struct parser* pa, struct slice* line)
         memset(&sli, 0, sizeof(sli));
 
         if (nelements < 7) {
-            return parse_err(SYNTAX, *line);
+            return parse_warn("W: malformed slider", line);
         }
 
         sli.pos[0] = p_double(&e[0], &success);
         if (!success) {
-            return parse_err(SYNTAX, e[0]);
+            return parse_warn("W: malformed slider position",
+                line);
         }
 
         sli.pos[1] = p_double(&e[1], &success);
         if (!success) {
-            return parse_err(SYNTAX, e[1]);
+            return parse_warn("W: malformed slider position",
+                line);
         }
 
         if (sscanf(e[6].start, "%u", &sli.repetitions) != 1) {
-            return parse_err(SYNTAX, e[6]);
+            sli.repetitions = 1;
+            parse_warn("W: malformed slider repetitions", line);
         }
 
         if (nelements > 7)
         {
             sli.distance = p_double(&e[7], &success);
             if (!success) {
-                return parse_err(SYNTAX, e[7]);
+                parse_warn("W: malformed slider distance", line);
+                sli.distance = 0;
             }
         }
 
@@ -1628,6 +1647,8 @@ int32_t p_objects(struct parser* pa, struct slice* line)
                 struct slice node;
                 int32_t n;
 
+                node.start = node.end = 0;
+
                 /* we also want the last trailing element so
                    remember to swallow ERR_MORE */
                 n = consume_until(pa, &p, "|", &node);
@@ -1643,10 +1664,15 @@ int32_t p_objects(struct parser* pa, struct slice* line)
                 p.start += n + 1;
 
                 if (sscanf(node.start, "%u", &tmp_sound_type) != 1)
-                    return parse_err(SYNTAX, node);
+                {
+                    parse_warn("W: malformed sound type", line);
+                    tmp_sound_type = SOUND_NORMAL;
+                }
 
                 if (tmp_sound_type & 0xFFFFFF00) {
-                    return parse_err(SYNTAX, node);
+                    parse_warn("W: out of range sound type",
+                        line);
+                    tmp_sound_type = SOUND_NORMAL;
                 }
 
                 sound_types[i] = (uint8_t)tmp_sound_type;
@@ -1704,6 +1730,7 @@ int32_t p_line(struct parser* pa, struct slice* line)
     if (*line->start == '[')
     {
         struct slice section;
+        size_t len;
 
         n = p_section_name(pa, line, &section);
         if (n < 0) {
@@ -1711,15 +1738,14 @@ int32_t p_line(struct parser* pa, struct slice* line)
         }
 
         if (section.end - section.start >= sizeof(pa->section)) {
-            return ERR_TRUNCATED;
+            parse_warn("W: truncated long section name", line);
         }
 
-        memcpy(
-            pa->section,
-            section.start, section.end - section.start
-        );
+        len = mymin(sizeof(pa->section) - 1,
+            section.end - section.start);
 
-        pa->section[section.end - section.start] = 0;
+        memcpy(pa->section, section.start, len);
+        pa->section[len] = 0;
 
         return n;
     }
