@@ -1107,8 +1107,8 @@ int main(int argc, char* argv[])
 
                 for (j = 0; j < nmodules; ++j)
                 {
-                    char const* const* d = modules[i].description;
-                    puts(modules[i].name);
+                    char const* const* d = modules[j].description;
+                    puts(modules[j].name);
                     for (; *d; ++d) {
                         printf("%s", *d);
                     }
