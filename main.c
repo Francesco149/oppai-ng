@@ -187,14 +187,30 @@ internalfn
 void asciiplt(float (* getvalue)(void* data, size_t i), size_t n,
     void* data)
 {
-    static char const* charset = " _.-^";
+    static char const* charset[] = {
+#ifdef OPPAI_UTF8GRAPH
+        "\xe2\x96\x81",
+        "\xe2\x96\x82",
+        "\xe2\x96\x83",
+        "\xe2\x96\x84",
+        "\xe2\x96\x85",
+        "\xe2\x96\x86",
+        "\xe2\x96\x87",
+        "\xe2\x96\x88"
+#else
+        " ", "_", ".", "-", "^"
+#endif
+    };
+
+    static size_t const charsetsize =
+        sizeof(charset) / sizeof(charset[0]);
+
     float values[ASCIIPLT_W];
     float minval = get_inf();
     float maxval = -get_inf();
     float range;
     size_t i;
     size_t chunksize;
-    size_t charsetsize;
     size_t w = mymin(ASCIIPLT_W, n);
 
     memset(values, 0, sizeof(values));
@@ -217,7 +233,6 @@ void asciiplt(float (* getvalue)(void* data, size_t i), size_t n,
     }
 
     range = mymax(0.00001, maxval - minval);
-    charsetsize = strlen(charset);
 
     for (i = 0; i < w; ++i)
     {
@@ -225,7 +240,7 @@ void asciiplt(float (* getvalue)(void* data, size_t i), size_t n,
             ((values[i] - minval) / range) * charsetsize
         );
         chari = mymax(0, mymin(chari, charsetsize - 1));
-        printf("%c", charset[chari]);
+        printf("%s", charset[chari]);
     }
 
     puts("");
