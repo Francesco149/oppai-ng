@@ -265,10 +265,6 @@ output_sig(output_text)
     printf("[%s] mapped by %s ", map->version, map->creator);
     puts("\n");
 
-    if (mods_str) {
-        printf("+%s ", mods_str);
-    }
-
     mapstats->ar = (float)twodec(mapstats->ar);
     mapstats->od = (float)twodec(mapstats->od);
     mapstats->cs = (float)twodec(mapstats->cs);
@@ -294,8 +290,6 @@ output_sig(output_text)
 
     if (map->mode == MODE_STD)
     {
-        printf("%d/%dx\n", params->combo, params->max_combo);
-
         printf("%hu spacing singletaps (%g%%)\n", stars->nsingles,
             stars->nsingles / (double)total_objs * 100.0);
 
@@ -307,30 +301,34 @@ output_sig(output_text)
 
         printf("%g stars (%g aim, %g speed)\n", stars->total,
             stars->aim, stars->speed);
-    }
-    else
-    {
-        printf("%d max combo\n", params->max_combo);
-        printf("%g stars\n", stars->total);
-    }
 
-    printf("\nspeed strain: ");
-    asciiplt(getspeed, (size_t)map->nobjects, map);
+        printf("\nspeed strain: ");
+        asciiplt(getspeed, (size_t)map->nobjects, map);
 
-    if (map->mode == MODE_STD) {
         printf("  aim strain: ");
         asciiplt(getaim, (size_t)map->nobjects, map);
     }
-
-    printf("\n%g%%\n", twodec(pp->accuracy * 100));
-
-    if (map->mode == MODE_STD) {
-        printf("%g aim pp\n", twodec(pp->aim));
+    else {
+        printf("%g stars\n", stars->total);
     }
 
-    printf("%g speed pp\n", twodec(pp->speed));
-    printf("%g acc pp\n\n", twodec(pp->acc));
-    printf("%g pp\n", twodec(pp->total));
+    printf("\n");
+
+    if (mods_str) {
+        printf("+%s ", mods_str);
+    }
+
+    printf("%d/%dx ", params->combo, params->max_combo);
+    printf("%g%%\n", twodec(pp->accuracy * 100));
+
+    printf("%g pp (", twodec(pp->total));
+
+    if (map->mode == MODE_STD) {
+        printf("%g aim, ", twodec(pp->aim));
+    }
+
+    printf("%g speed, ", twodec(pp->speed));
+    printf("%g acc)\n\n", twodec(pp->acc));
 }
 #endif /* OPPAI_NOTEXT */
 
