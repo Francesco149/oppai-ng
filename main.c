@@ -351,17 +351,17 @@ output_sig(output_text)
 }
 #endif /* OPPAI_NOTEXT */
 
-#ifndef OPPAI_NOJSON
 /* ------------------------------------------------------------- */
 /* json output                                                   */
 
+#if !defined(OPPAI_NOJSON) || !defined(OPPAI_NOGNUPLOT)
 internalfn
-void print_escaped_json_string(char const* str)
+void print_escaped_json_string_ex(char const* str, int quotes)
 {
     char const* chars_to_escape = "\\\"";
     char const* p;
 
-    putchar('"');
+    if (quotes) putchar('"');
 
     for (; *str; ++str)
     {
@@ -375,8 +375,13 @@ void print_escaped_json_string(char const* str)
         putchar(*str);
     }
 
-    putchar('"');
+    if (quotes) putchar('"');
 }
+#endif
+
+#ifndef OPPAI_NOJSON
+#define print_escaped_json_string(x) \
+    print_escaped_json_string_ex(x, 1)
 
 /* https://www.doc.ic.ac.uk/%7Eeedwards/compsys/float/nan.html */
 
@@ -693,6 +698,69 @@ output_sig(output_binary)
 }
 #endif /* OPPAI_NOBINARY */
 
+#ifndef OPPAI_NOGNUPLOT
+/* ------------------------------------------------------------- */
+/* gnuplot output                                                */
+
+#define gnuplot_string(x) print_escaped_json_string_ex(x, 0)
+
+internalfn
+void gnuplot_strains(struct beatmap* map, int type)
+{
+    int32_t i;
+
+    for (i = 0; i < map->nobjects; ++i)
+    {
+        struct object* o = &map->objects[i];
+        printf("%.17g %.17g\n", o->time, o->strains[type]);
+    }
+}
+
+internalfn
+output_sig(output_gnuplot)
+{
+    if (map->mode != MODE_STD) {
+        return;
+    }
+
+    puts("set encoding utf8;");
+
+    printf("set title \"");
+    gnuplot_string(map->artist);
+    printf(" - ");
+    gnuplot_string(map->title);
+
+    if (strcmp(map->artist, map->artist_unicode) ||
+        strcmp(map->title, map->title_unicode))
+    {
+        printf("(");
+        gnuplot_string(map->artist_unicode);
+        printf(" - ");
+        gnuplot_string(map->title_unicode);
+        printf(")");
+    }
+
+    printf(" [");
+    gnuplot_string(map->version);
+    printf("] mapped by ");
+    gnuplot_string(map->creator);
+    if (mods_str) printf(" +%s", mods_str);
+    puts("\";");
+
+    puts(
+        "set xlabel 'time (ms)';"
+        "set ylabel 'strain';"
+        "set multiplot layout 2,1 rowsfirst;"
+        "plot '-' with lines lc 1 title 'speed'"
+    );
+    gnuplot_strains(map, DIFF_SPEED);
+    puts("e");
+    puts("unset title;");
+    puts("plot '-' with lines lc 2 title 'aim'");
+    gnuplot_strains(map, DIFF_AIM);
+}
+#endif /* OPPAI_NOGNUPLOT */
+
 #ifdef OPPAI_DEBUG
 /* ------------------------------------------------------------- */
 /* debug output                                                  */
@@ -843,6 +911,9 @@ const modules[] =
         0 }
     },
 #endif /* OPPAI_NOBINARY */
+#ifndef OPPAI_NOGNUPLOT
+    { "gnuplot", output_gnuplot, { "gnuplot .gp script", 0 } },
+#endif
 #ifdef OPPAI_DEBUG
     { "debug", output_debug, { "debug output", 0 } },
 #endif
