@@ -207,7 +207,11 @@ void asciiplt(float (* getvalue)(void* data, size_t i), size_t n,
             values[chunki],
             getvalue(data, i)
         );
+    }
 
+    for (i = 0; i < n; ++i)
+    {
+        size_t chunki = i / chunksize;
         maxval = mymax(maxval, values[chunki]);
         minval = mymin(minval, values[chunki]);
     }
