@@ -181,6 +181,66 @@ internalfn output_sig(output_null)
 /* ------------------------------------------------------------- */
 /* text output                                                   */
 
+#define ASCIIPLT_W 51
+
+internalfn
+void asciiplt(float (* getvalue)(void* data, size_t i), size_t n,
+    void* data)
+{
+    static char const* charset = " _.-^";
+    float values[ASCIIPLT_W];
+    float minval = get_inf();
+    float maxval = -get_inf();
+    float range;
+    size_t i;
+    size_t chunksize;
+    size_t charsetsize;
+    size_t w = mymin(ASCIIPLT_W, n);
+
+    memset(values, 0, sizeof(values));
+    chunksize = (size_t)ceil((float)n / w);
+
+    for (i = 0; i < n; ++i)
+    {
+        size_t chunki = i / chunksize;
+        values[chunki] = mymax(
+            values[chunki],
+            getvalue(data, i)
+        );
+
+        maxval = mymax(maxval, values[chunki]);
+        minval = mymin(minval, values[chunki]);
+    }
+
+    range = mymax(0.00001, maxval - minval);
+    charsetsize = strlen(charset);
+
+    for (i = 0; i < w; ++i)
+    {
+        size_t chari = (size_t)(
+            ((values[i] - minval) / range) * charsetsize
+        );
+        chari = mymax(0, mymin(chari, charsetsize - 1));
+        printf("%c", charset[chari]);
+    }
+
+    puts("");
+}
+
+internalfn
+float getaim(void* data, size_t i)
+{
+    struct beatmap* b = (struct beatmap*)data;
+    return b->objects[i].strains[DIFF_AIM];
+}
+
+internalfn
+float getspeed(void* data, size_t i)
+{
+    struct beatmap* b = (struct beatmap*)data;
+    return b->objects[i].strains[DIFF_SPEED];
+}
+
 #define twodec(x) (round_oppai((x) * 100.0) / 100.0)
 
 internalfn
@@ -254,7 +314,15 @@ output_sig(output_text)
         printf("%g stars\n", stars->total);
     }
 
-    printf("%g%%\n", twodec(pp->accuracy * 100));
+    printf("\nspeed strain: ");
+    asciiplt(getspeed, (size_t)map->nobjects, map);
+
+    if (map->mode == MODE_STD) {
+        printf("  aim strain: ");
+        asciiplt(getaim, (size_t)map->nobjects, map);
+    }
+
+    printf("\n%g%%\n", twodec(pp->accuracy * 100));
 
     if (map->mode == MODE_STD) {
         printf("%g aim pp\n", twodec(pp->aim));
