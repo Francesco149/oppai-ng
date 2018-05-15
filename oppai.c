@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 49
+#define OPPAI_VERSION_PATCH 50
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -259,6 +259,7 @@ int32_t p_map_mem(struct parser* pa, struct beatmap* b, char* data,
 #define MODS_NF ((uint32_t)1<<0)
 #define MODS_EZ ((uint32_t)1<<1)
 #define MODS_TOUCH_DEVICE ((uint32_t)1<<2)
+#define MODS_TD MODS_TOUCH_DEVICE
 #define MODS_HD ((uint32_t)1<<3)
 #define MODS_HR ((uint32_t)1<<4)
 #define MODS_DT ((uint32_t)1<<6)
