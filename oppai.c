@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 47
+#define OPPAI_VERSION_PATCH 48
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -2903,6 +2903,10 @@ int32_t ppv2x(struct pp_calc* pp, double aim,
     pp->speed *= combo_break;
     pp->speed *= acc_bonus;
     pp->speed *= od_bonus;
+
+    if (mods & MODS_HD) {
+        pp->speed *= 1.18;
+    }
 
     /* acc pp -------------------------------------------------- */
     /* arbitrary values tom crafted out of trial and error */
