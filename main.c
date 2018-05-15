@@ -18,7 +18,6 @@
 
 global char const* me = "oppai";
 
-
 internalfn
 void usage()
 {
