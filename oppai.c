@@ -51,7 +51,7 @@
 
 #define OPPAI_VERSION_MAJOR 1
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 48
+#define OPPAI_VERSION_PATCH 49
 
 /* if your compiler doesn't have stdint, define this */
 #ifdef OPPAI_NOSTDINT
@@ -2877,7 +2877,7 @@ int32_t ppv2x(struct pp_calc* pp, double aim,
     /* hidden */
     if (mods & MODS_HD) {
         /* 1.04 bonus for AR10, 1.06 for AR9, 1.02 for AR11 */
-        pp->aim *= 1.02f + (11.0f - mapstats.ar) / 50.0f;
+        pp->aim *= 1.02 + (11.0 - mapstats.ar) / 50.0;
     }
 
     /* flashlight */
