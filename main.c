@@ -206,8 +206,8 @@ void asciiplt(float (* getvalue)(void* data, size_t i), size_t n,
         sizeof(charset) / sizeof(charset[0]);
 
     float values[ASCIIPLT_W];
-    float minval = get_inf();
-    float maxval = -get_inf();
+    float minval = (float)get_inf();
+    float maxval = (float)-get_inf();
     float range;
     size_t i;
     size_t chunksize;
@@ -232,7 +232,7 @@ void asciiplt(float (* getvalue)(void* data, size_t i), size_t n,
         minval = mymin(minval, values[chunki]);
     }
 
-    range = mymax(0.00001, maxval - minval);
+    range = mymax(0.00001f, maxval - minval);
 
     for (i = 0; i < w; ++i)
     {
@@ -250,14 +250,14 @@ internalfn
 float getaim(void* data, size_t i)
 {
     struct beatmap* b = (struct beatmap*)data;
-    return b->objects[i].strains[DIFF_AIM];
+    return (float)b->objects[i].strains[DIFF_AIM];
 }
 
 internalfn
 float getspeed(void* data, size_t i)
 {
     struct beatmap* b = (struct beatmap*)data;
-    return b->objects[i].strains[DIFF_SPEED];
+    return (float)b->objects[i].strains[DIFF_SPEED];
 }
 
 #define twodec(x) (round_oppai((x) * 100.0) / 100.0)
@@ -719,6 +719,8 @@ void gnuplot_strains(struct beatmap* map, int type)
 internalfn
 output_sig(output_gnuplot)
 {
+    (void)pp; (void)params; (void)stars; (void)mapstats; (void)result;
+
     if (map->mode != MODE_STD) {
         return;
     }
