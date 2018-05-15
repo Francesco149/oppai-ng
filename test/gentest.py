@@ -8,9 +8,10 @@ import traceback
 import argparse
 import hashlib
 
-''' hack to force utf-8 '''
-reload(sys)
-sys.setdefaultencoding("utf-8")
+if sys.version_info[0] < 3:
+    ''' hack to force utf-8 '''
+    reload(sys)
+    sys.setdefaultencoding("utf-8")
 
 try:
     import httplib
