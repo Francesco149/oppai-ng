@@ -10,6 +10,7 @@
 
 #define STRINGIFY_(x) #x
 #define STRINGIFY(x) STRINGIFY_(x)
+#define ARRAY_LEN(x) (sizeof(x) / sizeof((x)[0]))
 
 #define OPPAI_VERSION_STRING \
     STRINGIFY(OPPAI_VERSION_MAJOR) "." \
@@ -201,8 +202,7 @@ void asciiplt(float (* getvalue)(void* data, size_t i), size_t n,
 #endif
     };
 
-    static size_t const charsetsize =
-        sizeof(charset) / sizeof(charset[0]);
+    static size_t const charsetsize = ARRAY_LEN(charset);
 
     float values[ASCIIPLT_W];
     float minval = (float)get_inf();
@@ -926,7 +926,7 @@ output_by_name(char const* name)
 {
     int32_t i;
 
-    for (i = 0; i < sizeof(modules) / sizeof(modules[0]); ++i)
+    for (i = 0; i < ARRAY_LEN(modules); ++i)
     {
         if (!strcmp(modules[i].name, name)) {
             return &modules[i];
