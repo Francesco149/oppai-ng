@@ -2876,7 +2876,8 @@ int32_t ppv2x(struct pp_calc* pp, double aim,
 
     /* hidden */
     if (mods & MODS_HD) {
-        pp->aim *= (1.02f + (11.0f - mapstats.ar) / 50.0f); /* Gives a 1.04 bonus for AR10, a 1.06 bonus for AR9, a 1.02 bonus for AR11. */
+        /* 1.04 bonus for AR10, 1.06 for AR9, 1.02 for AR11 */
+        pp->aim *= (1.02f + (11.0f - mapstats.ar) / 50.0f);
     }
 
     /* flashlight */
