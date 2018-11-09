@@ -160,7 +160,7 @@ void usage()
 }
 
 #define output_sig(name) \
-void name(int32_t result, struct beatmap* map, \
+void name(int result, struct beatmap* map, \
     struct beatmap_stats* mapstats, char const* mods_str, \
     struct diff_calc* stars, struct pp_params* params, \
     struct pp_calc* pp)
@@ -184,7 +184,7 @@ internalfn output_sig(output_null)
 #define ASCIIPLT_W 51
 
 internalfn
-void asciiplt(float (* getvalue)(void* data, size_t i), size_t n,
+void asciiplt(float (* getvalue)(void* data, int i), int n,
     void* data)
 {
     static char const* charset[] = {
@@ -202,22 +202,22 @@ void asciiplt(float (* getvalue)(void* data, size_t i), size_t n,
 #endif
     };
 
-    static size_t const charsetsize = ARRAY_LEN(charset);
+    static int const charsetsize = ARRAY_LEN(charset);
 
     float values[ASCIIPLT_W];
     float minval = (float)get_inf();
     float maxval = (float)-get_inf();
     float range;
-    size_t i;
-    size_t chunksize;
-    size_t w = mymin(ASCIIPLT_W, n);
+    int i;
+    int chunksize;
+    int w = mymin(ASCIIPLT_W, n);
 
     memset(values, 0, sizeof(values));
-    chunksize = (size_t)ceil((float)n / w);
+    chunksize = (int)ceil((float)n / w);
 
     for (i = 0; i < n; ++i)
     {
-        size_t chunki = i / chunksize;
+        int chunki = i / chunksize;
         values[chunki] = mymax(
             values[chunki],
             getvalue(data, i)
@@ -226,7 +226,7 @@ void asciiplt(float (* getvalue)(void* data, size_t i), size_t n,
 
     for (i = 0; i < n; ++i)
     {
-        size_t chunki = i / chunksize;
+        int chunki = i / chunksize;
         maxval = mymax(maxval, values[chunki]);
         minval = mymin(minval, values[chunki]);
     }
@@ -235,7 +235,7 @@ void asciiplt(float (* getvalue)(void* data, size_t i), size_t n,
 
     for (i = 0; i < w; ++i)
     {
-        size_t chari = (size_t)(
+        int chari = (int)(
             ((values[i] - minval) / range) * charsetsize
         );
         chari = mymax(0, mymin(chari, charsetsize - 1));
@@ -246,14 +246,14 @@ void asciiplt(float (* getvalue)(void* data, size_t i), size_t n,
 }
 
 internalfn
-float getaim(void* data, size_t i)
+float getaim(void* data, int i)
 {
     struct beatmap* b = (struct beatmap*)data;
     return (float)b->objects[i].strains[DIFF_AIM];
 }
 
 internalfn
-float getspeed(void* data, size_t i)
+float getspeed(void* data, int i)
 {
     struct beatmap* b = (struct beatmap*)data;
     return (float)b->objects[i].strains[DIFF_SPEED];
@@ -264,7 +264,7 @@ float getspeed(void* data, size_t i)
 internalfn
 output_sig(output_text)
 {
-    uint16_t total_objs;
+    int total_objs;
 
     if (result < 0) {
         puts(errstr(result));
@@ -309,11 +309,11 @@ output_sig(output_text)
     if (map->mode == MODE_STD)
     {
         printf("%hu spacing singletaps (%g%%)\n", stars->nsingles,
-            stars->nsingles / (double)total_objs * 100.0);
+            stars->nsingles / (float)total_objs * 100.0);
 
         printf("%hu notes within singletap bpm threshold (%g%%)\n",
             stars->nsingles_threshold,
-            stars->nsingles_threshold/(double)total_objs * 100.0);
+            stars->nsingles_threshold/(float)total_objs * 100.0);
 
         puts("");
 
@@ -321,10 +321,10 @@ output_sig(output_text)
             stars->aim, stars->speed);
 
         printf("\nspeed strain: ");
-        asciiplt(getspeed, (size_t)map->nobjects, map);
+        asciiplt(getspeed, (int)map->nobjects, map);
 
         printf("  aim strain: ");
-        asciiplt(getaim, (size_t)map->nobjects, map);
+        asciiplt(getaim, (int)map->nobjects, map);
     }
     else {
         printf("%g stars\n", stars->total);
@@ -385,26 +385,25 @@ void print_escaped_json_string_ex(char const* str, int quotes)
 /* https://www.doc.ic.ac.uk/%7Eeedwards/compsys/float/nan.html */
 
 internalfn
-int is_inf(double b)
+int is_inf(float b)
 {
-    uint64_t* p = (uint64_t*)&b;
-    return *p == 0x7FF0000000000000LL ||
-           *p == 0xFFF0000000000000LL;
+    int* p = (int*)&b;
+    return *p == 0x7F800000 || *p == 0xFF800000;
 }
 
 internalfn
-int is_nan(double b)
+int is_nan(float b)
 {
-    uint64_t* p = (uint64_t*)&b;
+    int* p = (int*)&b;
     return
-        (*p > 0x7FF0000000000000LL && *p < 0x8000000000000000LL) ||
-        (*p > 0xFFF7FFFFFFFFFFFFLL && *p <= 0xFFFFFFFFFFFFFFFFLL);
+        (*p > 0x7F800000 && *p < 0x80000000) ||
+        (*p > 0x7FBFFFFF && *p <= 0xFFFFFFFF);
 }
 
 /* json is mentally challenged and can't handle inf and nan so
    we're gonna be mathematically incorrect */
 internalfn
-void fix_json_dbl(double* v)
+void fix_json_flt(float* v)
 {
     if (is_inf(*v)) {
         *v = -1;
@@ -429,13 +428,13 @@ output_sig(output_json)
         return;
     }
 
-    fix_json_dbl(&pp->total);
-    fix_json_dbl(&pp->aim);
-    fix_json_dbl(&pp->speed);
-    fix_json_dbl(&pp->accuracy);
-    fix_json_dbl(&stars->total);
-    fix_json_dbl(&stars->aim);
-    fix_json_dbl(&stars->speed);
+    fix_json_flt(&pp->total);
+    fix_json_flt(&pp->aim);
+    fix_json_flt(&pp->speed);
+    fix_json_flt(&pp->accuracy);
+    fix_json_flt(&stars->total);
+    fix_json_flt(&stars->aim);
+    fix_json_flt(&stars->speed);
 
     printf("\"code\":200,\"errstr\":\"no error\",");
 
@@ -470,12 +469,12 @@ output_sig(output_json)
     }
 
     printf(
-        "\"mods_str\":\"%s\",\"mods\":%u,"
+        "\"mods_str\":\"%s\",\"mods\":%d,"
         "\"od\":%g,\"ar\":%g,\"cs\":%g,\"hp\":%g,"
         "\"combo\":%d,\"max_combo\":%d,"
         "\"num_circles\":%hu,\"num_sliders\":%hu,"
         "\"num_spinners\":%hu,\"misses\":%hu,"
-        "\"score_version\":%u,\"stars\":%.17g,"
+        "\"score_version\":%d,\"stars\":%.17g,"
         "\"speed_stars\":%.17g,\"aim_stars\":%.17g,"
         "\"nsingles\":%hu,\"nsingles_threshold\":%hu,"
         "\"aim_pp\":%.17g,\"speed_pp\":%.17g,\"acc_pp\":%.17g,"
@@ -563,10 +562,10 @@ output_sig(output_csv)
     }
 
     printf(
-        "mods_str;%s\nmods;%u\nod;%g\nar;%g\ncs;%g\nhp;%g\n"
+        "mods_str;%s\nmods;%d\nod;%g\nar;%g\ncs;%g\nhp;%g\n"
         "combo;%d\nmax_combo;%d\nnum_circles;%hu\n"
         "num_sliders;%hu\nnum_spinners;%hu\nmisses;%hu\n"
-        "score_version;%u\nstars;%.17g\nspeed_stars;%.17g\n"
+        "score_version;%d\nstars;%.17g\nspeed_stars;%.17g\n"
         "aim_stars;%.17g\nnsingles;%hu\nnsingles_threshold;%hu\n"
         "aim_pp;%.17g\nspeed_pp;%.17g\nacc_pp;%.17g\npp;%.17g",
         mods_str, params->mods, mapstats->od, mapstats->ar,
@@ -585,28 +584,29 @@ output_sig(output_csv)
 /* binary output                                                 */
 
 internalfn
-void write1(uint8_t v) {
-    fwrite(&v, 1, 1, stdout);
+void write1(int v) {
+    char buf = (char)(v & 0xFF);
+    fwrite(&buf, 1, 1, stdout);
 }
 
 internalfn
-void write2(uint16_t v)
+void write2(int v)
 {
-    uint8_t buf[2];
-    buf[0] = (uint8_t)(v & 0xFF);
-    buf[1] = (uint8_t)(v >> 8);
+    char buf[2];
+    buf[0] = (char)(v & 0xFF);
+    buf[1] = (char)(v >> 8);
     fwrite(buf, 1, 2, stdout);
 }
 
 internalfn
-void write4(uint32_t v)
+void write4(int v)
 {
-    uint8_t buf[4];
+    char buf[4];
 
-    buf[0] = (uint8_t)(v & 0xFF);
-    buf[1] = (uint8_t)((v >> 8) & 0xFF);
-    buf[2] = (uint8_t)((v >> 16) & 0xFF);
-    buf[3] = (uint8_t)((v >> 24) & 0xFF);
+    buf[0] = (char)(v & 0xFF);
+    buf[1] = (char)((v >> 8) & 0xFF);
+    buf[2] = (char)((v >> 16) & 0xFF);
+    buf[3] = (char)((v >> 24) & 0xFF);
 
     fwrite(buf, 1, 4, stdout);
 }
@@ -614,33 +614,14 @@ void write4(uint32_t v)
 internalfn
 void write_flt(float f)
 {
-    uint32_t* p = (uint32_t*)&f;
+    int* p = (int*)&f;
     write4(*p);
-}
-
-internalfn
-void write_dbl(double d)
-{
-    uint64_t* p = (uint64_t*)&d;
-    uint64_t v = *p;
-    uint8_t buf[8];
-
-    buf[0] = (uint8_t)(v & 0xFF);
-    buf[1] = (uint8_t)((v >> 8) & 0xFF);
-    buf[2] = (uint8_t)((v >> 16) & 0xFF);
-    buf[3] = (uint8_t)((v >> 24) & 0xFF);
-    buf[4] = (uint8_t)((v >> 32) & 0xFF);
-    buf[5] = (uint8_t)((v >> 40) & 0xFF);
-    buf[6] = (uint8_t)((v >> 48) & 0xFF);
-    buf[7] = (uint8_t)((v >> 56) & 0xFF);
-
-    fwrite(buf, 1, 8, stdout);
 }
 
 internalfn
 void write_str(char const* str)
 {
-    uint16_t len = (uint16_t)mymin(0xFFFF, strlen(str));
+    int len = mymin(0xFFFF, strlen(str));
     write2(len);
     printf("%s", str);
     write1(0);
@@ -684,16 +665,15 @@ output_sig(output_binary)
     write2(map->nsliders);
     write2(map->nspinners);
     write4(params->score_version);
-    write_dbl(stars->total);
-    write_dbl(stars->speed);
-    write_dbl(stars->aim);
+    write_flt(stars->total);
+    write_flt(stars->speed);
+    write_flt(stars->aim);
     write2(stars->nsingles);
-    write2(0);
     write2(stars->nsingles_threshold);
-    write_dbl(pp->aim);
-    write_dbl(pp->speed);
-    write_dbl(pp->acc);
-    write_dbl(pp->total);
+    write_flt(pp->aim);
+    write_flt(pp->speed);
+    write_flt(pp->acc);
+    write_flt(pp->total);
 }
 #endif /* OPPAI_NOBINARY */
 
@@ -706,7 +686,7 @@ output_sig(output_binary)
 internalfn
 void gnuplot_strains(struct beatmap* map, int type)
 {
-    int32_t i;
+    int i;
 
     for (i = 0; i < map->nobjects; ++i)
     {
@@ -768,7 +748,7 @@ output_sig(output_gnuplot)
 
 output_sig(output_debug)
 {
-    int32_t i;
+    int i;
 
     (void)mods_str;
     (void)stars;
@@ -888,7 +868,7 @@ const modules[] =
         "for an example on how to read this in C, check out "
         "examples/binary.c in oppai-ng's source\n"
         "\n"
-        "doubles and floats are represented using whatever "
+        "floats and floats are represented using whatever "
         "convention the host machine and compiler use. unless you "
         "are on a really exotic machine it shouldn't matter\n"
         "\n"
@@ -897,18 +877,17 @@ const modules[] =
         "a null (zero) terminating byte\n"
         "\n"
         "binoppai (8-byte magic), "
-        "uint8_t oppai_ver_major, uint8_t oppai_ver_minor, "
-        "uint8_t oppai_ver_patch, int32_t code, "
+        "int8 oppai_ver_major, int8 oppai_ver_minor, "
+        "int8 oppai_ver_patch, int error_code, "
         "str artist, str artist_utf8, str title, str title_utf8, "
         "str version, str creator, "
-        "uint32_t mods_bitmask, float od, float ar, float cs, "
-        "float hp, int32_t combo, int32_t max_combo, "
-        "uint16_t ncircles, uint16_t nsliders, uint16_t nspinner, "
-        "uint32_t score_version, double total_stars, ",
-        "double speed_stars, double aim_stars, uint16_t nsingles, "
-        "uint16_t deprecated (always 0), "
-        "uint16_t nsingles_threshold, double aim_pp, "
-        "double speed_pp, double acc_pp, double pp",
+        "int mods_bitmask, float od, float ar, float cs, "
+        "float hp, int combo, int max_combo, "
+        "int16 ncircles, int16 nsliders, int16 nspinner, "
+        "int score_version, float total_stars, ",
+        "float speed_stars, float aim_stars, int16 nsingles, "
+        "int16 nsingles_threshold, float aim_pp, "
+        "float speed_pp, float acc_pp, float pp",
         0 }
     },
 #endif /* OPPAI_NOBINARY */
@@ -924,7 +903,7 @@ internalfn
 struct output_module const*
 output_by_name(char const* name)
 {
-    int32_t i;
+    int i;
 
     for (i = 0; i < ARRAY_LEN(modules); ++i)
     {
@@ -970,7 +949,7 @@ void print_memory_usage(struct parser* pa, struct diff_calc* dc)
 internalfn
 int cmpsuffix(char const* str, char const* suffix)
 {
-    int32_t sufflen = (int32_t)mymin(strlen(str), strlen(suffix));
+    int sufflen = (int)mymin(strlen(str), strlen(suffix));
     return strcmp(str + strlen(str) - sufflen, suffix);
 }
 
@@ -1022,7 +1001,7 @@ int main(int argc, char* argv[])
 {
     FILE* f;
     int i;
-    int32_t result;
+    int result;
 
     struct parser* pstate = 0;
     struct diff_calc stars;
@@ -1034,23 +1013,23 @@ int main(int argc, char* argv[])
 
     char* output_name = "text";
     char* mods_str = 0;
-    uint32_t mods = MODS_NOMOD;
-    double acc_percent = 100.0;
+    int mods = MODS_NOMOD;
+    float acc_percent = 100.0;
     int use_percent = 0;
 
-    uint32_t overrides = 0;
-#   define OVERRIDE_AR ((uint32_t)1<<0)
-#   define OVERRIDE_OD ((uint32_t)1<<1)
-#   define OVERRIDE_CS ((uint32_t)1<<2)
-#   define OVERRIDE_SINGLETAP_THRESHOLD ((uint32_t)1<<3)
-#   define OVERRIDE_MODE ((uint32_t)1<<4)
-#   define OVERRIDE_SPEED ((uint32_t)1<<5)
-#   define OVERRIDE_AIM ((uint32_t)1<<6)
+    int overrides = 0;
+#   define OVERRIDE_AR ((int)1<<0)
+#   define OVERRIDE_OD ((int)1<<1)
+#   define OVERRIDE_CS ((int)1<<2)
+#   define OVERRIDE_SINGLETAP_THRESHOLD ((int)1<<3)
+#   define OVERRIDE_MODE ((int)1<<4)
+#   define OVERRIDE_SPEED ((int)1<<5)
+#   define OVERRIDE_AIM ((int)1<<6)
 
     float ar_override = 0, od_override = 0, cs_override = 0;
-    double singletap_threshold = 125.0;
-    uint32_t mode_override = MODE_STD;
-    double speed_override = 0, aim_override = 0;
+    float singletap_threshold = 125.0;
+    int mode_override = MODE_STD;
+    float speed_override = 0, aim_override = 0;
 
     /* parse arguments ----------------------------------------- */
     me = argv[0];
@@ -1102,8 +1081,8 @@ int main(int argc, char* argv[])
 
             if (!strcmp(output_name, "?"))
             {
-                int32_t j;
-                int32_t nmodules =
+                int j;
+                int nmodules =
                     sizeof(modules) / sizeof(modules[0]);
 
                 for (j = 0; j < nmodules; ++j)
@@ -1123,7 +1102,7 @@ int main(int argc, char* argv[])
         }
 
         if (strlen(a) >= 3 && !memcmp(a, "-st", 3) &&
-            sscanf(a + 3, "%lf", &singletap_threshold) == 1)
+            sscanf(a + 3, "%f", &singletap_threshold) == 1)
         {
             singletap_threshold =
                 (60000.0 / singletap_threshold) / 2.0;
@@ -1132,20 +1111,20 @@ int main(int argc, char* argv[])
         }
 
         if (!cmpsuffix(a, "%") &&
-            sscanf(a, "%lf", &acc_percent) == 1)
+            sscanf(a, "%f", &acc_percent) == 1)
         {
             use_percent = 1;
             continue;
         }
 
         if (!cmpsuffix(a, "x100") &&
-            sscanf(a, "%hu", &params.n100) == 1)
+            sscanf(a, "%d", &params.n100) == 1)
         {
             continue;
         }
 
         if (!cmpsuffix(a, "x50") &&
-            sscanf(a, "%hu", &params.n50) == 1)
+            sscanf(a, "%d", &params.n50) == 1)
         {
             continue;
         }
@@ -1153,7 +1132,7 @@ int main(int argc, char* argv[])
         if (!cmpsuffix(a, "xm") || !cmpsuffix(a, "xmiss") ||
             !cmpsuffix(a, "m"))
         {
-            if (sscanf(a, "%hu", &params.nmiss) == 1) {
+            if (sscanf(a, "%d", &params.nmiss) == 1) {
                 continue;
             }
         }
@@ -1164,7 +1143,7 @@ int main(int argc, char* argv[])
             continue;
         }
 
-        if (sscanf(a, "scorev%u", &params.score_version)) {
+        if (sscanf(a, "scorev%d", &params.score_version)) {
             continue;
         }
 
@@ -1183,7 +1162,7 @@ int main(int argc, char* argv[])
             continue;
         }
 
-        if (sscanf(a, "-m%u", &mode_override) == 1) {
+        if (sscanf(a, "-m%d", &mode_override) == 1) {
             overrides |= OVERRIDE_MODE;
             continue;
         }
@@ -1195,14 +1174,14 @@ int main(int argc, char* argv[])
         }
 
         if (!cmpsuffix(a, "speed") &&
-            sscanf(a, "%lf", &speed_override) == 1)
+            sscanf(a, "%f", &speed_override) == 1)
         {
             overrides |= OVERRIDE_SPEED;
             continue;
         }
 
         if (!cmpsuffix(a, "aim") &&
-            sscanf(a, "%lf", &aim_override) == 1)
+            sscanf(a, "%f", &aim_override) == 1)
         {
             overrides |= OVERRIDE_AIM;
             continue;
@@ -1351,23 +1330,23 @@ int main(int argc, char* argv[])
         switch (map.mode)
         {
         case MODE_STD:
-            acc_round(acc_percent, (uint16_t)map.nobjects,
+            acc_round(acc_percent, (int)map.nobjects,
                 params.nmiss, &params.n300, &params.n100,
                 &params.n50);
             break;
 
         case MODE_TAIKO:
         {
-            int32_t taiko_max_combo = b_max_combo(&map);
+            int taiko_max_combo = b_max_combo(&map);
 
             if (taiko_max_combo < 0) {
                 result = taiko_max_combo;
                 goto output;
             }
 
-            params.max_combo = (uint16_t)taiko_max_combo;
+            params.max_combo = (int)taiko_max_combo;
 
-            taiko_acc_round(acc_percent, (uint16_t)taiko_max_combo,
+            taiko_acc_round(acc_percent, (int)taiko_max_combo,
                 params.nmiss, &params.n300, &params.n100);
             break;
         }

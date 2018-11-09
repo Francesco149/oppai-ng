@@ -1,4 +1,4 @@
-/* gcc min.c
+/* gcc min.c -lm
    cat /path/to/file.osu | ./a.out */
 
 #define OPPAI_IMPLEMENTATION
@@ -9,7 +9,7 @@ int main()
     struct parser pstate;
     struct beatmap map;
 
-    uint32_t mods;
+    int mods;
     struct diff_calc stars;
     struct pp_calc pp;
 

@@ -8,44 +8,31 @@
 #include <string.h>
 
 /* these are only necessary to ensure endian-ness, if you don't
-   care about that you can read values like v = *(uint16_t*)p */
+   care about that you can read values like v = *(int*)p */
 
-uint16_t read2(uint8_t const* p) {
-    return (uint16_t)p[0] | ((uint16_t)p[1] << 8);
+int read2(char* c) {
+    unsigned char* p = (unsigned char*)c;
+    return p[0] | (p[1] << 8);
 }
 
-uint32_t read4(uint8_t const* p)
+int read4(char* c)
 {
-    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) |
-        ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+    unsigned char* p = (unsigned char*)c;
+    return p[0] | (p[1] << 8) |
+        (p[2] << 16) | (p[3] << 24);
 }
 
-uint64_t read8(uint8_t const* p)
+float read_flt(char* p)
 {
-    return (uint64_t)p[0] | ((uint64_t)p[1] << 8) |
-        ((uint64_t)p[2] << 16) | ((uint64_t)p[3] << 24) |
-        ((uint64_t)p[4] << 32) | ((uint64_t)p[5] << 40) |
-        ((uint64_t)p[6] << 48) | ((uint64_t)p[7] << 56);
-}
-
-float read_flt(uint8_t const* p)
-{
-    uint32_t v = read4(p);
+    int v = read4(p);
     float* pf = (float*)&v;
     return *pf;
 }
 
-double read_dbl(uint8_t const* p)
-{
-    uint64_t v = read8(p);
-    double* pd = (double*)&v;
-    return *pd;
-}
-
-char const* read_str(uint8_t const* p, uint16_t* len)
+char* read_str(char* p, int* len)
 {
     *len = read2(p);
-    return (char const*)p + 2;
+    return (char*)p + 2;
 }
 
 #define MODS_NF (1<<0)
@@ -60,11 +47,11 @@ char const* read_str(uint8_t const* p, uint16_t* len)
 
 int main()
 {
-    uint8_t buf[8192];
-    uint8_t* p = buf;
-    uint16_t len;
-    int32_t result;
-    uint32_t mods;
+    char buf[8192];
+    char* p = buf;
+    int len;
+    int result;
+    int mods;
 
     memset(buf, 0, sizeof(buf));
 
@@ -85,7 +72,7 @@ int main()
     }
     p += 8;
 
-    printf("oppai %d.%d.%d\n", (int)p[0], (int)p[1], (int)p[2]);
+    printf("oppai %d.%d.%d\n", p[0], p[1], p[2]);
     p += 3;
     puts("");
 
@@ -138,40 +125,39 @@ int main()
         read_flt(p + 8), read_flt(p + 12));
     p += 16;
 
-    printf("%u/%ux\n", read4(p), read4(p + 4));
+    printf("%d/%dx\n", read4(p), read4(p + 4));
     p += 8;
 
-    printf("%hu circles %hu sliders %hu spinners\n",
+    printf("%d circles %d sliders %d spinners\n",
         read2(p), read2(p + 2), read2(p + 4));
     p += 6;
 
-    printf("scorev%u\n", read4(p));
+    printf("scorev%d\n", read4(p));
     p += 4;
 
     puts("");
-    printf("%g stars (%g speed, %g aim)\n", read_dbl(p),
-        read_dbl(p + 8), read_dbl(p + 16));
-    p += 24;
+    printf("%g stars (%g speed, %g aim)\n", read_flt(p),
+        read_flt(p + 4), read_flt(p + 8));
+    p += 12;
 
-    /* note: skipping deprecated value at p + 2 */
-    printf("%hu spacing singletaps, "
-        "%hu notes within singletap threshold\n",
-        read2(p), read2(p + 4));
-    p += 6;
-
-    puts("");
-
-    printf("%g aim pp\n", read_dbl(p));
-    p += 8;
-
-    printf("%g speed pp\n", read_dbl(p));
-    p += 8;
-
-    printf("%g acc pp\n", read_dbl(p));
-    p += 8;
+    printf("%d spacing singletaps, "
+        "%d notes within singletap threshold\n",
+        read2(p), read2(p + 2));
+    p += 4;
 
     puts("");
-    printf("%g pp\n", read_dbl(p));
+
+    printf("%g aim pp\n", read_flt(p));
+    p += 4;
+
+    printf("%g speed pp\n", read_flt(p));
+    p += 4;
+
+    printf("%g acc pp\n", read_flt(p));
+    p += 4;
+
+    puts("");
+    printf("%g pp\n", read_flt(p));
 
     return 0;
 }

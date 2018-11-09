@@ -23,7 +23,7 @@
        struct parser pstate;
        struct beatmap map;
 
-       uint32_t mods;
+       int mods;
        struct diff_calc stars;
        struct pp_calc pp;
 
@@ -49,24 +49,9 @@
 /* all structs are not thread safe, use one parser, diff_calc, etc
    instance per thread if you need to process maps in parallel */
 
-#define OPPAI_VERSION_MAJOR 1
-#define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 52
-
-/* if your compiler doesn't have stdint, define this */
-#ifdef OPPAI_NOSTDINT
-typedef long long int int64_t;
-typedef int int32_t;
-typedef short int16_t;
-typedef char int8_t;
-
-typedef unsigned long long int uint64_t;
-typedef unsigned int uint32_t;
-typedef unsigned short uint16_t;
-typedef unsigned char uint8_t;
-#else
-#include <stdint.h>
-#endif
+#define OPPAI_VERSION_MAJOR 2
+#define OPPAI_VERSION_MINOR 0
+#define OPPAI_VERSION_PATCH 0
 
 #include <stdio.h> /* FILE */
 
@@ -77,7 +62,7 @@ typedef unsigned char uint8_t;
 /* ------------------------------------------------------------- */
 /* errors                                                        */
 
-/* all functions that return int32_t can return errors in the form
+/* all functions that return int can return errors in the form
    of a negative value. check if the return value is < 0 and call
    errstr to get the error message */
 
@@ -89,7 +74,7 @@ typedef unsigned char uint8_t;
 #define ERR_FORMAT         (-6)
 #define ERR_OOM            (-7)
 
-char const* errstr(int32_t err);
+char const* errstr(int err);
 
 /* ------------------------------------------------------------- */
 /* beatmap utils                                                 */
@@ -108,13 +93,13 @@ char const* errstr(int32_t err);
 /* data about a single hitobject */
 struct object
 {
-    double time; /* milliseconds */
-    uint8_t type;
+    float time; /* milliseconds */
+    int type;
 
     /* only parsed for taiko maps */
-    int32_t nsound_types;
-    int32_t sound_types_off;
-    uint8_t* sound_types;
+    int nsound_types;
+    int sound_types_off;
+    int* sound_types;
 
     /* should be casted to struct circle or slider based on type
        should only be set/used when all parsing is done */
@@ -122,11 +107,11 @@ struct object
 
     /* points to one of the struct below inside object_data_mem
        only used internally by the parser */
-    int32_t data_off;
+    int data_off;
 
     /* only used by d_calc */
-    double normpos[2];
-    double strains[2];
+    float normpos[2];
+    float strains[2];
     int is_single; /* 1 if diff calc sees this as a singletap */
 
     /* note: it's a bit of a waste of memory to put diff calc
@@ -135,21 +120,21 @@ struct object
 };
 
 struct circle {
-    double pos[2];
+    float pos[2];
 };
 
 struct slider
 {
-    double pos[2];
-    double distance;
-    uint32_t repetitions;
+    float pos[2];
+    float distance;
+    int repetitions;
 };
 
 /* timing point */
 struct timing
 {
-    double time; /* milliseconds */
-    double ms_per_beat;
+    float time; /* milliseconds */
+    float ms_per_beat;
     int change; /* if 0, ms_per_beat is -100.0 * sv_multiplier */
 };
 
@@ -158,9 +143,9 @@ struct timing
 
 struct beatmap
 {
-    int32_t format_version;
-    int32_t mode;
-    int32_t original_mode; /* the mode the beatmap was meant for */
+    int format_version;
+    int mode;
+    int original_mode; /* the mode the beatmap was meant for */
 
     char* title;
     char* title_unicode;
@@ -170,11 +155,11 @@ struct beatmap
     char* version;
 
     struct object* objects;
-    int32_t nobjects;
+    int nobjects;
     struct timing* timing_points;
-    int32_t ntiming_points;
+    int ntiming_points;
 
-    uint16_t ncircles, nsliders, nspinners;
+    int ncircles, nsliders, nspinners;
     float hp, cs, od, ar, sv;
     float tick_rate;
 };
@@ -188,9 +173,9 @@ struct beatmap
    pushes are byte aligned */
 struct memstack
 {
-    uint8_t* buf;
-    int32_t top;
-    int32_t size;
+    char* buf;
+    int top;
+    int size;
 };
 
 /* non-null terminated string, used internally for parsing */
@@ -200,14 +185,14 @@ struct slice
     char* end; /* *(end - 1) is the last character */
 };
 
-#define PARSER_OVERRIDE_MODE ((uint32_t)1<<0) /* mode_override */
-#define PARSER_FOUND_AR ((uint32_t)1<<1)
+#define PARSER_OVERRIDE_MODE ((int)1<<0) /* mode_override */
+#define PARSER_FOUND_AR ((int)1<<1)
 
 /* beatmap parser's state */
 struct parser
 {
-    int32_t flags;
-    int32_t mode_override;
+    int flags;
+    int mode_override;
 
     /* if a parsing error occurs last line and portion of the line
        that was being parsed are stored in these two slices */
@@ -218,12 +203,12 @@ struct parser
     /* used to buffer data from the beatmap file */
     char buf[65536];
 
-    int32_t title; /* offsets into the memory stack */
-    int32_t title_unicode;
-    int32_t artist;
-    int32_t artist_unicode;
-    int32_t creator;
-    int32_t version;
+    int title; /* offsets into the memory stack */
+    int title_unicode;
+    int artist;
+    int artist_unicode;
+    int creator;
+    int version;
 
     char section[64]; /* current section */
 
@@ -235,7 +220,7 @@ struct parser
     struct beatmap* b;
 };
 
-int32_t p_init(struct parser* pa);
+int p_init(struct parser* pa);
 void p_free(struct parser* pa);
 
 /* parses a beatmap file and stores results in b.
@@ -245,9 +230,9 @@ void p_free(struct parser* pa);
          parser's lifetime, you will have to manually copy.
 
    returns n. bytes processed on success, < 0 on failure */
-int32_t p_map(struct parser* pa, struct beatmap* b, FILE* f);
-int32_t p_map_mem(struct parser* pa, struct beatmap* b, char* data,
-    size_t data_size);
+int p_map(struct parser* pa, struct beatmap* b, FILE* f);
+int p_map_mem(struct parser* pa, struct beatmap* b, char* data,
+    int data_size);
 
 #endif /* OPPAI_NOPARSER */
 
@@ -256,17 +241,17 @@ int32_t p_map_mem(struct parser* pa, struct beatmap* b, char* data,
 
 /* mod bits for mods_apply */
 #define MODS_NOMOD 0
-#define MODS_NF ((uint32_t)1<<0)
-#define MODS_EZ ((uint32_t)1<<1)
-#define MODS_TOUCH_DEVICE ((uint32_t)1<<2)
+#define MODS_NF ((int)1<<0)
+#define MODS_EZ ((int)1<<1)
+#define MODS_TOUCH_DEVICE ((int)1<<2)
 #define MODS_TD MODS_TOUCH_DEVICE
-#define MODS_HD ((uint32_t)1<<3)
-#define MODS_HR ((uint32_t)1<<4)
-#define MODS_DT ((uint32_t)1<<6)
-#define MODS_HT ((uint32_t)1<<8)
-#define MODS_NC ((uint32_t)1<<9)
-#define MODS_FL ((uint32_t)1<<10)
-#define MODS_SO ((uint32_t)1<<12)
+#define MODS_HD ((int)1<<3)
+#define MODS_HR ((int)1<<4)
+#define MODS_DT ((int)1<<6)
+#define MODS_HT ((int)1<<8)
+#define MODS_NC ((int)1<<9)
+#define MODS_FL ((int)1<<10)
+#define MODS_SO ((int)1<<12)
 #define MODS_SPEED_CHANGING (MODS_DT | MODS_HT | MODS_NC)
 #define MODS_MAP_CHANGING (MODS_HR | MODS_EZ | MODS_SPEED_CHANGING)
 
@@ -279,11 +264,11 @@ struct beatmap_stats
 };
 
 /* flags bits for mods_apply */
-#define APPLY_AR ((uint32_t)1<<0)
-#define APPLY_OD ((uint32_t)1<<1)
-#define APPLY_CS ((uint32_t)1<<2)
-#define APPLY_HP ((uint32_t)1<<3)
-#define APPLY_ALL (~(uint32_t)0)
+#define APPLY_AR ((int)1<<0)
+#define APPLY_OD ((int)1<<1)
+#define APPLY_CS ((int)1<<2)
+#define APPLY_HP ((int)1<<3)
+#define APPLY_ALL (~(int)0)
 
 /* calculates beatmap stats with mods applied. s should initially
    contain the base stats. flags specifies which stats are touched.
@@ -298,12 +283,12 @@ struct beatmap_stats
        mods_apply_m(MODE_STD, MODS_DT, &s, APPLY_AR);
        // s.ar is now 10.33, s.speed is now 1.5
 */
-int32_t mods_apply_m(uint32_t mode, uint32_t mods,
-    struct beatmap_stats* s, uint32_t flags);
+int mods_apply_m(int mode, int mods,
+    struct beatmap_stats* s, int flags);
 
 /* legacy function, calls mods_apply(MODE_STD, mods, s, flags) */
-void mods_apply(uint32_t mods,
-    struct beatmap_stats* s, uint32_t flags);
+void mods_apply(int mods,
+    struct beatmap_stats* s, int flags);
 
 #ifndef OPPAI_NODIFFCALC
 /* ------------------------------------------------------------- */
@@ -313,30 +298,30 @@ void mods_apply(uint32_t mods,
    instance can be re-used in subsequent calls to d_calc */
 struct diff_calc
 {
-    double speed_mul;
-    double interval_end;
-    double max_strain;
+    float speed_mul;
+    float interval_end;
+    float max_strain;
     struct memstack highest_strains;
     struct beatmap* b;
 
     /* set this to the milliseconds interval for the maximum bpm
        you consider singletappable. defaults to 125 = 240 bpm 1/2.
        ((60000 / 240) / 2) */
-    double singletap_threshold;
+    float singletap_threshold;
 
     /* calls to d_calc will store results here */
-    double total;
-    double aim;
-    double speed;
-    uint16_t nsingles;
-    uint16_t nsingles_threshold;
+    float total;
+    float aim;
+    float speed;
+    int nsingles;
+    int nsingles_threshold;
 };
 
-int32_t d_init(struct diff_calc* d);
+int d_init(struct diff_calc* d);
 void d_free(struct diff_calc* d);
 
-int32_t d_calc(struct diff_calc* d,
-    struct beatmap* b, uint32_t mods);
+int d_calc(struct diff_calc* d,
+    struct beatmap* b, int mods);
 
 #endif /* OPPAI_NODIFFCALC */
 
@@ -347,8 +332,8 @@ int32_t d_calc(struct diff_calc* d,
 struct pp_calc
 {
     /* ppv2 will store results here */
-    double total, aim, speed, acc;
-    double accuracy; /* 0.0 - 1.0 */
+    float total, aim, speed, acc;
+    float accuracy; /* 0.0 - 1.0 */
 };
 
 /* default scoring system used by ppv2() and ppv2p() */
@@ -358,33 +343,33 @@ struct pp_calc
 
    this also works for other modes by ignoring some parameters:
    - taiko only uses pp, mode, speed, max_combo, base_od, mods */
-int32_t ppv2(struct pp_calc* pp, uint32_t mode, double aim,
-    double speed, float base_ar, float base_od, int32_t max_combo,
-    uint16_t nsliders, uint16_t ncircles, uint16_t nobjects,
-    uint32_t mods);
+int ppv2(struct pp_calc* pp, int mode, float aim,
+    float speed, float base_ar, float base_od, int max_combo,
+    int nsliders, int ncircles, int nobjects,
+    int mods);
 
 /* simplest possible call for taiko ppv2 SS */
-int32_t taiko_ppv2(struct pp_calc* pp, double speed,
-    int32_t max_combo, float base_od, uint32_t mods);
+int taiko_ppv2(struct pp_calc* pp, float speed,
+    int max_combo, float base_od, int mods);
 
 /* parameters for ppv2p */
 struct pp_params
 {
     /* required parameters */
-    double aim, speed;
+    float aim, speed;
     float base_ar, base_od;
-    int32_t max_combo;
-    uint16_t nsliders; /* required for scorev1 only */
-    uint16_t ncircles; /* ^ */
-    uint16_t nobjects;
+    int max_combo;
+    int nsliders; /* required for scorev1 only */
+    int ncircles; /* ^ */
+    int nobjects;
 
     /* optional parameters */
-    uint32_t mode; /* defaults to MODE_STD */
-    uint32_t mods; /* defaults to MODS_NOMOD */
-    int32_t combo; /* defaults to FC */
-    uint16_t n300, n100, n50; /* defaults to SS */
-    uint16_t nmiss; /* defaults to 0 */
-    uint32_t score_version; /* defaults to PP_DEFAULT_SCORING */
+    int mode; /* defaults to MODE_STD */
+    int mods; /* defaults to MODS_NOMOD */
+    int combo; /* defaults to FC */
+    int n300, n100, n50; /* defaults to SS */
+    int nmiss; /* defaults to 0 */
+    int score_version; /* defaults to PP_DEFAULT_SCORING */
 };
 
 /* initialize struct pp_params with the default values.
@@ -392,37 +377,37 @@ struct pp_params
 void pp_init(struct pp_params* p);
 
 /* calculate ppv2 with advanced parameters, see struct pp_params */
-int32_t ppv2p(struct pp_calc* pp, struct pp_params* p);
+int ppv2p(struct pp_calc* pp, struct pp_params* p);
 
 /* same as ppv2p but fills params automatically with the map's
    base_ar, base_od, max_combo, nsliders, ncircles, nobjects
    so you only need to provide aim and speed */
-int32_t b_ppv2p(struct beatmap* map, struct pp_calc* pp,
+int b_ppv2p(struct beatmap* map, struct pp_calc* pp,
     struct pp_params* p);
 
 /* same as ppv2 but fills params like b_ppv2p */
-int32_t b_ppv2(struct beatmap* map, struct pp_calc* pp,
-    double aim, double speed, uint32_t mods);
+int b_ppv2(struct beatmap* map, struct pp_calc* pp,
+    float aim, float speed, int mods);
 
 #endif /* OPPAI_NOPP */
 
 /* calculate accuracy (0.0 - 1.0) */
-double acc_calc(uint16_t n300, uint16_t n100, uint16_t n50,
-    uint16_t misses);
+float acc_calc(int n300, int n100, int n50,
+    int misses);
 
 /* calculate taiko accuracy (0.0 - 1.0) */
-double taiko_acc_calc(uint16_t n300, uint16_t n150,
-    uint16_t nmisses);
+float taiko_acc_calc(int n300, int n150,
+    int nmisses);
 
 /* round percent accuracy to closest amount of 300s, 100s, 50s */
-void acc_round(double acc_percent, uint16_t nobjects,
-    uint16_t nmisses, uint16_t* n300, uint16_t* n100,
-    uint16_t* n50);
+void acc_round(float acc_percent, int nobjects,
+    int nmisses, int* n300, int* n100,
+    int* n50);
 
 /* round percent accuracy to closest amount of 300s and 150s
    (taiko) */
-void taiko_acc_round(double acc_percent, uint16_t nobjects,
-    uint16_t nmisses, uint16_t* n300, uint16_t* n150);
+void taiko_acc_round(float acc_percent, int nobjects,
+    int nmisses, int* n300, int* n150);
 
 /* ############################################################# */
 /* ################### END OF THE INTERFACE #################### */
@@ -453,7 +438,7 @@ int info(char const* fmt, ...)
     return res;
 }
 
-char const* errstr(int32_t err)
+char const* errstr(int err)
 {
     switch (err)
     {
@@ -481,23 +466,23 @@ char const* errstr(int32_t err)
 /* math                                                          */
 
 internalfn
-double get_inf()
+float get_inf()
 {
-    const uint64_t raw = 0x7FF0000000000000LL;
-    double* p = (double*)&raw;
+    const unsigned raw = 0x7F800000;
+    float* p = (float*)&raw;
     return *p;
 }
 
 /* dst = a - b */
 internalfn
-void v2f_sub(double* dst, double* a, double* b)
+void v2f_sub(float* dst, float* a, float* b)
 {
     dst[0] = a[0] - b[0];
     dst[1] = a[1] - b[1];
 }
 
 internalfn
-double v2f_len(double* v) {
+float v2f_len(float* v) {
     return sqrt(v[0] * v[0] + v[1] * v[1]);
 }
 #endif /* OPPAI_NODIFFCALC */
@@ -522,8 +507,8 @@ int whitespace(char c)
 }
 
 internalfn
-int32_t slice_write(struct slice const* s, FILE* f) {
-    return (int32_t)fwrite(s->start, 1, s->end - s->start, f);
+int slice_write(struct slice const* s, FILE* f) {
+    return (int)fwrite(s->start, 1, s->end - s->start, f);
 }
 
 internalfn
@@ -551,8 +536,8 @@ void slice_trim(struct slice* s)
 internalfn
 int slice_cmp(struct slice const* s, char const* str)
 {
-    int32_t len = (int32_t)strlen(str);
-    int32_t s_len = (int32_t)(s->end - s->start);
+    int len = (int)strlen(str);
+    int s_len = (int)(s->end - s->start);
 
     if (len < s_len) {
         return -1;
@@ -566,8 +551,8 @@ int slice_cmp(struct slice const* s, char const* str)
 }
 
 internalfn
-int32_t slice_len(struct slice const* s) {
-    return (int32_t)(s->end - s->start);
+int slice_len(struct slice const* s) {
+    return (int)(s->end - s->start);
 }
 
 /* splits s at any of the separators in separator_list and stores
@@ -576,11 +561,11 @@ int32_t slice_len(struct slice const* s) {
    if more elements than nmax are found, err is set to
    ERR_TRUNCATED */
 internalfn
-int32_t slice_split(struct slice const* s,
-    char const* separator_list, struct slice* arr, int32_t nmax,
-    int32_t* err)
+int slice_split(struct slice const* s,
+    char const* separator_list, struct slice* arr, int nmax,
+    int* err)
 {
-    int32_t res = 0;
+    int res = 0;
     char* p = s->start;
     char* pprev = p;
 
@@ -627,10 +612,10 @@ exit:
 /* memstack                                                      */
 
 internalfn
-void* m_init(struct memstack* m, int32_t initial_size)
+void* m_init(struct memstack* m, int initial_size)
 {
     memset(m, 0, sizeof(struct memstack));
-    m->buf = (uint8_t*)malloc(initial_size);
+    m->buf = (char*)malloc(initial_size);
     if (m->buf) {
         m->size = initial_size;
     }
@@ -645,16 +630,16 @@ void m_free(struct memstack* m)
 }
 
 internalfn
-void* m_reserve(struct memstack* m, int32_t nbytes)
+void* m_reserve(struct memstack* m, int nbytes)
 {
     void* res;
-    int32_t avail;
+    int avail;
 
     avail = m->size - m->top;
 
     while (avail < nbytes)
     {
-        int32_t newsize;
+        int newsize;
         void* newbuf;
 
         newsize = m->size * 2;
@@ -663,7 +648,7 @@ void* m_reserve(struct memstack* m, int32_t nbytes)
             goto allocated;
         }
 
-        newsize = (int32_t)(m->size * 1.5f);
+        newsize = (int)(m->size * 1.5f);
         newbuf = realloc(m->buf, newsize);
         if (newbuf) {
             goto allocated;
@@ -683,7 +668,7 @@ void* m_reserve(struct memstack* m, int32_t nbytes)
         }
 
 allocated:
-        m->buf = (uint8_t*)newbuf;
+        m->buf = (char*)newbuf;
         m->size = newsize;
 
         avail = m->size - m->top;
@@ -696,7 +681,7 @@ allocated:
 }
 
 internalfn
-void* m_push(struct memstack* m, void const* p, int32_t nbytes)
+void* m_push(struct memstack* m, void const* p, int nbytes)
 {
     void* res = m_reserve(m, nbytes);
     if (res) {
@@ -707,11 +692,11 @@ void* m_push(struct memstack* m, void const* p, int32_t nbytes)
 
 internalfn
 void* m_push_slice(struct memstack* m, struct slice* s) {
-    return m_push(m, s->start, (int32_t)(s->end - s->start));
+    return m_push(m, s->start, (int)(s->end - s->start));
 }
 
 internalfn
-void* m_at(struct memstack* m, int32_t off)
+void* m_at(struct memstack* m, int off)
 {
     if (off < 0 || off >= m->top) {
         return 0;
@@ -734,8 +719,8 @@ float const od_ms_step[] = { 6.f, 3.f };
 #define AR_MS_STEP1 120.f /* ar0-5 */
 #define AR_MS_STEP2 150.f /* ar5-10 */
 
-int32_t mods_apply_m(uint32_t mode, uint32_t mods,
-    struct beatmap_stats* s, uint32_t flags)
+int mods_apply_m(int mode, int mods,
+    struct beatmap_stats* s, int flags)
 {
     float od_ar_hp_multiplier;
 
@@ -754,7 +739,7 @@ int32_t mods_apply_m(uint32_t mode, uint32_t mods,
 
     if (!(mods & MODS_MAP_CHANGING))
     {
-        uint32_t m = mode;
+        int m = mode;
         if (flags & APPLY_OD)
         {
             s->odms = od0_ms[m] -
@@ -790,7 +775,7 @@ int32_t mods_apply_m(uint32_t mode, uint32_t mods,
     /* od */
     if (flags & APPLY_OD)
     {
-        uint32_t m = mode;
+        int m = mode;
 
         s->od *= od_ar_hp_multiplier;
         s->odms = od0_ms[m] - (float)ceil(od_ms_step[m] * s->od);
@@ -849,10 +834,10 @@ int32_t mods_apply_m(uint32_t mode, uint32_t mods,
     return 0;
 }
 
-void mods_apply(uint32_t mods,
-    struct beatmap_stats* s, uint32_t flags)
+void mods_apply(int mods,
+    struct beatmap_stats* s, int flags)
 {
-    int32_t n;
+    int n;
     n = mods_apply_m(MODE_STD, mods, s, flags);
     if (n < 0) {
         info("W: mods_apply failed: %s\n", errstr(n));
@@ -865,22 +850,22 @@ void mods_apply(uint32_t mods,
 /* TODO: somehow merge this with diff calc or beatmap parse
    so it doesn't waste another loop tracking timing points. */
 internalfn
-int32_t b_max_combo(struct beatmap* b)
+int b_max_combo(struct beatmap* b)
 {
-    int32_t res = b->nobjects;
-    int32_t i;
+    int res = b->nobjects;
+    int i;
 
-    double infinity = get_inf();
-    double tnext = -infinity;
-    int32_t tindex = -1;
+    float infinity = get_inf();
+    float tnext = -infinity;
+    int tindex = -1;
 
-    double px_per_beat = infinity; /* for std sliders */
+    float px_per_beat = infinity; /* for std sliders */
 
     /* taiko */
-    double ms_per_beat = 0; /* last timing change */
-    double beat_len = infinity; /* beat spacing */
-    double duration = 0; /* duration of the hit object */
-    double tick_spacing = -infinity; /* slider tick spacing */
+    float ms_per_beat = 0; /* last timing change */
+    float beat_len = infinity; /* beat spacing */
+    float duration = 0; /* duration of the hit object */
+    float tick_spacing = -infinity; /* slider tick spacing */
 
     if (!b->ntiming_points) {
         info("beatmap has no timing points\n");
@@ -897,8 +882,8 @@ int32_t b_max_combo(struct beatmap* b)
     {
         struct object* o = &b->objects[i];
         struct slider* sl;
-        int32_t ticks;
-        double num_beats;
+        int ticks;
+        float num_beats;
 
         if (!(o->type & OBJ_SLIDER)) {
             continue;
@@ -911,7 +896,7 @@ int32_t b_max_combo(struct beatmap* b)
            should be a nice performance boost */
         while (o->time >= tnext)
         {
-            double sv_multiplier;
+            float sv_multiplier;
             struct timing* t;
 
             ++tindex;
@@ -942,7 +927,7 @@ int32_t b_max_combo(struct beatmap* b)
             case MODE_TAIKO:
             {
                 /* see d_taiko for details on what this does */
-                double velocity;
+                float velocity;
 
                 if (b->original_mode == MODE_TAIKO) {
                     /* no slider conversion for taiko -> taiko */
@@ -982,7 +967,7 @@ int32_t b_max_combo(struct beatmap* b)
                 continue;
             }
 
-            res += (int32_t)ceil(
+            res += (int)ceil(
                 (duration + tick_spacing / 8) / tick_spacing
             );
 
@@ -1008,7 +993,7 @@ int32_t b_max_combo(struct beatmap* b)
            values like 1.0 to 2.0 randomly
            TODO: make this consistent (maybe check lazer source) */
 
-        ticks = (int32_t)
+        ticks = (int)
             ceil((num_beats - 0.1) /
             sl->repetitions * b->tick_rate);
 
@@ -1060,7 +1045,7 @@ void p_reset(struct parser* pa, struct beatmap* b)
     }
 }
 
-int32_t p_init(struct parser* pa)
+int p_init(struct parser* pa)
 {
     memset(pa, 0, sizeof(struct parser));
 
@@ -1069,7 +1054,7 @@ int32_t p_init(struct parser* pa)
     if (!m_init(&pa->strings, 256) ||
         !m_init(&pa->objects, sizeof(struct object) * 128)||
         !m_init(&pa->timing, sizeof(struct timing) * 8)||
-        !m_init(&pa->object_data, sizeof(double) * 256))
+        !m_init(&pa->object_data, sizeof(float) * 256))
     {
         return ERR_OOM;
     }
@@ -1097,7 +1082,7 @@ struct t* p_get_##stack(struct parser* p) { \
 } \
 \
 internalfn \
-int32_t p_n##stack(struct parser* p) { \
+int p_n##stack(struct parser* p) { \
     return p->stack.top / sizeof(struct t); \
 }
 
@@ -1112,7 +1097,7 @@ struct t* p_push_##t(struct parser* p, struct t* x) { \
 
 #define SIMPLE_AT(t, stack) \
 internalfn \
-struct t* p_##t##_at(struct parser* p, int32_t off) { \
+struct t* p_##t##_at(struct parser* p, int off) { \
     return (struct t*)m_at(&p->object_data, off); \
 }
 
@@ -1122,7 +1107,7 @@ SIMPLE_PUSH(circle, object_data)
 SIMPLE_PUSH(slider, object_data)
 
 internalfn
-char* p_strings_at(struct parser* p, int32_t off) {
+char* p_strings_at(struct parser* p, int off) {
     return (char*)m_at(&p->strings, off);
 }
 
@@ -1137,14 +1122,14 @@ char* p_strings_at(struct parser* p, int32_t off) {
         pa->lastpos = (lastpos_), \
         ERR_##e
 
-int32_t nop(int32_t x) { return x; }
+int nop(int x) { return x; }
 
 #define parse_warn(e, line) \
     info(e), info("\n"), print_line(line), nop(0)
 
 /* consume until any of the characters in separators is found */
 internalfn
-int32_t consume_until(struct parser* pa, struct slice const* s,
+int consume_until(struct parser* pa, struct slice const* s,
     char const* separators, struct slice* dst)
 {
     char* p = s->start;
@@ -1159,7 +1144,7 @@ int32_t consume_until(struct parser* pa, struct slice const* s,
             {
                 dst->start = s->start;
                 dst->end = p;
-                return (int32_t)(p - s->start);
+                return (int)(p - s->start);
             }
         }
     }
@@ -1169,7 +1154,7 @@ int32_t consume_until(struct parser* pa, struct slice const* s,
 
 /* all parse_* functions expect s to be a single line and trimmed
 
-   if the return type is int32_t, they return n bytes consumed
+   if the return type is int, they return n bytes consumed
    if the return type is int, they will return zero on success
 
    on errors, parse_* functions return < 0 error codes */
@@ -1181,10 +1166,10 @@ int32_t consume_until(struct parser* pa, struct slice const* s,
 
 /* [name] */
 internalfn
-int32_t p_section_name(struct parser* pa,
+int p_section_name(struct parser* pa,
     struct slice const* s, struct slice* name)
 {
-    int32_t n;
+    int n;
     struct slice p = *s;
 
     if (*p.start++ != '[') {
@@ -1201,16 +1186,16 @@ int32_t p_section_name(struct parser* pa,
         return parse_err(SYNTAX, p);
     }
 
-    return (int32_t)(p.start - s->start);
+    return (int)(p.start - s->start);
 }
 
 /* name: value
    results are trimmed */
 internalfn
-int32_t p_property(struct parser* pa, struct slice const* s,
+int p_property(struct parser* pa, struct slice const* s,
     struct slice* name, struct slice* value)
 {
-    int32_t n;
+    int n;
     char* p = s->start;
 
     n = consume_until(pa, s, ":", name);
@@ -1227,14 +1212,14 @@ int32_t p_property(struct parser* pa, struct slice const* s,
     slice_trim(name);
     slice_trim(value);
 
-    return (int32_t)(s->end - s->start);
+    return (int)(s->end - s->start);
 }
 
 internalfn
-int32_t p_metadata(struct parser* pa, struct slice* line)
+int p_metadata(struct parser* pa, struct slice* line)
 {
-    int32_t n;
-    int32_t* dst = 0;
+    int n;
+    int* dst = 0;
     struct slice name, value;
 
     n = p_property(pa, line, &name, &value);
@@ -1268,7 +1253,7 @@ int32_t p_metadata(struct parser* pa, struct slice* line)
     if (dst && *dst < 0)
     {
         char* str;
-        uint8_t const zero = 0;
+        int const zero = 0;
 
         str = (char*)m_push_slice(&pa->strings, &value);
         if (!str || !m_push(&pa->strings, &zero, 1))
@@ -1295,9 +1280,9 @@ int32_t p_metadata(struct parser* pa, struct slice* line)
 }
 
 internalfn
-int32_t p_general(struct parser* pa, struct slice* line)
+int p_general(struct parser* pa, struct slice* line)
 {
-    int32_t n;
+    int n;
     struct slice name, value;
 
     n = p_property(pa, line, &name, &value);
@@ -1332,9 +1317,9 @@ int32_t p_general(struct parser* pa, struct slice* line)
 }
 
 internalfn
-double p_double(struct slice const* value, int* success)
+float p_float(struct slice const* value, int* success)
 {
-    double res;
+    float res;
     char* p = value->start;
 
     if (*p == '-') {
@@ -1352,7 +1337,7 @@ double p_double(struct slice const* value, int* success)
     }
 
     else {
-        *success = sscanf(value->start, "%lf", &res) == 1;
+        *success = sscanf(value->start, "%f", &res) == 1;
     }
     /* if it fails we can just use default values */
 
@@ -1360,9 +1345,9 @@ double p_double(struct slice const* value, int* success)
 }
 
 internalfn
-int32_t p_difficulty(struct parser* pa, struct slice* line)
+int p_difficulty(struct parser* pa, struct slice* line)
 {
-    int32_t n;
+    int n;
     float* dst = 0;
     struct slice name, value;
 
@@ -1398,7 +1383,7 @@ int32_t p_difficulty(struct parser* pa, struct slice* line)
 
     if (dst) {
         int success;
-        *dst = (float)p_double(&value, &success);
+        *dst = (float)p_float(&value, &success);
     }
 
     return n;
@@ -1410,11 +1395,11 @@ int32_t p_difficulty(struct parser* pa, struct slice* line)
 
    everything after ms_per_beat is optional */
 internalfn
-int32_t p_timing(struct parser* pa, struct slice* line)
+int p_timing(struct parser* pa, struct slice* line)
 {
-    int32_t res = 0;
-    int32_t n, i;
-    int32_t err = 0;
+    int res = 0;
+    int n, i;
+    int err = 0;
     struct slice split[8];
     struct timing t;
     int success;
@@ -1438,18 +1423,18 @@ int32_t p_timing(struct parser* pa, struct slice* line)
         return parse_warn("W: malformed timing point", line);
     }
 
-    res = (int32_t)(split[n - 1].end - line->start);
+    res = (int)(split[n - 1].end - line->start);
 
     for (i = 0; i < n; ++i) {
         slice_trim(&split[i]);
     }
 
-    t.time = p_double(&split[0], &success);
+    t.time = p_float(&split[0], &success);
     if (!success) {
         return parse_warn("W: malformed timing point time", line);
     }
 
-    t.ms_per_beat = p_double(&split[1], &success);
+    t.ms_per_beat = p_float(&split[1], &success);
     if (!success) {
         return parse_warn("W: malformed timing point ms_per_beat",
             line);
@@ -1472,13 +1457,13 @@ int32_t p_timing(struct parser* pa, struct slice* line)
 }
 
 internalfn
-int32_t p_objects(struct parser* pa, struct slice* line)
+int p_objects(struct parser* pa, struct slice* line)
 {
     struct object obj;
-    int32_t nelements;
-    int32_t err = 0;
+    int nelements;
+    int err = 0;
     struct slice elements[11];
-    uint32_t tmp_type;
+    int tmp_type;
     int success;
 
     memset(&obj.strains, 0, sizeof(obj.strains));
@@ -1505,12 +1490,12 @@ int32_t p_objects(struct parser* pa, struct slice* line)
         return parse_warn("W: malformed hitobject", line);
     }
 
-    obj.time = p_double(&elements[2], &success);
+    obj.time = p_float(&elements[2], &success);
     if (!success) {
         return parse_warn("W: malformed hitobject time", line);
     }
 
-    if (sscanf(elements[3].start, "%u", &tmp_type) != 1) {
+    if (sscanf(elements[3].start, "%d", &tmp_type) != 1) {
         parse_warn("W: malformed hitobject type", line);
         tmp_type = OBJ_CIRCLE;
     }
@@ -1523,10 +1508,10 @@ int32_t p_objects(struct parser* pa, struct slice* line)
 
     if (pa->b->mode == MODE_TAIKO)
     {
-        uint32_t tmp_sound_type;
-        uint8_t sound_type;
+        int tmp_sound_type;
+        int sound_type;
 
-        if (sscanf(elements[4].start, "%u", &tmp_sound_type) != 1)
+        if (sscanf(elements[4].start, "%d", &tmp_sound_type) != 1)
         {
             parse_warn("W: malformed hitobject sound type", line);
             tmp_sound_type = SOUND_NORMAL;
@@ -1540,14 +1525,14 @@ int32_t p_objects(struct parser* pa, struct slice* line)
 
         obj.nsound_types = 1;
         obj.sound_types_off = pa->object_data.top;
-        sound_type = (uint8_t)(tmp_sound_type & 0xFF);
+        sound_type = (int)(tmp_sound_type & 0xFF);
 
         if (!m_push(&pa->object_data, &sound_type, 1)) {
             return ERR_OOM;
         }
     }
 
-    obj.type = (uint8_t)(tmp_type & 0xFF);
+    obj.type = (int)(tmp_type & 0xFF);
 
     if (obj.type & OBJ_CIRCLE)
     {
@@ -1555,13 +1540,13 @@ int32_t p_objects(struct parser* pa, struct slice* line)
 
         ++pa->b->ncircles;
 
-        c.pos[0] = p_double(&elements[0], &success);
+        c.pos[0] = p_float(&elements[0], &success);
         if (!success) {
             return parse_warn("W: malformed circle position",
                 line);
         }
 
-        c.pos[1] = p_double(&elements[1], &success);
+        c.pos[1] = p_float(&elements[1], &success);
         if (!success) {
             return parse_warn("W: malformed circle position",
                 line);
@@ -1594,26 +1579,26 @@ int32_t p_objects(struct parser* pa, struct slice* line)
             return parse_warn("W: malformed slider", line);
         }
 
-        sli.pos[0] = p_double(&e[0], &success);
+        sli.pos[0] = p_float(&e[0], &success);
         if (!success) {
             return parse_warn("W: malformed slider position",
                 line);
         }
 
-        sli.pos[1] = p_double(&e[1], &success);
+        sli.pos[1] = p_float(&e[1], &success);
         if (!success) {
             return parse_warn("W: malformed slider position",
                 line);
         }
 
-        if (sscanf(e[6].start, "%u", &sli.repetitions) != 1) {
+        if (sscanf(e[6].start, "%d", &sli.repetitions) != 1) {
             sli.repetitions = 1;
             parse_warn("W: malformed slider repetitions", line);
         }
 
         if (nelements > 7)
         {
-            sli.distance = p_double(&e[7], &success);
+            sli.distance = p_float(&e[7], &success);
             if (!success) {
                 parse_warn("W: malformed slider distance", line);
                 sli.distance = 0;
@@ -1625,9 +1610,9 @@ int32_t p_objects(struct parser* pa, struct slice* line)
             nelements > 8 && slice_len(&elements[8]) > 0)
         {
             struct slice p = elements[8];
-            uint32_t tmp_sound_type;
-            int32_t i, nodes;
-            uint8_t* sound_types;
+            int tmp_sound_type;
+            int i, nodes;
+            int* sound_types;
 
             /* repeats + head and tail
                no repeats is 1 repetition, so subtract 1 */
@@ -1636,7 +1621,7 @@ int32_t p_objects(struct parser* pa, struct slice* line)
             /* note that this wastes the 1 byte previously
                allocated for the single sound type, no big deal */
             obj.sound_types_off = pa->object_data.top;
-            sound_types = (uint8_t*)pa->object_data.buf +
+            sound_types = (int*)pa->object_data.buf +
                 obj.sound_types_off;
 
             if (!m_reserve(&pa->object_data, nodes)) {
@@ -1646,7 +1631,7 @@ int32_t p_objects(struct parser* pa, struct slice* line)
             for (i = 0; i < nodes; ++i)
             {
                 struct slice node;
-                int32_t n;
+                int n;
 
                 node.start = node.end = 0;
 
@@ -1664,7 +1649,7 @@ int32_t p_objects(struct parser* pa, struct slice* line)
 
                 p.start += n + 1;
 
-                if (sscanf(node.start, "%u", &tmp_sound_type) != 1)
+                if (sscanf(node.start, "%d", &tmp_sound_type) != 1)
                 {
                     parse_warn("W: malformed sound type", line);
                     tmp_sound_type = SOUND_NORMAL;
@@ -1676,7 +1661,7 @@ int32_t p_objects(struct parser* pa, struct slice* line)
                     tmp_sound_type = SOUND_NORMAL;
                 }
 
-                sound_types[i] = (uint8_t)tmp_sound_type;
+                sound_types[i] = (int)tmp_sound_type;
             }
         }
 
@@ -1691,13 +1676,13 @@ int32_t p_objects(struct parser* pa, struct slice* line)
         return ERR_OOM;
     }
 
-    return (int32_t)(elements[nelements - 1].end - line->start);
+    return (int)(elements[nelements - 1].end - line->start);
 }
 
 internalfn
-int32_t p_line(struct parser* pa, struct slice* line)
+int p_line(struct parser* pa, struct slice* line)
 {
-    int32_t n = 0;
+    int n = 0;
 
     if (line->start >= line->end) {
         /* empty line */
@@ -1705,7 +1690,7 @@ int32_t p_line(struct parser* pa, struct slice* line)
     }
 
     if (slice_whitespace(line)) {
-        return (int32_t)(line->end - line->start);
+        return (int)(line->end - line->start);
     }
 
     /* comments (according to lazer) */
@@ -1713,7 +1698,7 @@ int32_t p_line(struct parser* pa, struct slice* line)
     {
         case ' ':
         case '_':
-            return (int32_t)(line->end - line->start);
+            return (int)(line->end - line->start);
     }
 
     /* from here on we don't care about leading or
@@ -1731,7 +1716,7 @@ int32_t p_line(struct parser* pa, struct slice* line)
     if (*line->start == '[')
     {
         struct slice section;
-        size_t len;
+        int len;
 
         n = p_section_name(pa, line, &section);
         if (n < 0) {
@@ -1781,7 +1766,7 @@ int32_t p_line(struct parser* pa, struct slice* line)
         if (p < line->end)
         {
             if (sscanf(p, "%d", &pa->b->format_version) == 1) {
-                return (int32_t)(line->end - line->start);
+                return (int)(line->end - line->start);
             }
         }
     }
@@ -1799,7 +1784,7 @@ void p_begin(struct parser* pa, struct beatmap* b)
 internalfn
 void p_copy_metadata(struct parser* pa, struct beatmap* b)
 {
-    int32_t n;
+    int n;
 
     if (pa->title_unicode < 0) {
         pa->title_unicode = pa->title;
@@ -1838,7 +1823,7 @@ void p_copy_metadata(struct parser* pa, struct beatmap* b)
             continue;
         }
 
-        o->sound_types = (uint8_t*)pa->object_data.buf +
+        o->sound_types = (int*)pa->object_data.buf +
             o->sound_types_off;
     }
 
@@ -1848,13 +1833,13 @@ void p_copy_metadata(struct parser* pa, struct beatmap* b)
     }
 }
 
-int32_t p_map(struct parser* pa, struct beatmap* b, FILE* f)
+int p_map(struct parser* pa, struct beatmap* b, FILE* f)
 {
-    int32_t res = 0;
+    int res = 0;
     char* pbuf;
-    int32_t bufsize;
-    int32_t n;
-    int32_t nread;
+    int bufsize;
+    int n;
+    int nread;
 
     p_begin(pa, b);
 
@@ -1869,14 +1854,14 @@ int32_t p_map(struct parser* pa, struct beatmap* b, FILE* f)
     for (;;)
     {
         /* complete lines in the current chunk */
-        uint32_t nlines = 0;
+        int nlines = 0;
         struct slice s; /* points to the remaining data in buf */
         int more_data;
 
-        bufsize = (int32_t)sizeof(pa->buf) -
-            (int32_t)(pbuf - pa->buf);
+        bufsize = (int)sizeof(pa->buf) -
+            (int)(pbuf - pa->buf);
 
-        nread = (int32_t)fread(pbuf, 1, bufsize, f);
+        nread = (int)fread(pbuf, 1, bufsize, f);
         if (!nread) {
             /* eof */
             break;
@@ -1912,7 +1897,7 @@ int32_t p_map(struct parser* pa, struct beatmap* b, FILE* f)
                 /* EOF, so we must process the remaining data
                    as a line */
                 line = s;
-                n = (int32_t)(s.end - s.start);
+                n = (int)(s.end - s.start);
             }
 
             else {
@@ -1945,14 +1930,14 @@ int32_t p_map(struct parser* pa, struct beatmap* b, FILE* f)
     return res;
 }
 
-int32_t p_map_mem(struct parser* pa, struct beatmap* b, char* data,
-    size_t data_size)
+int p_map_mem(struct parser* pa, struct beatmap* b, char* data,
+    int data_size)
 {
-    int32_t res = 0;
-    int32_t n;
+    int res = 0;
+    int n;
 
     /* complete lines in the current chunk */
-    uint32_t nlines = 0;
+    int nlines = 0;
     struct slice s; /* points to the remaining data in buf */
 
     p_begin(pa, b);
@@ -1984,7 +1969,7 @@ int32_t p_map_mem(struct parser* pa, struct beatmap* b, char* data,
             /* EOF, so we must process the remaining data
                 as a line */
             line = s;
-            n = (int32_t)(s.end - s.start);
+            n = (int)(s.end - s.start);
         }
         else {
             ++n; /* also skip the \n */
@@ -2018,7 +2003,7 @@ int32_t p_map_mem(struct parser* pa, struct beatmap* b, char* data,
 #define DIFF_AIM 1
 
 /* how much strains decay per interval */
-double const decay_base[] = { 0.3, 0.15 };
+float const decay_base[] = { 0.3, 0.15 };
 
 /* almost the normalized circle diameter (104) */
 #define ALMOST_DIAMETER 90.0
@@ -2029,7 +2014,7 @@ double const decay_base[] = { 0.3, 0.15 };
 #define SINGLE_SPACING 125
 
 /* used to keep speed and aim balanced between eachother */
-double const weight_scaling[] = { 1400, 26.25 };
+float const weight_scaling[] = { 1400, 26.25 };
 
 /* non-normalized diameter where the circlesize buff starts */
 #define CIRCLESIZE_BUFF_TRESHOLD 30
@@ -2044,7 +2029,7 @@ double const weight_scaling[] = { 1400, 26.25 };
 #define PLAYFIELD_HEIGHT 384.0
 
 /* spinners position */
-double const playfield_center[] = {
+float const playfield_center[] = {
     PLAYFIELD_WIDTH / 2, PLAYFIELD_HEIGHT / 2
 };
 
@@ -2057,11 +2042,11 @@ double const playfield_center[] = {
    how much the weight decays. */
 #define DECAY_WEIGHT 0.9
 
-int32_t d_init(struct diff_calc* d)
+int d_init(struct diff_calc* d)
 {
     memset(d, 0, sizeof(struct diff_calc));
 
-    if (!m_init(&d->highest_strains, sizeof(double) * 600)) {
+    if (!m_init(&d->highest_strains, sizeof(float) * 600)) {
         return ERR_OOM;
     }
 
@@ -2075,8 +2060,8 @@ void d_free(struct diff_calc* d) {
 }
 
 internalfn
-double d_spacing_weight(double distance,
-    uint8_t type, int* is_single)
+float d_spacing_weight(float distance,
+    int type, int* is_single)
 {
     switch (type)
     {
@@ -2108,18 +2093,18 @@ double d_spacing_weight(double distance,
 }
 
 internalfn
-void d_calc_strain(uint8_t type,
-    struct object* o, struct object* prev, double speed_mul)
+void d_calc_strain(int type,
+    struct object* o, struct object* prev, float speed_mul)
 {
-    double res = 0;
-    double time_elapsed = (o->time - prev->time) / speed_mul;
-    double decay = pow(decay_base[type], time_elapsed / 1000.0);
-    double scaling = weight_scaling[type];
+    float res = 0;
+    float time_elapsed = (o->time - prev->time) / speed_mul;
+    float decay = pow(decay_base[type], time_elapsed / 1000.0);
+    float scaling = weight_scaling[type];
 
     /* this implementation doesn't account for sliders */
     if (o->type & (OBJ_SLIDER | OBJ_CIRCLE))
     {
-        double diff[2];
+        float diff[2];
 
         v2f_sub(diff, o->normpos, prev->normpos);
         res = d_spacing_weight(v2f_len(diff), type, &o->is_single);
@@ -2134,8 +2119,8 @@ void d_calc_strain(uint8_t type,
 internalfn
 int dbl_desc(void const* a, void const* b)
 {
-    double x = *(double const*)a;
-    double y = *(double const*)b;
+    float x = *(float const*)a;
+    float y = *(float const*)b;
 
     if (x < y) {
         return 1;
@@ -2149,9 +2134,9 @@ int dbl_desc(void const* a, void const* b)
 }
 
 internalfn
-int32_t d_update_max_strains(struct diff_calc* d,
-    double decay_factor, double cur_time, double prev_time,
-    double cur_strain, double prev_strain, int first_obj)
+int d_update_max_strains(struct diff_calc* d,
+    float decay_factor, float cur_time, float prev_time,
+    float cur_strain, float prev_strain, int first_obj)
 {
     /* make previous peak strain decay until the current obj */
     while (cur_time > d->interval_end)
@@ -2159,7 +2144,7 @@ int32_t d_update_max_strains(struct diff_calc* d,
         void* p;
 
         p = m_push(&d->highest_strains,
-            &d->max_strain, sizeof(double));
+            &d->max_strain, sizeof(float));
         if (!p) {
             return ERR_OOM;
         }
@@ -2169,7 +2154,7 @@ int32_t d_update_max_strains(struct diff_calc* d,
         }
         else
         {
-            double decay;
+            float decay;
             decay = pow(decay_factor,
                 (d->interval_end - prev_time) / 1000.0);
             d->max_strain = prev_strain * decay;
@@ -2184,20 +2169,20 @@ int32_t d_update_max_strains(struct diff_calc* d,
 }
 
 internalfn
-double d_weigh_strains(struct diff_calc* d)
+float d_weigh_strains(struct diff_calc* d)
 {
-    int32_t i;
-    int32_t nstrains = 0;
-    double* strains;
+    int i;
+    int nstrains = 0;
+    float* strains;
 
-    double difficulty = 0.0;
-    double weight = 1.0;
+    float difficulty = 0.0;
+    float weight = 1.0;
 
-    strains = (double*)d->highest_strains.buf;
-    nstrains = d->highest_strains.top / sizeof(double);
+    strains = (float*)d->highest_strains.buf;
+    nstrains = d->highest_strains.top / sizeof(float);
 
     /* sort strains from highest to lowest */
-    qsort(strains, nstrains, sizeof(double), dbl_desc);
+    qsort(strains, nstrains, sizeof(float), dbl_desc);
 
     for (i = 0; i < nstrains; ++i)
     {
@@ -2209,10 +2194,10 @@ double d_weigh_strains(struct diff_calc* d)
 }
 
 internalfn
-int32_t d_calc_individual(uint8_t type, struct diff_calc* d,
-    double* result)
+int d_calc_individual(int type, struct diff_calc* d,
+    float* result)
 {
-    uint16_t i;
+    int i;
 
     d->max_strain = 0.0;
     d->interval_end = STRAIN_STEP * d->speed_mul;
@@ -2221,10 +2206,10 @@ int32_t d_calc_individual(uint8_t type, struct diff_calc* d,
 
     for (i = 0; i < d->b->nobjects; ++i)
     {
-        int32_t err;
+        int err;
         struct object* o = &d->b->objects[i];
         struct object* prev = 0;
-        double prev_time = 0, prev_strain = 0;
+        float prev_time = 0, prev_strain = 0;
 
         if (i > 0)
         {
@@ -2249,13 +2234,13 @@ int32_t d_calc_individual(uint8_t type, struct diff_calc* d,
 }
 
 internalfn
-int32_t d_std(struct diff_calc* d, uint32_t mods)
+int d_std(struct diff_calc* d, int mods)
 {
     struct beatmap* b = d->b;
-    int32_t i;
-    int32_t res;
-    double radius;
-    double scaling_factor;
+    int i;
+    int res;
+    float radius;
+    float scaling_factor;
     struct beatmap_stats mapstats;
 
     /* apply mods and calculate circle radius at this CS */
@@ -2265,7 +2250,7 @@ int32_t d_std(struct diff_calc* d, uint32_t mods)
 
     radius =
         (PLAYFIELD_WIDTH / 16.0) *
-        (1.0 - 0.7 * ((double)mapstats.cs - 5.0) / 5.0);
+        (1.0 - 0.7 * ((float)mapstats.cs - 5.0) / 5.0);
 
     /* positions are normalized on circle radius so that we
        can calc as if everything was the same circlesize */
@@ -2285,7 +2270,7 @@ int32_t d_std(struct diff_calc* d, uint32_t mods)
     for (i = 0; i < b->nobjects; ++i)
     {
         struct object* o = &d->b->objects[i];
-        double const* pos;
+        float const* pos;
 
         if (o->type & OBJ_SPINNER) {
             pos = playfield_center;
@@ -2332,7 +2317,7 @@ int32_t d_std(struct diff_calc* d, uint32_t mods)
         if (o->type & (OBJ_CIRCLE | OBJ_SLIDER))
         {
             struct object* prev = &d->b->objects[i - 1];
-            double interval = o->time - prev->time;
+            float interval = o->time - prev->time;
 
             interval /= mapstats.speed;
 
@@ -2357,13 +2342,13 @@ int32_t d_std(struct diff_calc* d, uint32_t mods)
 struct taiko_object
 {
     int hit;
-    double strain;
-    double time;
-    double time_elapsed;
+    float strain;
+    float time;
+    float time_elapsed;
     int rim;
 
     /* streak of hits of the same type (rim/center) */
-    int32_t same_since;
+    int same_since;
 
     /* was the last hit type change at an even same_since count?
        -1 if there is no previous switch (for example if the
@@ -2372,7 +2357,7 @@ struct taiko_object
 };
 
 internalfn                           /* object type change bonus */
-double taiko_change_bonus(struct taiko_object* cur,
+float taiko_change_bonus(struct taiko_object* cur,
     struct taiko_object* prev)
 {
     if (prev->rim != cur->rim)
@@ -2396,11 +2381,11 @@ double taiko_change_bonus(struct taiko_object* cur,
 }
 
 internalfn                                /* rhythm change bonus */
-double taiko_rhythm_bonus(struct taiko_object* cur,
+float taiko_rhythm_bonus(struct taiko_object* cur,
     struct taiko_object* prev)
 {
-    double ratio;
-    double diff;
+    float ratio;
+    float diff;
 
     if (cur->time_elapsed == 0 || prev->time_elapsed == 0) {
         return 0;
@@ -2431,9 +2416,9 @@ internalfn
 void taiko_strain(struct taiko_object* cur,
     struct taiko_object* prev)
 {
-    double decay;
-    double addition = 1;
-    double factor = 1.0;
+    float decay;
+    float addition = 1;
+    float factor = 1.0;
 
     decay = pow(decay_base[0], cur->time_elapsed / 1000.0);
 
@@ -2463,12 +2448,12 @@ void swap_ptrs(void** a, void** b)
 }
 
 internalfn
-int32_t d_taiko(struct diff_calc* d, uint32_t mods)
+int d_taiko(struct diff_calc* d, int mods)
 {
-    double infinity = get_inf();
+    float infinity = get_inf();
     struct beatmap* b = d->b;
 
-    int32_t i;
+    int i;
     struct beatmap_stats mapstats;
 
     /* this way we can swap cur and prev without copying */
@@ -2480,14 +2465,14 @@ int32_t d_taiko(struct diff_calc* d, uint32_t mods)
        corresponding beat spacing. these are used to convert
        sliders to taiko streams if they are suitable */
 
-    double tnext = -infinity; /* start time of next timing point */
-    int32_t tindex = -1; /* timing point index */
-    double ms_per_beat = 0; /* last timing change */
-    double beat_len = infinity; /* beat spacing */
-    double duration = 0; /* duration of the hit object */
-    double tick_spacing = -infinity; /* slider tick spacing */
+    float tnext = -infinity; /* start time of next timing point */
+    int tindex = -1; /* timing point index */
+    float ms_per_beat = 0; /* last timing change */
+    float beat_len = infinity; /* beat spacing */
+    float duration = 0; /* duration of the hit object */
+    float tick_spacing = -infinity; /* slider tick spacing */
 
-    int32_t result;
+    int result;
 
     if (!b->ntiming_points) {
         info("beatmap has no timing points\n");
@@ -2535,8 +2520,8 @@ int32_t d_taiko(struct diff_calc* d, uint32_t mods)
         {
             /* TODO: too much indentation, pull this out */
             struct slider* sl = (struct slider*)o->pdata;
-            int32_t isound = 0;
-            double j;
+            int isound = 0;
+            float j;
 
             /* keep track of timing point */
             /* TODO: see if it's possible to make some generic
@@ -2544,8 +2529,8 @@ int32_t d_taiko(struct diff_calc* d, uint32_t mods)
                this and b_max_combo */
             while (o->time > tnext)
             {
-                double sv_multiplier;
-                double velocity;
+                float sv_multiplier;
+                float velocity;
                 struct timing* t;
 
                 ++tindex;
@@ -2620,7 +2605,7 @@ int32_t d_taiko(struct diff_calc* d, uint32_t mods)
                 result = d_update_max_strains(d, decay_base[0],
                     cur->time, prev->time, cur->strain,
                     prev->strain, i == 0 && j == o->time);
-                /* warning: j check might fail, doublecheck this */
+                /* warning: j check might fail, floatcheck this */
 
                 if (result < 0) {
                     return result;
@@ -2664,8 +2649,8 @@ continue_loop:
 
 /* ------------------------------------------------------------- */
 
-int32_t d_calc(struct diff_calc* d, struct beatmap* b,
-    uint32_t mods)
+int d_calc(struct diff_calc* d, struct beatmap* b,
+    int mods)
 {
     d->b = b;
 
@@ -2685,11 +2670,11 @@ int32_t d_calc(struct diff_calc* d, struct beatmap* b,
 /* ------------------------------------------------------------- */
 /* acc calc                                                      */
 
-double acc_calc(uint16_t n300, uint16_t n100, uint16_t n50,
-    uint16_t misses)
+float acc_calc(int n300, int n100, int n50,
+    int misses)
 {
-    uint16_t total_hits = n300 + n100 + n50 + misses;
-    double acc = 0.f;
+    int total_hits = n300 + n100 + n50 + misses;
+    float acc = 0.f;
 
     if (total_hits > 0)
     {
@@ -2701,12 +2686,12 @@ double acc_calc(uint16_t n300, uint16_t n100, uint16_t n50,
     return acc;
 }
 
-void acc_round(double acc_percent, uint16_t nobjects,
-    uint16_t misses, uint16_t* n300, uint16_t* n100,
-    uint16_t* n50)
+void acc_round(float acc_percent, int nobjects,
+    int misses, int* n300, int* n100,
+    int* n50)
 {
-    uint16_t max300;
-    double maxacc;
+    int max300;
+    float maxacc;
 
     misses = mymin(nobjects, misses);
     max300 = nobjects - misses;
@@ -2716,7 +2701,7 @@ void acc_round(double acc_percent, uint16_t nobjects,
     *n50 = 0;
 
     /* just some black magic maths from wolfram alpha */
-    *n100 = (uint16_t)
+    *n100 = (int)
         round_oppai(-3.0 * ((acc_percent * 0.01 - 1.0) *
             nobjects + misses) * 0.5);
 
@@ -2724,7 +2709,7 @@ void acc_round(double acc_percent, uint16_t nobjects,
     {
         /* acc lower than all 100s, use 50s */
         *n100 = 0;
-        *n50 = (uint16_t)
+        *n50 = (int)
             round_oppai(-6.0 * ((acc_percent * 0.01 - 1.0) *
                 nobjects + misses) * 0.2);
 
@@ -2737,10 +2722,10 @@ void acc_round(double acc_percent, uint16_t nobjects,
     *n300 = nobjects - *n100 - *n50 - misses;
 }
 
-double taiko_acc_calc(uint16_t n300, uint16_t n150, uint16_t nmiss)
+float taiko_acc_calc(int n300, int n150, int nmiss)
 {
-    uint16_t total_hits = n300 + n150 + nmiss;
-    double acc = 0;
+    int total_hits = n300 + n150 + nmiss;
+    float acc = 0;
 
     if (total_hits > 0) {
         acc = (n150 * 150.0 + n300 * 300.0) / (total_hits * 300.0);
@@ -2749,11 +2734,11 @@ double taiko_acc_calc(uint16_t n300, uint16_t n150, uint16_t nmiss)
     return acc;
 }
 
-void taiko_acc_round(double acc_percent, uint16_t nobjects,
-    uint16_t nmisses, uint16_t* n300, uint16_t* n150)
+void taiko_acc_round(float acc_percent, int nobjects,
+    int nmisses, int* n300, int* n150)
 {
-    uint16_t max300;
-    double maxacc;
+    int max300;
+    float maxacc;
 
     nmisses = mymin(nobjects, nmisses);
     max300 = nobjects - nmisses;
@@ -2761,7 +2746,7 @@ void taiko_acc_round(double acc_percent, uint16_t nobjects,
     acc_percent = mymax(0.0, mymin(maxacc, acc_percent));
 
     /* just some black magic maths from wolfram alpha */
-    *n150 = (uint16_t)
+    *n150 = (int)
         round_oppai(-2.0 * ((acc_percent * 0.01 - 1.0) *
             nobjects + nmisses));
 
@@ -2775,38 +2760,38 @@ void taiko_acc_round(double acc_percent, uint16_t nobjects,
 #ifndef OPPAI_NOPP
 /* some kind of formula to get a base pp value from stars */
 internalfn
-double base_pp(double stars)
+float base_pp(float stars)
 {
     return pow(5.0 * mymax(1.0, stars / 0.0675) - 4.0, 3.0)
         / 100000.0;
 }
 
 internalfn
-int32_t ppv2x(struct pp_calc* pp, double aim,
-    double speed, float base_ar, float base_od, int32_t max_combo,
-    uint16_t nsliders, uint16_t ncircles, uint16_t nobjects,
-    uint32_t mods, int32_t combo, uint16_t n300, uint16_t n100,
-    uint16_t n50, uint16_t nmiss, uint32_t score_version)
+int ppv2x(struct pp_calc* pp, float aim,
+    float speed, float base_ar, float base_od, int max_combo,
+    int nsliders, int ncircles, int nobjects,
+    int mods, int combo, int n300, int n100,
+    int n50, int nmiss, int score_version)
 {
-    uint16_t nspinners = nobjects - nsliders - ncircles;
+    int nspinners = nobjects - nsliders - ncircles;
     struct beatmap_stats mapstats;
 
     /* various pp calc multipliers */
-    double nobjects_over_2k = nobjects / 2000.0;
+    float nobjects_over_2k = nobjects / 2000.0;
 
-    double length_bonus = 0.95 +
+    float length_bonus = 0.95 +
         0.4 * mymin(1.0, nobjects_over_2k) +
         (nobjects > 2000 ? log10(nobjects_over_2k) * 0.5 : 0.0);
 
-    double miss_penality = pow(0.97, nmiss);
-    double combo_break = pow(combo, 0.8) / pow(max_combo, 0.8);
-    double ar_bonus;
-    double final_multiplier;
-    double acc_bonus, od_bonus;
+    float miss_penality = pow(0.97, nmiss);
+    float combo_break = pow(combo, 0.8) / pow(max_combo, 0.8);
+    float ar_bonus;
+    float final_multiplier;
+    float acc_bonus, od_bonus;
 
     /* acc used for pp is different in scorev1 because it ignores
        sliders */
-    double real_acc;
+    float real_acc;
 
     memset(pp, 0, sizeof(struct pp_calc));
 
@@ -2826,7 +2811,7 @@ int32_t ppv2x(struct pp_calc* pp, double aim,
             /* apparently it also ignores spinners... */
             /* can go negative if we miss everything */
             real_acc = acc_calc(
-                mymax(0, (int32_t)n300 - nsliders - nspinners),
+                mymax(0, (int)n300 - nsliders - nspinners),
                 n100, n50, nmiss
             );
             break;
@@ -2858,7 +2843,7 @@ int32_t ppv2x(struct pp_calc* pp, double aim,
     /* low ar bonus */
     else if (mapstats.ar < 8.0)
     {
-        double low_ar_bonus = 0.01 * (8.0 - mapstats.ar);
+        float low_ar_bonus = 0.01 * (8.0 - mapstats.ar);
 
         if (mods & MODS_HD) {
             low_ar_bonus *= 2.0;
@@ -2955,16 +2940,16 @@ int32_t ppv2x(struct pp_calc* pp, double aim,
 /* taiko pp calc                                                 */
 
 internalfn
-int32_t taiko_ppv2x(struct pp_calc* pp, double stars,
-    int32_t max_combo, float base_od, uint16_t n150,
-    uint16_t nmiss, uint32_t mods)
+int taiko_ppv2x(struct pp_calc* pp, float stars,
+    int max_combo, float base_od, int n150,
+    int nmiss, int mods)
 {
     struct beatmap_stats mapstats;
-    uint16_t n300 = (uint16_t)
+    int n300 = (int)
         mymax(0, (int)max_combo - n150 - nmiss);
-    int32_t result;
-    double length_bonus;
-    double final_multiplier;
+    int result;
+    float length_bonus;
+    float final_multiplier;
 
     /* calculate stats with mods */
     mapstats.od = base_od;
@@ -3038,8 +3023,8 @@ int32_t taiko_ppv2x(struct pp_calc* pp, double stars,
     return 0;
 }
 
-int32_t taiko_ppv2(struct pp_calc* pp, double speed,
-    int32_t max_combo, float base_od, uint32_t mods)
+int taiko_ppv2(struct pp_calc* pp, float speed,
+    int max_combo, float base_od, int mods)
 {
     return taiko_ppv2x(pp, speed, max_combo, base_od, 0, 0, mods);
 }
@@ -3070,10 +3055,10 @@ void pp_handle_default_params(struct pp_params* p)
     }
 }
 
-int32_t ppv2(struct pp_calc* pp, uint32_t mode, double aim,
-    double speed, float base_ar, float base_od, int32_t max_combo,
-    uint16_t nsliders, uint16_t ncircles, uint16_t nobjects,
-    uint32_t mods)
+int ppv2(struct pp_calc* pp, int mode, float aim,
+    float speed, float base_ar, float base_od, int max_combo,
+    int nsliders, int ncircles, int nobjects,
+    int mods)
 {
     struct pp_params params;
 
@@ -3091,7 +3076,7 @@ int32_t ppv2(struct pp_calc* pp, uint32_t mode, double aim,
     return ppv2p(pp, &params);
 }
 
-int32_t ppv2p(struct pp_calc* pp, struct pp_params* p)
+int ppv2p(struct pp_calc* pp, struct pp_params* p)
 {
     pp_handle_default_params(p);
 
@@ -3114,12 +3099,12 @@ int32_t ppv2p(struct pp_calc* pp, struct pp_params* p)
     return ERR_NOTIMPLEMENTED;
 }
 
-int32_t b_ppv2(struct beatmap* map, struct pp_calc* pp,
-    double aim, double speed, uint32_t mods)
+int b_ppv2(struct beatmap* map, struct pp_calc* pp,
+    float aim, float speed, int mods)
 {
     struct pp_params params;
 
-    int32_t max_combo = b_max_combo(map);
+    int max_combo = b_max_combo(map);
     if (max_combo < 0) {
         return max_combo;
     }
@@ -3132,13 +3117,13 @@ int32_t b_ppv2(struct beatmap* map, struct pp_calc* pp,
     params.max_combo = max_combo;
     params.nsliders = map->nsliders;
     params.ncircles = map->ncircles;
-    params.nobjects = (uint16_t)map->nobjects;
+    params.nobjects = (int)map->nobjects;
     params.mods = mods;
 
     return ppv2p(pp, &params);
 }
 
-int32_t b_ppv2p(struct beatmap* map, struct pp_calc* pp,
+int b_ppv2p(struct beatmap* map, struct pp_calc* pp,
     struct pp_params* p)
 {
     p->base_ar = map->ar;
@@ -3151,7 +3136,7 @@ int32_t b_ppv2p(struct beatmap* map, struct pp_calc* pp,
 
     p->nsliders = map->nsliders;
     p->ncircles = map->ncircles;
-    p->nobjects = (uint16_t)map->nobjects;
+    p->nobjects = (int)map->nobjects;
     p->mode = map->mode;
     pp_handle_default_params(p);
 
