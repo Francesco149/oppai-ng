@@ -99,12 +99,11 @@ int main(int argc, char* argv[])
         double margin;
 
         print_score(s);
-        sprintf(fname, "%u.osu", s->id);
-        f = fopen(fname_buf, "rb");
-
 #ifndef OPPAI_NOCURL
 trycalc:
 #endif
+        sprintf(fname, "%u.osu", s->id);
+        f = fopen(fname_buf, "rb");
         err = p_map(pstate, &map, f);
         if (err < 0)
         {
@@ -115,8 +114,10 @@ trycalc:
             CURLcode res;
 
             fprintf(stderr, "%s\n", errstr(err));
-            fclose(f);
-            f = 0;
+            if (f) {
+                fclose(f);
+                f = 0;
+            }
             mkdir("test_suite");
 
             if (!curl)
@@ -150,17 +151,16 @@ trycalc:
 
             curl_easy_setopt(curl, CURLOPT_WRITEDATA, f);
             res = curl_easy_perform(curl);
+            fclose(f);
+            f = 0;
 
             if (res != CURLE_OK)
             {
                 fprintf(stderr, "curl_easy_perform failed");
-                fclose(f);
                 unlink(fname_buf);
-                goto trycalc;
+                exit(1);
             }
 
-            fclose(f);
-            f = 0;
             goto trycalc;
 #else
             fprintf(stderr, "please download the test suite from "
