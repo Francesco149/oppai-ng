@@ -37,7 +37,7 @@ void check_err(int result) {
   }
 }
 
-void print_score(struct score const* s) {
+void print_score(score_t const* s) {
   char mods_str_buf[20];
   char* mods_str = mods_str_buf;
 
@@ -91,7 +91,7 @@ int main(int argc, char* argv[]) {
   for (i = 0; i < n; ++i)
   {
     FILE* f;
-    struct score const* s = &suite[i];
+    score_t const* s = &suite[i];
     double margin;
 
     print_score(s);
