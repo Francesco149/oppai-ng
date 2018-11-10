@@ -639,7 +639,7 @@ char* arena_strndup(arena_t* m, char* s, int n) {
   char* res = arena_alloc(m, n + 1);
   if (res) {
     memcpy(res, s, n);
-    s[n] = 0;
+    res[n] = 0;
   }
   return res;
 }
