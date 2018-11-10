@@ -296,10 +296,10 @@ output_sig(output_text) {
       stars->aim, stars->speed);
 
     printf("\nspeed strain: ");
-    asciiplt(getspeed, (int)map->nobjects, map);
+    asciiplt(getspeed, map->nobjects, map);
 
     printf("  aim strain: ");
-    asciiplt(getaim, (int)map->nobjects, map);
+    asciiplt(getaim, map->nobjects, map);
   } else {
     printf("%g stars\n", stars->total);
   }
@@ -695,16 +695,14 @@ output_sig(output_debug) {
     printf("%gs [%g %g] ", o->time / 1000.0, o->strains[0], o->strains[1]);
 
     if (o->type & OBJ_CIRCLE) {
-      circle_t* c = o->pdata;
-      printf("circle (%g, %g) (%g, %g)\n", c->pos[0], c->pos[1],
+      printf("circle (%g, %g) (%g, %g)\n", o->pos[0], o->pos[1],
         o->normpos[0], o->normpos[1]);
     }
     else if (o->type & OBJ_SPINNER) {
       puts("spinner");
     }
     else if (o->type & OBJ_SLIDER) {
-      slider_t* s = o->pdata;
-      printf("slider (%g, %g) (%g, %g)\n", s->pos[0], s->pos[1],
+      printf("slider (%g, %g) (%g, %g)\n", o->pos[0], o->pos[1],
         o->normpos[0], o->normpos[1]);
     }
     else {
@@ -817,27 +815,25 @@ output_module_t* output_by_name(char* name) {
 
 #ifdef OPPAI_DEBUG
 void print_memory_usage(parser_t* pa, diff_calc_t* dc) {
+  int arena = 0, timing = 0, objects = 0, strain = 0;
+  if (pa) {
+    arena = pa->arena.blocks.len * ARENA_BLOCK_SIZE;
+    timing = pa->timing_points.len * sizeof(pa->timing_points.data[0]);
+    objects = pa->objects.len * sizeof(pa->objects.data[0]);
+  }
+  if (dc) {
+    strain = dc->highest_strains.len * sizeof(dc->highest_strains.data[0]);
+  }
   info(
     "-------------------------\n"
-    "strings: %dK\n"
-    "timing: %dK\n"
-    "objects: %dK\n"
-    "object data: %dK\n"
-    "strains: %dK\n"
-    "total: %dK\n"
+    "arena: %db\n"
+    "timing: %db\n"
+    "objects: %db\n"
+    "strains: %db\n"
+    "total: %db\n"
     "-------------------------\n",
-    pa ? pa->strings.size / 1000 : 0,
-    pa ? pa->timing.size / 1000 : 0,
-    pa ? pa->objects.size / 1000 : 0,
-    pa ? pa->object_data.size / 1000 : 0,
-    dc ? dc->highest_strains.size / 1000 : 0,
-    (
-      pa ? (pa->strings.size +
-          pa->timing.size +
-          pa->objects.size +
-          pa->object_data.size) : 0 +
-      dc ? dc->highest_strains.size : 0
-    ) / 1000
+    arena, timing, objects, strain,
+    arena + timing + objects + strain
   );
 }
 #else
@@ -1176,22 +1172,21 @@ int main(int argc, char* argv[]) {
 
   if (use_percent) {
     switch (map.mode) {
-    case MODE_STD:
-      acc_round(acc_percent, (int)map.nobjects,
-        params.nmiss, &params.n300, &params.n100,
-        &params.n50);
-      break;
-    case MODE_TAIKO: {
-      int taiko_max_combo = b_max_combo(&map);
-      if (taiko_max_combo < 0) {
-        result = taiko_max_combo;
-        goto output;
+      case MODE_STD:
+        acc_round(acc_percent, map.nobjects, params.nmiss, &params.n300,
+          &params.n100, &params.n50);
+        break;
+      case MODE_TAIKO: {
+        int taiko_max_combo = b_max_combo(&map);
+        if (taiko_max_combo < 0) {
+          result = taiko_max_combo;
+          goto output;
+        }
+        params.max_combo = (int)taiko_max_combo;
+        taiko_acc_round(acc_percent, (int)taiko_max_combo,
+          params.nmiss, &params.n300, &params.n100);
+        break;
       }
-      params.max_combo = (int)taiko_max_combo;
-      taiko_acc_round(acc_percent, (int)taiko_max_combo,
-        params.nmiss, &params.n300, &params.n100);
-      break;
-    }
     }
   }
 

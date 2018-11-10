@@ -56,6 +56,33 @@ void print_score(score_t* s) {
     s->n50, s->nmiss, s->pp);
 }
 
+#ifdef OPPAI_DEBUG
+void print_memory_usage(parser_t* pa, diff_calc_t* dc) {
+  int arena = 0, timing = 0, objects = 0, strain = 0;
+  if (pa) {
+    arena = pa->arena.blocks.len * ARENA_BLOCK_SIZE;
+    timing = pa->timing_points.len * sizeof(pa->timing_points.data[0]);
+    objects = pa->objects.len * sizeof(pa->objects.data[0]);
+  }
+  if (dc) {
+    strain = dc->highest_strains.len * sizeof(dc->highest_strains.data[0]);
+  }
+  info(
+    "-------------------------\n"
+    "arena: %db\n"
+    "timing: %db\n"
+    "objects: %db\n"
+    "strains: %db\n"
+    "total: %db\n"
+    "-------------------------\n",
+    arena, timing, objects, strain,
+    arena + timing + objects + strain
+  );
+}
+#else
+#define print_memory_usage(x, y)
+#endif /* OPPAI_DEBUG */
+
 int main(int argc, char* argv[]) {
 #ifndef OPPAI_NOCURL
   CURL* curl = 0;
@@ -209,16 +236,14 @@ trycalc:
           o->strains[0], o->strains[1]);
 
         if (o->type & OBJ_CIRCLE) {
-          circle_t* c = o->pdata;
-          printf("circle (%g, %g) (%g, %g)\n", c->pos[0], c->pos[1],
+          printf("circle (%g, %g) (%g, %g)\n", o->pos[0], o->pos[1],
             o->normpos[0], o->normpos[1]);
         }
         else if (o->type & OBJ_SPINNER) {
-          puts("spinner")
+          puts("spinner");
         }
         else if (o->type & OBJ_SLIDER) {
-          slider_t* s = (slider_t*)o->pdata;
-          printf("slider (%g, %g) (%g, %g)\n", s->pos[0], s->pos[1],
+          printf("slider (%g, %g) (%g, %g)\n", o->pos[0], o->pos[1],
             o->normpos[0], o->normpos[1]);
         }
         else {
@@ -244,6 +269,8 @@ trycalc:
       exit(1);
     }
   }
+
+  print_memory_usage(pstate, &stars);
 
   return 0;
 }

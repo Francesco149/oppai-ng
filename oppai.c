@@ -56,6 +56,8 @@
 #define round_oppai(x) floor((x) + 0.5f)
 #define mymin(a, b) ((a) < (b) ? (a) : (b))
 #define mymax(a, b) ((a) > (b) ? (a) : (b))
+#define al_min mymin
+#define al_max mymax
 
 /* errors -------------------------------------------------------------- */
 
@@ -74,6 +76,74 @@
 #define ERR_OOM (-7)
 
 char* errstr(int err);
+
+/* array --------------------------------------------------------------- */
+/*
+ * array_t(mytype) is a type-safe resizable array with mytype elements
+ * you can use array_* macros to operate on it
+ *
+ * in case of out-of-memory, operations that can grow the array don't do
+ * anything
+ */
+
+#define array_t(type) \
+  struct { \
+    int cap; \
+    int len; \
+    type* data; \
+  }
+
+#define array_reserve(arr, n) \
+  array_reserve_i(n, array_unpack(arr))
+
+#define array_free(arr) \
+  array_free_i(array_unpack(arr))
+
+#define array_alloc(arr) \
+  (array_reserve((arr), (arr)->len + 1) \
+    ? &(arr)->data[(arr)->len++] \
+    : 0)
+
+#define array_append(arr, x) \
+  (array_reserve((arr), (arr)->len + 1) \
+    ? ((arr)->data[(arr)->len++] = (x), 1) \
+    : 0)
+
+/* internal helpers, not to be used directly */
+#define array_unpack(arr) \
+  &(arr)->cap, \
+  &(arr)->len, \
+  (void**)&(arr)->data, \
+  (int)sizeof((arr)->data[0])
+
+int array_reserve_i(int n, int* cap, int* len, void** data, int esize);
+void array_free_i(int* cap, int* len, void** data, int esize);
+
+/* memory arena -------------------------------------------------------- */
+
+/*
+ * very simple allocator for when you want to allocate a bunch of stuff
+ * and free it all at once. reduces malloc overhead by pre-allocating big
+ * contiguous chunks of memory
+ *
+ * arena_t must be initialized to zero
+ * arena_reserve and arena_alloc will return 0 on failure (out of memory)
+ */
+
+#define ARENA_ALIGN sizeof(void*)
+#define ARENA_BLOCK_SIZE 4096
+
+typedef struct {
+  char* block;
+  char* end_of_block;
+  array_t(char*) blocks;
+} arena_t;
+
+/* ensures that there are at least min_size bytes reserved */
+int arena_reserve(arena_t* arena, int min_size);
+void* arena_alloc(arena_t* arena, int size);
+char* arena_strndup(arena_t* m, char* s, int n);
+void arena_free(arena_t* arena);
 
 /* beatmap utils ------------------------------------------------------- */
 
@@ -95,42 +165,17 @@ typedef struct object {
 
   /* only parsed for taiko maps */
   int nsound_types;
-  int sound_types_off;
   int* sound_types;
-
-  /*
-   * should be casted to struct circle or slider based on type
-   * should only be set/used when all parsing is done
-   */
-  void* pdata;
-
-  /*
-   * points to one of the struct below inside object_data_mem
-   * only used internally by the parser
-   */
-  int data_off;
 
   /* only used by d_calc */
   float normpos[2];
   float strains[2];
   int is_single; /* 1 if diff calc sees this as a singletap */
 
-  /*
-   * note: it's a bit of a waste of memory to put diff calc
-   * stuff here, but it saves a complete allocation of a new
-   * diffcalc hitobject stack which is much better
-   */
-} object_t;
-
-typedef struct circle {
   float pos[2];
-} circle_t;
-
-typedef struct slider {
-  float pos[2];
-  float distance;
+  float distance;  /* only for sliders */
   int repetitions;
-} slider_t;
+} object_t;
 
 /* timing point */
 typedef struct timing {
@@ -154,10 +199,10 @@ typedef struct beatmap {
   char* creator;
   char* version;
 
-  object_t* objects;
   int nobjects;
-  timing_t* timing_points;
+  object_t* objects;
   int ntiming_points;
+  timing_t* timing_points;
 
   int ncircles, nsliders, nspinners;
   float hp, cs, od, ar, sv;
@@ -166,16 +211,6 @@ typedef struct beatmap {
 
 #ifndef OPPAI_NOPARSER
 /* beatmap parser ------------------------------------------------------ */
-
-/*
- * contiguous self-resizing stack of memory, used internally by the parser
- * and diff calculator. pushes are byte aligned
- */
-typedef struct memstack {
-  char* buf;
-  int top;
-  int size;
-} memstack_t;
 
 /* non-null terminated string, used internally for parsing */
 typedef struct slice {
@@ -197,21 +232,14 @@ typedef struct parser {
    */
   slice_t lastpos;
   slice_t lastline;
-  /* you probably don't care about the other fields */
 
-  char buf[65536];    /* used to buffer data from the beatmap file */
-  int title;          /* offsets into the memory stack */
-  int title_unicode;
-  int artist;
-  int artist_unicode;
-  int creator;
-  int version;
+  char buf[65536];  /* used to buffer data from the beatmap file */
+  char section[64]; /* current section */
 
-  char section[64];        /* current section */
-  memstack_t strings; /* non-critical strings */
-  memstack_t timing;
-  memstack_t objects;
-  memstack_t object_data;
+  /* internal allocators */
+  arena_t arena;
+  array_t(object_t) objects;
+  array_t(timing_t) timing_points;
 
   beatmap_t* b;
 } parser_t;
@@ -296,7 +324,7 @@ typedef struct diff_calc {
   float speed_mul;
   float interval_end;
   float max_strain;
-  memstack_t highest_strains;
+  array_t(float) highest_strains;
   beatmap_t* b;
 
   /*
@@ -551,76 +579,94 @@ exit:
 #endif /* OPPAI_NOPARSER */
 
 #if !defined(OPPAI_NOPARSER) || !defined(OPPAI_NODIFFCALC)
-/* memstack ------------------------------------------------------------ */
+/* array --------------------------------------------------------------- */
 
-void* m_init(memstack_t* m, int initial_size) {
-  memset(m, 0, sizeof(memstack_t));
-  m->buf = (char*)malloc(initial_size);
-  if (m->buf) {
-    m->size = initial_size;
-  }
-  return m->buf;
-}
+/*
+ * these don't always use all params but we always pass all of them to
+ * ensure that we get a compiler error on things that don't have the same
+ * fields as an array struct
+ */
 
-void m_free(memstack_t* m) {
-  free(m->buf);
-  memset(m, 0, sizeof(memstack_t));
-}
-
-void* m_reserve(memstack_t* m, int nbytes) {
-  void* res;
-  int avail = m->size - m->top;
-
-  while (avail < nbytes) {
-    int newsize = m->size * 2;
-    void* newbuf = realloc(m->buf, newsize);
-    if (newbuf) {
-      goto allocated;
-    }
-
-    newsize = (int)(m->size * 1.5f);
-    newbuf = realloc(m->buf, newsize);
-    if (newbuf) {
-      goto allocated;
-    }
-
-    info("W: you are extremely low on memory, you should probably close "
-      "some stuff\n");
-    newsize = m->size + nbytes - avail;
-    newbuf = realloc(m->buf, newsize);
-    if (!newbuf) {
+int array_reserve_i(int n, int* cap, int* len, void** data, int esize) {
+  (void)len;
+  if (*cap <= n) {
+    void* newdata;
+    int newcap = *cap ? *cap * 2 : 16;
+    newdata = realloc(*data, esize * newcap);
+    if (!newdata) {
       return 0;
     }
-
-allocated:
-    m->buf = (char*)newbuf;
-    m->size = newsize;
-    avail = m->size - m->top;
+    *data = newdata;
+    *cap = newcap;
   }
-
-  res = m->buf + m->top;
-  m->top += nbytes;
-  return res;
+  return 1;
 }
 
-void* m_push(memstack_t* m, void* p, int nbytes) {
-  void* res = m_reserve(m, nbytes);
-  if (res) {
-    memcpy(res, p, nbytes);
+void array_free_i(int* cap, int* len, void** data, int esize) {
+  (void)esize;
+  free(*data);
+  *cap = 0;
+  *len = 0;
+  *data = 0;
+}
+
+/* memory arena -------------------------------------------------------- */
+
+/* aligns x down to a power-of-two value a */
+#define bit_align_down(x, a) \
+  ((x) & ~((a) - 1))
+
+/* aligns x up to a power-of-two value a */
+#define bit_align_up(x, a) \
+  bit_align_down((x) + (a) - 1, a)
+
+int arena_reserve(arena_t* arena, int min_size) {
+  int size;
+  char* new_block;
+  if (arena->end_of_block - arena->block >= min_size) {
+    return 1;
   }
-  return res;
-}
-
-void* m_push_slice(memstack_t* m, slice_t* s) {
-  return m_push(m, s->start, (int)(s->end - s->start));
-}
-
-void* m_at(memstack_t* m, int off) {
-  if (off < 0 || off >= m->top) {
+  size = bit_align_up(al_max(min_size, ARENA_BLOCK_SIZE), ARENA_ALIGN);
+  new_block = malloc(size);
+  if (!new_block) {
     return 0;
   }
-  return m->buf + off;
+  arena->block = new_block;
+  arena->end_of_block = new_block + size;
+  array_append(&arena->blocks, arena->block);
+  return 1;
 }
+
+void* arena_alloc(arena_t* arena, int size) {
+  void* res;
+  if (!arena_reserve(arena, size)) {
+    return 0;
+  }
+  size = bit_align_up(size, ARENA_ALIGN);
+  res = arena->block;
+  arena->block += size;
+  return res;
+}
+
+char* arena_strndup(arena_t* m, char* s, int n) {
+  char* res = arena_alloc(m, n + 1);
+  if (res) {
+    memcpy(res, s, n);
+    s[n] = 0;
+  }
+  return res;
+}
+
+void arena_free(arena_t* arena) {
+  int i;
+  for (i = 0; i < arena->blocks.len; ++i) {
+    free(arena->blocks.data[i]);
+  }
+  array_free(&arena->blocks);
+  arena->block = 0;
+  arena->end_of_block = 0;
+}
+
 #endif /* !defined(OPPAI_NOPARSER) || !defined(OPPAI_NODIFFCALC) */
 
 /* mods ---------------------------------------------------------------- */
@@ -785,15 +831,12 @@ int b_max_combo(beatmap_t* b) {
   /* slider ticks */
   for (i = 0; i < b->nobjects; ++i) {
     object_t* o = &b->objects[i];
-    slider_t* sl;
     int ticks;
     float num_beats;
 
     if (!(o->type & OBJ_SLIDER)) {
       continue;
     }
-
-    sl = (slider_t*)o->pdata;
 
     while (o->time >= tnext) {
       float sv_multiplier;
@@ -840,9 +883,9 @@ int b_max_combo(beatmap_t* b) {
         }
 
         velocity = 100.0f * b->sv / beat_len;
-        duration = sl->distance * sl->repetitions / velocity;
+        duration = o->distance * o->repetitions / velocity;
         tick_spacing = mymin(beat_len / b->tick_rate,
-            duration / sl->repetitions);
+            duration / o->repetitions);
         break;
       }
 
@@ -859,13 +902,13 @@ int b_max_combo(beatmap_t* b) {
     }
 
     /* std slider ticks */
-    num_beats = (sl->distance * sl->repetitions) / px_per_beat;
+    num_beats = (o->distance * o->repetitions) / px_per_beat;
 
-    ticks = (int)ceil((num_beats - 0.1f) / sl->repetitions * b->tick_rate);
+    ticks = (int)ceil((num_beats - 0.1f) / o->repetitions * b->tick_rate);
     --ticks;
 
-    ticks *= sl->repetitions;     /* account for repetitions */
-    ticks += sl->repetitions + 1; /* add heads and tails */
+    ticks *= o->repetitions;     /* account for repetitions */
+    ticks += o->repetitions + 1; /* add heads and tails */
 
     /*
      * actually doesn't include first head because we already
@@ -885,18 +928,11 @@ void p_reset(parser_t* pa, beatmap_t* b) {
   memset(pa->section, 0, sizeof(pa->section));
   memset(&pa->lastpos, 0, sizeof(pa->lastpos));
   memset(&pa->lastline, 0, sizeof(pa->lastline));
+  pa->objects.len = 0;
+  pa->timing_points.len = 0;
 
-  pa->title =
-  pa->title_unicode =
-  pa->artist =
-  pa->artist_unicode =
-  pa->creator =
-  pa->version = -1;
-
-  pa->strings.top =
-  pa->objects.top =
-  pa->timing.top =
-  pa->object_data.top = 0;
+  /* TODO: reuse arena mem */
+  arena_free(&pa->arena);
 
   pa->b = b;
 
@@ -910,61 +946,11 @@ void p_reset(parser_t* pa, beatmap_t* b) {
 int p_init(parser_t* pa) {
   memset(pa, 0, sizeof(parser_t));
   p_reset(pa, 0);
-
-  if (!m_init(&pa->strings, 256) ||
-    !m_init(&pa->objects, sizeof(object_t) * 128)||
-    !m_init(&pa->timing, sizeof(timing_t) * 8)||
-    !m_init(&pa->object_data, sizeof(float) * 256))
-  {
-    return ERR_OOM;
-  }
-
   return 0;
 }
 
 void p_free(parser_t* pa) {
-  m_free(&pa->strings);
-  m_free(&pa->objects);
-  m_free(&pa->timing);
-  m_free(&pa->object_data);
-}
-
-/*
- * note: do not store pointers to memstack objects as they can be
- * realloc'd as more stuff is pushed
- */
-
-/* these macros define helpers to access and push to mem stacks */
-
-#define SIMPLE_INDEXED(t, stack) \
-t##_t* p_get_##stack(parser_t* p) { \
-  return (t##_t*)p->stack.buf; \
-} \
-\
-int p_n##stack(parser_t* p) { \
-  return p->stack.top / sizeof(t##_t); \
-}
-
-SIMPLE_INDEXED(object, objects)
-SIMPLE_INDEXED(timing, timing)
-
-#define SIMPLE_PUSH(t, stack) \
-t##_t* p_push_##t(parser_t* p, t##_t* x) { \
-  return (t##_t*)m_push(&p->stack, x, sizeof(t##_t)); \
-}
-
-#define SIMPLE_AT(t, stack) \
-t##_t* p_##t##_at(parser_t* p, int off) { \
-  return (t##_t*)m_at(&p->object_data, off); \
-}
-
-SIMPLE_PUSH(object, objects)
-SIMPLE_PUSH(timing, timing)
-SIMPLE_PUSH(circle, object_data)
-SIMPLE_PUSH(slider, object_data)
-
-char* p_strings_at(parser_t* p, int off) {
-  return (char*)m_at(&p->strings, off);
+  arena_free(&pa->arena);
 }
 
 /*
@@ -1052,62 +1038,40 @@ int p_property(parser_t* pa, slice_t* s, slice_t* name, slice_t* value) {
   return (int)(s->end - s->start);
 }
 
+char* p_slicedup(parser_t* pa, slice_t* s) {
+  return arena_strndup(&pa->arena, s->start, slice_len(s));
+}
+
 int p_metadata(parser_t* pa, slice_t* line) {
   slice_t name, value;
+  beatmap_t* b = pa->b;
   int n = p_property(pa, line, &name, &value);
-  int* dst = 0;
-
   if (n < 0) {
     return parse_warn("W: malformed metadata line", line);
   }
-  if (!pa->strings.buf) {
-    return n;
-  }
   if (!slice_cmp(&name, "Title")) {
-    dst = &pa->title;
+    b->title = p_slicedup(pa, &value);
   }
   else if (!slice_cmp(&name, "TitleUnicode")) {
-    dst = &pa->title_unicode;
+    b->title_unicode = p_slicedup(pa, &value);
   }
   else if (!slice_cmp(&name, "Artist")) {
-    dst = &pa->artist;
+    b->artist = p_slicedup(pa, &value);
   }
   else if (!slice_cmp(&name, "ArtistUnicode")) {
-    dst = &pa->artist_unicode;
+    b->artist_unicode = p_slicedup(pa, &value);
   }
   else if (!slice_cmp(&name, "Creator")) {
-    dst = &pa->creator;
+    b->creator = p_slicedup(pa, &value);
   }
   else if (!slice_cmp(&name, "Version")) {
-    dst = &pa->version;
+    b->version = p_slicedup(pa, &value);
   }
-
-  /* we have a metadata property we want, so save it */
-  if (dst && *dst < 0) {
-    char* str;
-    int zero = 0;
-    str = (char*)m_push_slice(&pa->strings, &value);
-    if (!str || !m_push(&pa->strings, &zero, 1)) {
-      /*
-       * since we are out of memory, free all metadata
-       * which is not required for diffcalc
-       */
-      pa->title = -1;
-      pa->title_unicode = -1;
-      pa->artist = -1;
-      pa->artist_unicode = -1;
-      pa->creator = -1;
-      pa->version = -1;
-      m_free(&pa->strings);
-    } else {
-      *dst = pa->strings.top - slice_len(&value) - 1;
-    }
-  }
-
   return n;
 }
 
 int p_general(parser_t* pa, slice_t* line) {
+  beatmap_t* b = pa->b;
   slice_t name, value;
   int n;
   n = p_property(pa, line, &name, &value);
@@ -1116,15 +1080,15 @@ int p_general(parser_t* pa, slice_t* line) {
   }
 
   if (!slice_cmp(&name, "Mode")) {
-    if (sscanf(value.start, "%d", &pa->b->original_mode) != 1){
+    if (sscanf(value.start, "%d", &b->original_mode) != 1){
       return parse_err(SYNTAX, value);
     }
     if (pa->flags & PARSER_OVERRIDE_MODE) {
-      pa->b->mode = pa->mode_override;
+      b->mode = pa->mode_override;
     } else {
-      pa->b->mode = pa->b->original_mode;
+      b->mode = b->original_mode;
     }
-    switch (pa->b->mode) {
+    switch (b->mode) {
     case MODE_STD:
     case MODE_TAIKO:
       break;
@@ -1206,10 +1170,14 @@ int p_timing(parser_t* pa, slice_t* line) {
   int n, i;
   int err = 0;
   slice_t split[8];
-  timing_t t;
+  timing_t* t = array_alloc(&pa->timing_points);
   int success;
 
-  t.change = 1;
+  if (!t) {
+    return ERR_OOM;
+  }
+
+  t->change = 1;
 
   n = slice_split(line, ",", split, 8, &err);
   if (err < 0) {
@@ -1230,12 +1198,12 @@ int p_timing(parser_t* pa, slice_t* line) {
     slice_trim(&split[i]);
   }
 
-  t.time = p_float(&split[0], &success);
+  t->time = p_float(&split[0], &success);
   if (!success) {
     return parse_warn("W: malformed timing point time", line);
   }
 
-  t.ms_per_beat = p_float(&split[1], &success);
+  t->ms_per_beat = p_float(&split[1], &success);
   if (!success) {
     return parse_warn("W: malformed timing point ms_per_beat",
       line);
@@ -1243,34 +1211,30 @@ int p_timing(parser_t* pa, slice_t* line) {
 
   if (n >= 7) {
     if (slice_len(&split[6]) < 1) {
-      t.change = 1;
+      t->change = 1;
     } else {
-      t.change = *split[6].start != '0';
+      t->change = *split[6].start != '0';
     }
-  }
-
-  if (!p_push_timing(pa, &t)) {
-    return ERR_OOM;
   }
 
   return res;
 }
 
 int p_objects(parser_t* pa, slice_t* line) {
-  object_t obj;
-  int nelements;
+  beatmap_t* b = pa->b;
+  object_t* o = array_alloc(&pa->objects);
   int err = 0;
-  slice_t elements[11];
+  int ne;
+  slice_t e[11];
   int success;
 
-  memset(&obj.strains, 0, sizeof(obj.strains));
-  obj.is_single = 0;
-  obj.nsound_types = 0;
-  obj.sound_types = 0;
-  obj.sound_types_off = -1;
-  obj.data_off = -1;
+  if (o) {
+    memset(o, 0, sizeof(*o));
+  } else {
+    return ERR_OOM;
+  }
 
-  nelements = slice_split(line, ",", elements, 11, &err);
+  ne = slice_split(line, ",", e, 11, &err);
   if (err < 0) {
     if (err == ERR_TRUNCATED) {
       info("W: object with trailing values\n");
@@ -1280,111 +1244,105 @@ int p_objects(parser_t* pa, slice_t* line) {
     }
   }
 
-  if (nelements < 5) {
+  if (ne < 5) {
     return parse_warn("W: malformed hitobject", line);
   }
 
-  obj.time = p_float(&elements[2], &success);
+  o->time = p_float(&e[2], &success);
   if (!success) {
     return parse_warn("W: malformed hitobject time", line);
   }
 
-  if (sscanf(elements[3].start, "%d", &obj.type) != 1) {
+  if (sscanf(e[3].start, "%d", &o->type) != 1) {
     parse_warn("W: malformed hitobject type", line);
-    obj.type = OBJ_CIRCLE;
+    o->type = OBJ_CIRCLE;
   }
 
-  if (pa->b->mode == MODE_TAIKO) {
-    int sound_type;
-    if (sscanf(elements[4].start, "%d", &sound_type) != 1) {
+  if (b->mode == MODE_TAIKO) {
+    int* sound_type = arena_alloc(&pa->arena, sizeof(int));
+    if (!sound_type) {
+      return ERR_OOM;
+    }
+    if (sscanf(e[4].start, "%d", sound_type) != 1) {
       parse_warn("W: malformed hitobject sound type", line);
-      sound_type = SOUND_NORMAL;
+      *sound_type = SOUND_NORMAL;
     }
-    obj.nsound_types = 1;
-    obj.sound_types_off = pa->object_data.top;
-    if (!m_push(&pa->object_data, &sound_type, 1)) {
-      return ERR_OOM;
-    }
+    o->nsound_types = 1;
+    o->sound_types = sound_type;
+    /* wastes 4 bytes when you have per-node sounds but w/e */
   }
 
-  if (obj.type & OBJ_CIRCLE) {
-    circle_t c;
-    ++pa->b->ncircles;
-    c.pos[0] = p_float(&elements[0], &success);
+  if (o->type & OBJ_CIRCLE) {
+    ++b->ncircles;
+    o->pos[0] = p_float(&e[0], &success);
     if (!success) {
       return parse_warn("W: malformed circle position", line);
     }
-    c.pos[1] = p_float(&elements[1], &success);
+    o->pos[1] = p_float(&e[1], &success);
     if (!success) {
       return parse_warn("W: malformed circle position", line);
     }
-    if (!p_push_circle(pa, &c)) {
-      return ERR_OOM;
-    }
-    obj.data_off = pa->object_data.top - sizeof(circle_t);
   }
 
   /* ?,?,?,?,?,end_time,custom_sample_banks */
-  else if (obj.type & OBJ_SPINNER) {
-    ++pa->b->nspinners;
+  else if (o->type & OBJ_SPINNER) {
+    ++b->nspinners;
   }
 
   /*
    * x,y,time,type,sound_type,points,repetitions,distance,
    * per_node_sounds,per_node_samples,custom_sample_banks
    */
-  else if (obj.type & OBJ_SLIDER) {
-    slider_t sli;
-    slice_t* e = elements;
-
-    ++pa->b->nsliders;
-    memset(&sli, 0, sizeof(sli));
-    if (nelements < 7) {
+  else if (o->type & OBJ_SLIDER) {
+    ++b->nsliders;
+    if (ne < 7) {
       return parse_warn("W: malformed slider", line);
     }
 
-    sli.pos[0] = p_float(&e[0], &success);
+    o->pos[0] = p_float(&e[0], &success);
     if (!success) {
       return parse_warn("W: malformed slider position", line);
     }
 
-    sli.pos[1] = p_float(&e[1], &success);
+    o->pos[1] = p_float(&e[1], &success);
     if (!success) {
       return parse_warn("W: malformed slider position", line);
     }
 
-    if (sscanf(e[6].start, "%d", &sli.repetitions) != 1) {
-      sli.repetitions = 1;
+    if (sscanf(e[6].start, "%d", &o->repetitions) != 1) {
+      o->repetitions = 1;
       parse_warn("W: malformed slider repetitions", line);
     }
 
-    if (nelements > 7) {
-      sli.distance = p_float(&e[7], &success);
+    if (ne > 7) {
+      o->distance = p_float(&e[7], &success);
       if (!success) {
         parse_warn("W: malformed slider distance", line);
-        sli.distance = 0;
+        o->distance = 0;
       }
     }
 
     /* per-node sound types */
-    if (pa->b->mode == MODE_TAIKO &&
-      nelements > 8 && slice_len(&elements[8]) > 0)
-    {
-      slice_t p = elements[8];
+    if (b->mode == MODE_TAIKO && ne > 8 && slice_len(&e[8]) > 0) {
+      slice_t p = e[8];
       int i, nodes;
-      int* sound_types;
+      int first = o->sound_types[0];
 
       /* repeats + head and tail. no repeats is 1 repetition, so -1 */
-      nodes = mymax(0, sli.repetitions - 1) + 2;
-      obj.sound_types_off = pa->object_data.top;
-      sound_types = (int*)pa->object_data.buf + obj.sound_types_off;
-      if (!m_reserve(&pa->object_data, nodes)) {
+      nodes = mymax(0, o->repetitions - 1) + 2;
+      o->nsound_types = nodes + 1;
+      o->sound_types = (
+        arena_alloc(&pa->arena, sizeof(int) * o->nsound_types)
+      );
+      o->sound_types[0] = first;
+      if (!o->sound_types) {
         return ERR_OOM;
       }
 
       for (i = 0; i < nodes; ++i) {
         slice_t node;
         int n;
+        int type;
         node.start = node.end = 0;
         n = consume_until(pa, &p, "|", &node);
         if (n < 0 && n != ERR_MORE) {
@@ -1395,25 +1353,16 @@ int p_objects(parser_t* pa, slice_t* line) {
           break;
         }
         p.start += n + 1;
-        if (sscanf(node.start, "%d", &sound_types[i]) != 1) {
+        if (sscanf(node.start, "%d", &type) != 1) {
           parse_warn("W: malformed sound type", line);
-          sound_types[i] = SOUND_NORMAL;
+          type = SOUND_NORMAL;
         }
+        o->sound_types[i + 1] = type;
       }
     }
-
-    if (!p_push_slider(pa, &sli)) {
-      return ERR_OOM;
-    }
-
-    obj.data_off = pa->object_data.top - sizeof(slider_t);
   }
 
-  if (!p_push_object(pa, &obj)) {
-    return ERR_OOM;
-  }
-
-  return (int)(elements[nelements - 1].end - line->start);
+  return (int)(e[ne - 1].end - line->start);
 }
 
 int p_line(parser_t* pa, slice_t* line) {
@@ -1495,52 +1444,33 @@ void p_begin(parser_t* pa, beatmap_t* b) {
   p_reset(pa, b);
 }
 
-void p_copy_metadata(parser_t* pa, beatmap_t* b) {
-  int n;
-
-  if (pa->title_unicode < 0) {
-    pa->title_unicode = pa->title;
-  }
-
-  if (pa->artist_unicode < 0) {
-    pa->artist_unicode = pa->artist;
-  }
-
-  /* copy parser values over to the beatmap struct */
-
-#define s(x) \
-  if (pa->x != -1) { \
-    b->x = p_strings_at(pa, pa->x); \
-  } else { \
-    b->x = "(null)"; \
-  }
-
-  s(artist) s(artist_unicode) s(title) s(title_unicode)
-  s(creator) s(version)
-#undef s
-
-  b->nobjects = p_nobjects(pa);
-  b->objects = p_get_objects(pa);
-  b->ntiming_points = p_ntiming(pa);
-  b->timing_points = p_get_timing(pa);
-
-  /*
-   * now it's safe to store pointers to the memstacks since we
-   * are done pushing stuff to them
-   */
-  for (n = 0; n < b->nobjects; ++n) {
-    object_t* o = &b->objects[n];
-    o->pdata = pa->object_data.buf + o->data_off;
-    if (o->sound_types_off < 0) {
-      continue;
-    }
-    o->sound_types = (int*)pa->object_data.buf + o->sound_types_off;
-  }
-
+void p_end(parser_t* pa, beatmap_t* b) {
   if (!(pa->flags & PARSER_FOUND_AR)) {
     /* in old maps ar = od */
     b->ar = b->od;
   }
+
+  b->objects = pa->objects.data;
+  b->nobjects = pa->objects.len;
+  b->timing_points = pa->timing_points.data;
+  b->ntiming_points = pa->timing_points.len;
+
+  if (!b->title_unicode) {
+    b->title_unicode = b->title;
+  }
+
+  if (!b->artist_unicode) {
+    b->artist_unicode = b->artist;
+  }
+
+  #define s(x) b->x = b->x ? b->x : "(null)"
+
+  s(title);
+  s(title_unicode);
+  s(artist);
+  s(artist_unicode);
+  s(creator);
+  s(version);
 }
 
 int p_map(parser_t* pa, beatmap_t* b, FILE* f) {
@@ -1621,7 +1551,7 @@ int p_map(parser_t* pa, beatmap_t* b, FILE* f) {
     pbuf = pa->buf + (s.end - s.start);
   }
 
-  p_copy_metadata(pa, b);
+  p_end(pa, b);
 
   return res;
 }
@@ -1675,7 +1605,7 @@ int p_map_mem(parser_t* pa, beatmap_t* b, char* data,
     res += n;
   }
 
-  p_copy_metadata(pa, b);
+  p_end(pa, b);
 
   return res;
 }
@@ -1739,7 +1669,7 @@ float playfield_center[] = {
 
 int d_init(diff_calc_t* d) {
   memset(d, 0, sizeof(diff_calc_t));
-  if (!m_init(&d->highest_strains, sizeof(float) * 600)) {
+  if (!array_reserve(&d->highest_strains, sizeof(float) * 600)) {
     return ERR_OOM;
   }
   d->singletap_threshold = 125; /* 240 bpm 1/2 */
@@ -1747,7 +1677,7 @@ int d_init(diff_calc_t* d) {
 }
 
 void d_free(diff_calc_t* d) {
-  m_free(&d->highest_strains);
+  array_free(&d->highest_strains);
 }
 
 float d_spacing_weight(float distance, int type, int* is_single) {
@@ -1815,16 +1745,14 @@ int d_update_max_strains(diff_calc_t* d, float decay_factor,
 {
   /* make previous peak strain decay until the current obj */
   while (cur_time > d->interval_end) {
-    void* p = m_push(&d->highest_strains, &d->max_strain, sizeof(float));
-    if (!p) {
+    if (!array_append(&d->highest_strains, d->max_strain)) {
       return ERR_OOM;
     }
     if (first_obj) {
       d->max_strain = 0;
     } else {
       float decay;
-      decay = pow(decay_factor,
-        (d->interval_end - prev_time) / 1000.0f);
+      decay = pow(decay_factor, (d->interval_end - prev_time) / 1000.0f);
       d->max_strain = prev_strain * decay;
     }
     d->interval_end += STRAIN_STEP * d->speed_mul;
@@ -1841,8 +1769,8 @@ float d_weigh_strains(diff_calc_t* d) {
   float difficulty = 0.0f;
   float weight = 1.0f;
 
-  strains = (float*)d->highest_strains.buf;
-  nstrains = d->highest_strains.top / sizeof(float);
+  strains = (float*)d->highest_strains.data;
+  nstrains = d->highest_strains.len;
 
   /* sort strains from highest to lowest */
   qsort(strains, nstrains, sizeof(float), dbl_desc);
@@ -1857,18 +1785,19 @@ float d_weigh_strains(diff_calc_t* d) {
 
 int d_calc_individual(int type, diff_calc_t* d, float* result) {
   int i;
+  beatmap_t* b = d->b;
 
   d->max_strain = 0.0f;
   d->interval_end = STRAIN_STEP * d->speed_mul;
-  d->highest_strains.top = 0;
+  d->highest_strains.len = 0;
 
-  for (i = 0; i < d->b->nobjects; ++i) {
+  for (i = 0; i < b->nobjects; ++i) {
     int err;
-    object_t* o = &d->b->objects[i];
+    object_t* o = &b->objects[i];
     object_t* prev = 0;
     float prev_time = 0, prev_strain = 0;
     if (i > 0) {
-      prev = &d->b->objects[i - 1];
+      prev = &b->objects[i - 1];
       d_calc_strain(type, o, prev, d->speed_mul);
       prev_time = prev->time;
       prev_strain = prev->strains[type];
@@ -1916,13 +1845,13 @@ int d_std(diff_calc_t* d, int mods) {
 
   /* calculate normalized positions */
   for (i = 0; i < b->nobjects; ++i) {
-    object_t* o = &d->b->objects[i];
+    object_t* o = &b->objects[i];
     float* pos;
     if (o->type & OBJ_SPINNER) {
       pos = playfield_center;
     } else {
       /* sliders also begin with pos so it's fine */
-      pos = ((circle_t*)o->pdata)->pos;
+      pos = o->pos;
     }
     o->normpos[0] = pos[0] * scaling_factor;
     o->normpos[1] = pos[1] * scaling_factor;
@@ -1952,12 +1881,12 @@ int d_std(diff_calc_t* d, int mods) {
 
   /* singletap stats */
   for (i = 1; i < b->nobjects; ++i) {
-    object_t* o = &d->b->objects[i];
+    object_t* o = &b->objects[i];
     if (o->is_single) {
       ++d->nsingles;
     }
     if (o->type & (OBJ_CIRCLE | OBJ_SLIDER)) {
-      object_t* prev = &d->b->objects[i - 1];
+      object_t* prev = &b->objects[i - 1];
       float interval = o->time - prev->time;
       interval /= mapstats.speed;
       if (interval >= d->singletap_threshold) {
@@ -2106,7 +2035,7 @@ int d_taiko(diff_calc_t* d, int mods) {
 
   mods_apply(mods, &mapstats, 0);
 
-  d->highest_strains.top = 0;
+  d->highest_strains.len = 0;
   d->max_strain = 0.0f;
   d->interval_end = STRAIN_STEP * mapstats.speed;
   d->speed_mul = mapstats.speed;
@@ -2131,7 +2060,7 @@ int d_taiko(diff_calc_t* d, int mods) {
     cur->strain = 1;
     cur->same_since = 1;
     cur->last_switch_even = -1;
-    cur->rim = (*o->sound_types & (SOUND_CLAP|SOUND_WHISTLE)) != 0;
+    cur->rim = (o->sound_types[0] & (SOUND_CLAP|SOUND_WHISTLE)) != 0;
 
     if (b->original_mode == MODE_TAIKO) {
       goto continue_loop;
@@ -2139,7 +2068,6 @@ int d_taiko(diff_calc_t* d, int mods) {
 
     if (o->type & OBJ_SLIDER) {
       /* TODO: too much indentation, pull this out */
-      slider_t* sl = (slider_t*)o->pdata;
       int isound = 0;
       float j;
 
@@ -2175,14 +2103,14 @@ int d_taiko(diff_calc_t* d, int mods) {
         }
 
         /* this is similar to what we do in b_max_combo with px_per_beat */
-        duration = sl->distance * sl->repetitions / velocity;
+        duration = o->distance * o->repetitions / velocity;
 
         /*
          * if slider is shorter than 1 beat, cut tick to exactly the length
          * of the slider
          */
         tick_spacing = mymin(beat_len / b->tick_rate,
-            duration / sl->repetitions);
+            duration / o->repetitions);
       }
 
       /* drum roll, ignore */
@@ -2197,7 +2125,8 @@ int d_taiko(diff_calc_t* d, int mods) {
       for (j = o->time; j < o->time + duration + tick_spacing / 8;
          j += tick_spacing)
       {
-        cur->rim = (o->sound_types[isound] & (SOUND_CLAP|SOUND_WHISTLE));
+        int sound_type = o->sound_types[isound];
+        cur->rim = (sound_type & (SOUND_CLAP | SOUND_WHISTLE));
         cur->hit = 1;
         cur->time = j;
 
@@ -2654,7 +2583,7 @@ int b_ppv2(beatmap_t* b, pp_calc_t* pp, float aim, float speed, int mods) {
   params.max_combo = max_combo;
   params.nsliders = b->nsliders;
   params.ncircles = b->ncircles;
-  params.nobjects = (int)b->nobjects;
+  params.nobjects = b->nobjects;
   params.mods = mods;
   return ppv2p(pp, &params);
 }
@@ -2668,7 +2597,7 @@ int b_ppv2p(beatmap_t* map, pp_calc_t* pp, pp_params_t* p) {
   }
   p->nsliders = map->nsliders;
   p->ncircles = map->ncircles;
-  p->nobjects = (int)map->nobjects;
+  p->nobjects = map->nobjects;
   p->mode = map->mode;
   pp_handle_default_params(p);
   return ppv2p(pp, p);
