@@ -271,6 +271,9 @@ trycalc:
   }
 
   print_memory_usage(pstate, &stars);
+  p_free(pstate);
+  d_free(&stars);
+  free(pstate);
 
   return 0;
 }
