@@ -13,25 +13,30 @@
  * care about that you can read values like v = *(int*)p
  */
 
-int read2(char* c) {
-  unsigned char* p = (unsigned char*)c;
+int read2(char** c) {
+  unsigned char* p = (unsigned char*)*c;
+  *c += 2;
   return p[0] | (p[1] << 8);
 }
 
-int read4(char* c) {
-  unsigned char* p = (unsigned char*)c;
+int read4(char** c) {
+  unsigned char* p = (unsigned char*)*c;
+  *c += 4;
   return p[0] | (p[1] << 8) | (p[2] << 16) | (p[3] << 24);
 }
 
-float read_flt(char* p) {
+float read_flt(char** p) {
   int v = read4(p);
   float* pf = (float*)&v;
   return *pf;
 }
 
-char* read_str(char* p, int* len) {
+char* read_str(char** p, int* len) {
+  char* res;
   *len = read2(p);
-  return (char*)p + 2;
+  res = (char*)p + 2;
+  *p += *len + 1;
+  return res;
 }
 
 #define MODS_NF (1<<0)
@@ -75,38 +80,22 @@ int main() {
   puts("");
 
   /* error code */
-  result = read4(p);
+  result = read4(&p);
   if (result < 0) {
     printf("error %d\n", result);
     return 1;
   }
 
-  p += 4;
+  printf("artist: %s\n", read_str(&p, &len));
+  printf("artist_unicode: %s\n", read_str(&p, &len));
+  printf("title: %s\n", read_str(&p, &len));
+  printf("title_unicode: %s\n", read_str(&p, &len));
+  printf("version: %s\n", read_str(&p, &len));
+  printf("creator: %s\n", read_str(&p, &len));
 
-  printf("artist: %s\n", read_str(p, &len));
-  p += len + 2 + 1;
-
-  printf("artist_unicode: %s\n", read_str(p, &len));
-  p += len + 2 + 1;
-
-  printf("title: %s\n", read_str(p, &len));
-  p += len + 2 + 1;
-
-  printf("title_unicode: %s\n", read_str(p, &len));
-  p += len + 2 + 1;
-
-  printf("version: %s\n", read_str(p, &len));
-  p += len + 2 + 1;
-
-  printf("creator: %s\n", read_str(p, &len));
-  p += len + 2 + 1;
-
-  mods = read4(p);
-  p += 4;
-
+  mods = read4(&p);
   puts("");
   printf("mods: ");
-
   if (mods & MODS_NF) printf("NF");
   if (mods & MODS_EZ) printf("EZ");
   if (mods & MODS_HD) printf("HD");
@@ -116,45 +105,29 @@ int main() {
   if (mods & MODS_NC) printf("NC");
   if (mods & MODS_FL) printf("FL");
   if (mods & MODS_SO) printf("SO");
-
   puts("");
 
-  printf("OD%g AR%g CS%g HP%g\n", read_flt(p), read_flt(p + 4),
-    read_flt(p + 8), read_flt(p + 12));
-  p += 16;
-
-  printf("%d/%dx\n", read4(p), read4(p + 4));
-  p += 8;
-
-  printf("%d circles %d sliders %d spinners\n",
-    read2(p), read2(p + 2), read2(p + 4));
-  p += 6;
-
-  printf("scorev%d\n", read4(p));
-  p += 4;
-
+  printf("OD%g ", read_flt(&p));
+  printf("AR%g ", read_flt(&p));
+  printf("CS%g ", read_flt(&p));
+  printf("HP%g\n", read_flt(&p));
+  printf("%d/%dx\n", read4(&p), read4(&p));
+  printf("%d circles ", read2(&p));
+  printf("%d sliders ", read2(&p));
+  printf("%d spinners\n", read2(&p));
+  printf("scorev%d\n", read4(&p));
   puts("");
-  printf("%g stars (%g speed, %g aim)\n", read_flt(p),
-    read_flt(p + 4), read_flt(p + 8));
-  p += 12;
-
-  printf("%d spacing singletaps, %d notes within singletap threshold\n",
-    read2(p), read2(p + 2));
-  p += 4;
-
+  printf("%g stars ", read_flt(&p));
+  printf("(%g speed, ", read_flt(&p));
+  printf("%g aim)\n", read_flt(&p));
+  printf("%d spacing singletaps, ", read2(&p));
+  printf("%d notes within singletap threshold\n", read2(&p));
   puts("");
-
-  printf("%g aim pp\n", read_flt(p));
-  p += 4;
-
-  printf("%g speed pp\n", read_flt(p));
-  p += 4;
-
-  printf("%g acc pp\n", read_flt(p));
-  p += 4;
-
+  printf("%g aim pp\n", read_flt(&p));
+  printf("%g speed pp\n", read_flt(&p));
+  printf("%g acc pp\n", read_flt(&p));
   puts("");
-  printf("%g pp\n", read_flt(p));
+  printf("%g pp\n", read_flt(&p));
 
   return 0;
 }
