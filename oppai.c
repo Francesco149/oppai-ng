@@ -264,15 +264,36 @@ int p_map_mem(parser_t* pa, beatmap_t* b, char* data,
 #define MODS_NOMOD 0
 #define MODS_NF (1<<0)
 #define MODS_EZ (1<<1)
-#define MODS_TOUCH_DEVICE (1<<2)
-#define MODS_TD MODS_TOUCH_DEVICE
+#define MODS_TD (1<<2)
 #define MODS_HD (1<<3)
 #define MODS_HR (1<<4)
+#define MODS_SD (1<<5)
 #define MODS_DT (1<<6)
+#define MODS_RX (1<<7)
 #define MODS_HT (1<<8)
 #define MODS_NC (1<<9)
 #define MODS_FL (1<<10)
+#define MODS_AT (1<<11)
 #define MODS_SO (1<<12)
+#define MODS_AP (1<<13)
+#define MODS_PF (1<<14)
+#define MODS_KEY4 (1<<15) /* TODO: what are these abbreviated to? */
+#define MODS_KEY5 (1<<16)
+#define MODS_KEY6 (1<<17)
+#define MODS_KEY7 (1<<18)
+#define MODS_KEY8 (1<<19)
+#define MODS_FADEIN (1<<20)
+#define MODS_RANDOM (1<<21)
+#define MODS_CINEMA (1<<22)
+#define MODS_TARGET (1<<23)
+#define MODS_KEY9 (1<<24)
+#define MODS_KEYCOOP (1<<25)
+#define MODS_KEY1 (1<<26)
+#define MODS_KEY3 (1<<27)
+#define MODS_KEY2 (1<<28)
+#define MODS_SCOREV2 (1<<29)
+#define MODS_TOUCH_DEVICE MODS_TD
+#define MODS_NOVIDEO MODS_TD /* never forget */
 #define MODS_SPEED_CHANGING (MODS_DT | MODS_HT | MODS_NC)
 #define MODS_MAP_CHANGING (MODS_HR | MODS_EZ | MODS_SPEED_CHANGING)
 

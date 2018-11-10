@@ -1040,13 +1040,8 @@ int main(int argc, char* argv[]) {
         }
 
       for (p = mods_str; *p;) {
-        m(NF) m(EZ) m(HD) m(HR) m(DT) m(HT) m(NC) m(FL)
-        m(SO) m(NOMOD)
-        if (!strncmp(p, "TD", 2)) {
-          mods |= MODS_TOUCH_DEVICE;
-          p += 2;
-          continue;
-        }
+        m(NF) m(EZ) m(TD) m(HD) m(HR) m(SD) m(DT) m(RX) m(HT) m(NC) m(FL)
+        m(AT) m(SO) m(AP) m(PF) m(NOMOD)
         ++p;
       }
 
