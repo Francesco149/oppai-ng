@@ -267,17 +267,17 @@ output_sig(output_text) {
   printf("HP%g\n", mapstats->hp);
   printf("300 hitwindow: %g ms\n", mapstats->odms);
 
-  printf("%hu circles, %hu sliders, %hu spinners\n",
+  printf("%d circles, %d sliders, %d spinners\n",
     map->ncircles, map->nsliders, map->nspinners);
 
   /* -1 because first object can't be evaluated */
   total_objs = map->ncircles + map->nsliders - 1;
 
   if (map->mode == MODE_STD) {
-    printf("%hu spacing singletaps (%g%%)\n", stars->nsingles,
+    printf("%d spacing singletaps (%g%%)\n", stars->nsingles,
       stars->nsingles / (float)total_objs * 100.0);
 
-    printf("%hu notes within singletap bpm threshold (%g%%)\n",
+    printf("%d notes within singletap bpm threshold (%g%%)\n",
       stars->nsingles_threshold,
       stars->nsingles_threshold/(float)total_objs * 100.0);
 
@@ -419,11 +419,11 @@ output_sig(output_json) {
     "\"mods_str\":\"%s\",\"mods\":%d,"
     "\"od\":%g,\"ar\":%g,\"cs\":%g,\"hp\":%g,"
     "\"combo\":%d,\"max_combo\":%d,"
-    "\"num_circles\":%hu,\"num_sliders\":%hu,"
-    "\"num_spinners\":%hu,\"misses\":%hu,"
+    "\"num_circles\":%d,\"num_sliders\":%d,"
+    "\"num_spinners\":%d,\"misses\":%d,"
     "\"score_version\":%d,\"stars\":%.17g,"
     "\"speed_stars\":%.17g,\"aim_stars\":%.17g,"
-    "\"nsingles\":%hu,\"nsingles_threshold\":%hu,"
+    "\"nsingles\":%d,\"nsingles_threshold\":%d,"
     "\"aim_pp\":%.17g,\"speed_pp\":%.17g,\"acc_pp\":%.17g,"
     "\"pp\":%.17g}",
     mods_str, params->mods, mapstats->od, mapstats->ar,
@@ -497,10 +497,10 @@ output_sig(output_csv) {
 
   printf(
     "mods_str;%s\nmods;%d\nod;%g\nar;%g\ncs;%g\nhp;%g\n"
-    "combo;%d\nmax_combo;%d\nnum_circles;%hu\n"
-    "num_sliders;%hu\nnum_spinners;%hu\nmisses;%hu\n"
+    "combo;%d\nmax_combo;%d\nnum_circles;%d\n"
+    "num_sliders;%d\nnum_spinners;%d\nmisses;%d\n"
     "score_version;%d\nstars;%.17g\nspeed_stars;%.17g\n"
-    "aim_stars;%.17g\nnsingles;%hu\nnsingles_threshold;%hu\n"
+    "aim_stars;%.17g\nnsingles;%d\nnsingles_threshold;%d\n"
     "aim_pp;%.17g\nspeed_pp;%.17g\nacc_pp;%.17g\npp;%.17g",
     mods_str, params->mods, mapstats->od, mapstats->ar,
     mapstats->cs, mapstats->hp, params->combo,
