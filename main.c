@@ -19,9 +19,8 @@
   STRINGIFY(OPPAI_VERSION_MINOR) "." \
   STRINGIFY(OPPAI_VERSION_PATCH)
 
-global char* me = "oppai";
+char* me = "oppai";
 
-internalfn
 void usage() {
   /* logo by flesnuk https://github.com/Francesco149/oppai-ng/issues/10 */
 
@@ -170,7 +169,7 @@ typedef output_sig(fnoutput);
 /* null output --------------------------------------------------------- */
 
 /* stdout must be left alone, outputting to stderr is fine tho */
-internalfn output_sig(output_null) {
+output_sig(output_null) {
   (void)result; (void)map; (void)mapstats; (void)mods_str;
   (void)stars; (void)params; (void)pp;
 }
@@ -180,7 +179,6 @@ internalfn output_sig(output_null) {
 
 #define ASCIIPLT_W 51
 
-internalfn
 void asciiplt(float (* getvalue)(void* data, int i), int n, void* data) {
   static char* charset[] = {
 #ifdef OPPAI_UTF8GRAPH
@@ -232,13 +230,11 @@ void asciiplt(float (* getvalue)(void* data, int i), int n, void* data) {
   puts("");
 }
 
-internalfn
 float getaim(void* data, int i) {
   struct beatmap* b = (struct beatmap*)data;
   return (float)b->objects[i].strains[DIFF_AIM];
 }
 
-internalfn
 float getspeed(void* data, int i) {
   struct beatmap* b = (struct beatmap*)data;
   return (float)b->objects[i].strains[DIFF_SPEED];
@@ -246,7 +242,6 @@ float getspeed(void* data, int i) {
 
 #define twodec(x) (round_oppai((x) * 100.0f) / 100.0f)
 
-internalfn
 output_sig(output_text) {
   int total_objs;
 
@@ -334,7 +329,6 @@ output_sig(output_text) {
 /* json output --------------------------------------------------------- */
 
 #if !defined(OPPAI_NOJSON) || !defined(OPPAI_NOGNUPLOT)
-internalfn
 void print_escaped_json_string_ex(char* str, int quotes) {
   char* chars_to_escape = "\\\"";
   char* p;
@@ -362,13 +356,11 @@ void print_escaped_json_string_ex(char* str, int quotes) {
 
 /* https://www.doc.ic.ac.uk/%7Eeedwards/compsys/float/nan.html */
 
-internalfn
 int is_inf(float b) {
   int* p = (int*)&b;
   return *p == 0x7F800000 || *p == 0xFF800000;
 }
 
-internalfn
 int is_nan(float b) {
   int* p = (int*)&b;
   return (
@@ -381,7 +373,6 @@ int is_nan(float b) {
  * json is mentally challenged and can't handle inf and nan so
  * we're gonna be mathematically incorrect
  */
-internalfn
 void fix_json_flt(float* v) {
   if (is_inf(*v)) {
     *v = -1;
@@ -390,7 +381,6 @@ void fix_json_flt(float* v) {
   }
 }
 
-internalfn
 output_sig(output_json) {
   printf("{\"oppai_version\":\"" OPPAI_VERSION_STRING "\",");
 
@@ -465,7 +455,6 @@ output_sig(output_json) {
 #ifndef OPPAI_NOCSV
 /* csv output ---------------------------------------------------------- */
 
-internalfn
 void print_escaped_csv_string(char* str) {
   char* chars_to_escape = "\\;";
   char* p;
@@ -480,7 +469,6 @@ void print_escaped_csv_string(char* str) {
   }
 }
 
-internalfn
 output_sig(output_csv) {
   printf("oppai_version;" OPPAI_VERSION_STRING "\n");
 
@@ -545,13 +533,11 @@ output_sig(output_csv) {
 #ifndef OPPAI_NOBINARY
 /* binary output ------------------------------------------------------- */
 
-internalfn
 void write1(int v) {
   char buf = (char)(v & 0xFF);
   fwrite(&buf, 1, 1, stdout);
 }
 
-internalfn
 void write2(int v) {
   char buf[2];
   buf[0] = (char)(v & 0xFF);
@@ -559,7 +545,6 @@ void write2(int v) {
   fwrite(buf, 1, 2, stdout);
 }
 
-internalfn
 void write4(int v) {
   char buf[4];
   buf[0] = (char)(v & 0xFF);
@@ -569,13 +554,11 @@ void write4(int v) {
   fwrite(buf, 1, 4, stdout);
 }
 
-internalfn
 void write_flt(float f) {
   int* p = (int*)&f;
   write4(*p);
 }
 
-internalfn
 void write_str(char* str) {
   int len = mymin(0xFFFF, strlen(str));
   write2(len);
@@ -583,7 +566,6 @@ void write_str(char* str) {
   write1(0);
 }
 
-internalfn
 output_sig(output_binary) {
   (void)mods_str;
 
@@ -637,7 +619,6 @@ output_sig(output_binary) {
 
 #define gnuplot_string(x) print_escaped_json_string_ex(x, 0)
 
-internalfn
 void gnuplot_strains(struct beatmap* map, int type) {
   int i;
   for (i = 0; i < map->nobjects; ++i) {
@@ -646,7 +627,6 @@ void gnuplot_strains(struct beatmap* map, int type) {
   }
 }
 
-internalfn
 output_sig(output_gnuplot) {
   (void)pp; (void)params; (void)stars; (void)mapstats; (void)result;
 
@@ -830,9 +810,7 @@ modules[] =
 #endif
 };
 
-internalfn
-struct output_module*
-output_by_name(char* name) {
+struct output_module* output_by_name(char* name) {
   int i;
   for (i = 0; i < ARRAY_LEN(modules); ++i) {
     if (!strcmp(modules[i].name, name)) {
@@ -843,7 +821,6 @@ output_by_name(char* name) {
 }
 
 #ifdef OPPAI_DEBUG
-internalfn
 void print_memory_usage(struct parser* pa, struct diff_calc* dc) {
   info(
     "-------------------------\n"
@@ -872,13 +849,11 @@ void print_memory_usage(struct parser* pa, struct diff_calc* dc) {
 #define print_memory_usage(x, y)
 #endif /* OPPAI_DEBUG */
 
-internalfn
 int cmpsuffix(char* str, char* suffix) {
   int sufflen = (int)mymin(strlen(str), strlen(suffix));
   return strcmp(str + strlen(str) - sufflen, suffix);
 }
 
-internalfn
 char lowercase(char c) {
   if (c >= 'A' && c <= 'Z') {
     return c + ('a' - 'A');
@@ -886,7 +861,6 @@ char lowercase(char c) {
   return c;
 }
 
-internalfn
 char uppercase(char c) {
   if (c >= 'a' && c <= 'z') {
     return c - ('a' - 'A');
@@ -894,7 +868,6 @@ char uppercase(char c) {
   return c;
 }
 
-internalfn
 int strcmp_nc(char* a, char* b) {
   for (;; ++a, ++b) {
     char la = lowercase(*a);

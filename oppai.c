@@ -411,12 +411,8 @@ void taiko_acc_round(float acc_percent, int nobjects, int nmisses,
 #include <string.h>
 #include <math.h>
 
-#define internalfn static
-#define global static
-
 /* error utils --------------------------------------------------------- */
 
-internalfn
 int info(char* fmt, ...) {
   int res;
   va_list va;
@@ -445,7 +441,6 @@ char* errstr(int err) {
 #ifndef OPPAI_NODIFFCALC
 /* math ---------------------------------------------------------------- */
 
-internalfn
 float get_inf() {
   static unsigned raw = 0x7F800000;
   float* p = (float*)&raw;
@@ -453,13 +448,11 @@ float get_inf() {
 }
 
 /* dst = a - b */
-internalfn
 void v2f_sub(float* dst, float* a, float* b) {
   dst[0] = a[0] - b[0];
   dst[1] = a[1] - b[1];
 }
 
-internalfn
 float v2f_len(float* v) {
   return sqrt(v[0] * v[0] + v[1] * v[1]);
 }
@@ -469,7 +462,6 @@ float v2f_len(float* v) {
 #ifndef OPPAI_NOPARSER
 /* string utils -------------------------------------------------------- */
 
-internalfn
 int whitespace(char c) {
   switch (c) {
     case '\r':
@@ -481,12 +473,10 @@ int whitespace(char c) {
   return 0;
 }
 
-internalfn
 int slice_write(struct slice* s, FILE* f) {
   return (int)fwrite(s->start, 1, s->end - s->start, f);
 }
 
-internalfn
 int slice_whitespace(struct slice* s) {
   char* p = s->start;
   for (; p < s->end; ++p) {
@@ -498,13 +488,11 @@ int slice_whitespace(struct slice* s) {
 }
 
 /* trims leading and trailing whitespace */
-internalfn
 void slice_trim(struct slice* s) {
   for (; s->start < s->end && whitespace(*s->start); ++s->start);
   for (; s->end > s->start && whitespace(*(s->end-1)); --s->end);
 }
 
-internalfn
 int slice_cmp(struct slice* s, char* str) {
   int len = (int)strlen(str);
   int s_len = (int)(s->end - s->start);
@@ -517,7 +505,6 @@ int slice_cmp(struct slice* s, char* str) {
   return strncmp(s->start, str, len);
 }
 
-internalfn
 int slice_len(struct slice* s) {
   return (int)(s->end - s->start);
 }
@@ -529,7 +516,6 @@ int slice_len(struct slice* s) {
  * if more elements than nmax are found, err is set to
  * ERR_TRUNCATED
  */
-internalfn
 int slice_split(struct slice* s, char* separator_list, struct slice* arr,
   int nmax, int* err)
 {
@@ -567,7 +553,6 @@ exit:
 #if !defined(OPPAI_NOPARSER) || !defined(OPPAI_NODIFFCALC)
 /* memstack ------------------------------------------------------------ */
 
-internalfn
 void* m_init(struct memstack* m, int initial_size) {
   memset(m, 0, sizeof(struct memstack));
   m->buf = (char*)malloc(initial_size);
@@ -577,13 +562,11 @@ void* m_init(struct memstack* m, int initial_size) {
   return m->buf;
 }
 
-internalfn
 void m_free(struct memstack* m) {
   free(m->buf);
   memset(m, 0, sizeof(struct memstack));
 }
 
-internalfn
 void* m_reserve(struct memstack* m, int nbytes) {
   void* res;
   int avail = m->size - m->top;
@@ -620,7 +603,6 @@ allocated:
   return res;
 }
 
-internalfn
 void* m_push(struct memstack* m, void* p, int nbytes) {
   void* res = m_reserve(m, nbytes);
   if (res) {
@@ -629,12 +611,10 @@ void* m_push(struct memstack* m, void* p, int nbytes) {
   return res;
 }
 
-internalfn
 void* m_push_slice(struct memstack* m, struct slice* s) {
   return m_push(m, s->start, (int)(s->end - s->start));
 }
 
-internalfn
 void* m_at(struct memstack* m, int off) {
   if (off < 0 || off >= m->top) {
     return 0;
@@ -776,7 +756,6 @@ void mods_apply(int mods, struct beatmap_stats* s, int flags) {
  * 2.0 randomly
  */
 
-internalfn
 int b_max_combo(struct beatmap* b) {
   int res = b->nobjects;
   int i;
@@ -902,7 +881,6 @@ int b_max_combo(struct beatmap* b) {
 /* beatmap parser ------------------------------------------------------ */
 
 /* sets up parser for reuse. must have already been inited with p_init */
-internalfn
 void p_reset(struct parser* pa, struct beatmap* b) {
   memset(pa->section, 0, sizeof(pa->section));
   memset(&pa->lastpos, 0, sizeof(pa->lastpos));
@@ -959,12 +937,10 @@ void p_free(struct parser* pa) {
 /* these macros define helpers to access and push to mem stacks */
 
 #define SIMPLE_INDEXED(t, stack) \
-internalfn \
 struct t* p_get_##stack(struct parser* p) { \
   return (struct t*)p->stack.buf; \
 } \
 \
-internalfn \
 int p_n##stack(struct parser* p) { \
   return p->stack.top / sizeof(struct t); \
 }
@@ -973,13 +949,11 @@ SIMPLE_INDEXED(object, objects)
 SIMPLE_INDEXED(timing, timing)
 
 #define SIMPLE_PUSH(t, stack) \
-internalfn \
 struct t* p_push_##t(struct parser* p, struct t* x) { \
   return (struct t*)m_push(&p->stack, x, sizeof(struct t)); \
 }
 
 #define SIMPLE_AT(t, stack) \
-internalfn \
 struct t* p_##t##_at(struct parser* p, int off) { \
   return (struct t*)m_at(&p->object_data, off); \
 }
@@ -989,7 +963,6 @@ SIMPLE_PUSH(timing, timing)
 SIMPLE_PUSH(circle, object_data)
 SIMPLE_PUSH(slider, object_data)
 
-internalfn
 char* p_strings_at(struct parser* p, int off) {
   return (char*)m_at(&p->strings, off);
 }
@@ -1013,7 +986,6 @@ int nop(int x) { return x; }
   info(e), info("\n"), print_line(line), nop(0)
 
 /* consume until any of the characters in separators is found */
-internalfn
 int consume_until(struct parser* pa, struct slice* s, char* separators,
   struct slice* dst)
 {
@@ -1046,7 +1018,6 @@ int consume_until(struct parser* pa, struct slice* s, char* separators,
   info("\n")
 
 /* [name] */
-internalfn
 int p_section_name(struct parser* pa, struct slice* s, struct slice* name) {
   int n;
   struct slice p = *s;
@@ -1065,7 +1036,6 @@ int p_section_name(struct parser* pa, struct slice* s, struct slice* name) {
 }
 
 /* ```name: value``` (results are trimmed) */
-internalfn
 int p_property(struct parser* pa, struct slice* s, struct slice* name,
   struct slice* value)
 {
@@ -1084,7 +1054,6 @@ int p_property(struct parser* pa, struct slice* s, struct slice* name,
   return (int)(s->end - s->start);
 }
 
-internalfn
 int p_metadata(struct parser* pa, struct slice* line) {
   struct slice name, value;
   int n = p_property(pa, line, &name, &value);
@@ -1140,7 +1109,6 @@ int p_metadata(struct parser* pa, struct slice* line) {
   return n;
 }
 
-internalfn
 int p_general(struct parser* pa, struct slice* line) {
   struct slice name, value;
   int n;
@@ -1170,7 +1138,6 @@ int p_general(struct parser* pa, struct slice* line) {
   return n;
 }
 
-internalfn
 float p_float(struct slice* value, int* success) {
   float res;
   char* p = value->start;
@@ -1193,7 +1160,6 @@ float p_float(struct slice* value, int* success) {
   return res;
 }
 
-internalfn
 int p_difficulty(struct parser* pa, struct slice* line) {
   float* dst = 0;
   struct slice name, value;
@@ -1239,7 +1205,6 @@ int p_difficulty(struct parser* pa, struct slice* line) {
  *
  * everything after ms_per_beat is optional
  */
-internalfn
 int p_timing(struct parser* pa, struct slice* line) {
   int res = 0;
   int n, i;
@@ -1295,7 +1260,6 @@ int p_timing(struct parser* pa, struct slice* line) {
   return res;
 }
 
-internalfn
 int p_objects(struct parser* pa, struct slice* line) {
   struct object obj;
   int nelements;
@@ -1456,7 +1420,6 @@ int p_objects(struct parser* pa, struct slice* line) {
   return (int)(elements[nelements - 1].end - line->start);
 }
 
-internalfn
 int p_line(struct parser* pa, struct slice* line) {
   int n = 0;
 
@@ -1531,13 +1494,11 @@ int p_line(struct parser* pa, struct slice* line) {
   return n;
 }
 
-internalfn
 void p_begin(struct parser* pa, struct beatmap* b) {
   b->sv = b->tick_rate = 1;
   p_reset(pa, b);
 }
 
-internalfn
 void p_copy_metadata(struct parser* pa, struct beatmap* b) {
   int n;
 
@@ -1793,7 +1754,6 @@ void d_free(struct diff_calc* d) {
   m_free(&d->highest_strains);
 }
 
-internalfn
 float d_spacing_weight(float distance, int type, int* is_single) {
   switch (type) {
     case DIFF_SPEED:
@@ -1822,7 +1782,6 @@ float d_spacing_weight(float distance, int type, int* is_single) {
   return 0.0;
 }
 
-internalfn
 void d_calc_strain(int type,
   struct object* o, struct object* prev, float speed_mul)
 {
@@ -1844,7 +1803,6 @@ void d_calc_strain(int type,
   o->strains[type] = prev->strains[type] * decay + res;
 }
 
-internalfn
 int dbl_desc(void const* a, void const* b) {
   float x = *(float const*)a;
   float y = *(float const*)b;
@@ -1857,7 +1815,6 @@ int dbl_desc(void const* a, void const* b) {
   return -1;
 }
 
-internalfn
 int d_update_max_strains(struct diff_calc* d, float decay_factor,
   float cur_time, float prev_time, float cur_strain, float prev_strain,
   int first_obj)
@@ -1883,7 +1840,6 @@ int d_update_max_strains(struct diff_calc* d, float decay_factor,
   return 0;
 }
 
-internalfn
 float d_weigh_strains(struct diff_calc* d) {
   int i;
   int nstrains = 0;
@@ -1905,7 +1861,6 @@ float d_weigh_strains(struct diff_calc* d) {
   return difficulty;
 }
 
-internalfn
 int d_calc_individual(int type, struct diff_calc* d, float* result) {
   int i;
 
@@ -1935,7 +1890,6 @@ int d_calc_individual(int type, struct diff_calc* d, float* result) {
   return 0;
 }
 
-internalfn
 int d_std(struct diff_calc* d, int mods) {
   struct beatmap* b = d->b;
   int i;
@@ -2044,7 +1998,6 @@ struct taiko_object {
 };
 
 /* object type change bonus */
-internalfn
 float taiko_change_bonus(struct taiko_object* cur,
   struct taiko_object* prev)
 {
@@ -2065,7 +2018,6 @@ float taiko_change_bonus(struct taiko_object* cur,
 }
 
 /* rhythm change bonus */
-internalfn
 float taiko_rhythm_bonus(struct taiko_object* cur,
   struct taiko_object* prev)
 {
@@ -2099,7 +2051,6 @@ float taiko_rhythm_bonus(struct taiko_object* cur,
   return 0;
 }
 
-internalfn
 void taiko_strain(struct taiko_object* cur, struct taiko_object* prev) {
   float decay;
   float addition = 1;
@@ -2124,7 +2075,6 @@ void taiko_strain(struct taiko_object* cur, struct taiko_object* prev) {
   cur->strain = prev->strain * decay + addition * factor;
 }
 
-internalfn
 void swap_ptrs(void** a, void** b) {
   void* tmp;
   tmp = *a;
@@ -2132,7 +2082,6 @@ void swap_ptrs(void** a, void** b) {
   *b = tmp;
 }
 
-internalfn
 int d_taiko(struct diff_calc* d, int mods) {
   float infinity = get_inf();
   struct beatmap* b = d->b;
@@ -2403,12 +2352,10 @@ void taiko_acc_round(float acc_percent, int nobjects, int nmisses,
 
 #ifndef OPPAI_NOPP
 /* some kind of formula to get a base pp value from stars */
-internalfn
 float base_pp(float stars) {
   return pow(5.0 * mymax(1.0, stars / 0.0675) - 4.0, 3.0) / 100000.0;
 }
 
-internalfn
 int ppv2x(struct pp_calc* pp, float aim, float speed, float base_ar,
   float base_od, int max_combo, int nsliders, int ncircles, int nobjects,
   int mods, int combo, int n300, int n100, int n50, int nmiss,
@@ -2569,7 +2516,6 @@ int ppv2x(struct pp_calc* pp, float aim, float speed, float base_ar,
 
 /* taiko pp calc ------------------------------------------------------- */
 
-internalfn
 int taiko_ppv2x(struct pp_calc* pp, float stars, int max_combo,
   float base_od, int n150, int nmiss, int mods)
 {
@@ -2660,7 +2606,6 @@ void pp_init(struct pp_params* p) {
 }
 
 /* should be called inside ppv2p before calling ppv2x */
-internalfn
 void pp_handle_default_params(struct pp_params* p) {
   if (p->combo < 0) {
     p->combo = p->max_combo - p->nmiss;
