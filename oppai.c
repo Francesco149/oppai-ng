@@ -209,7 +209,6 @@ typedef struct beatmap {
   float tick_rate;
 } beatmap_t;
 
-#ifndef OPPAI_NOPARSER
 /* beatmap parser ------------------------------------------------------ */
 
 /* non-null terminated string, used internally for parsing */
@@ -259,8 +258,6 @@ void p_free(parser_t* pa);
 int p_map(parser_t* pa, beatmap_t* b, FILE* f);
 int p_map_mem(parser_t* pa, beatmap_t* b, char* data,
   int data_size);
-
-#endif /* OPPAI_NOPARSER */
 
 /* mods utils ---------------------------------------------------------- */
 
@@ -313,7 +310,6 @@ int mods_apply_m(int mode, int mods, beatmap_stats_t* s, int flags);
 /* legacy function, calls mods_apply(MODE_STD, mods, s, flags) */
 void mods_apply(int mods, beatmap_stats_t* s, int flags);
 
-#ifndef OPPAI_NODIFFCALC
 /* diff calc ----------------------------------------------------------- */
 
 /*
@@ -346,9 +342,6 @@ int d_init(diff_calc_t* d);
 void d_free(diff_calc_t* d);
 int d_calc(diff_calc_t* d, beatmap_t* b, int mods);
 
-#endif /* OPPAI_NODIFFCALC */
-
-#ifndef OPPAI_NOPP
 /* pp calc ------------------------------------------------------------- */
 
 typedef struct pp_calc {
@@ -413,8 +406,8 @@ int b_ppv2p(beatmap_t* map, pp_calc_t* pp, pp_params_t* p);
 int b_ppv2(beatmap_t* map, pp_calc_t* pp, float aim, float speed,
   int mods);
 
-#endif /* OPPAI_NOPP */
 /* --------------------------------------------------------------------- */
+
 /* calculate accuracy (0.0f - 1.0f) */
 float acc_calc(int n300, int n100, int n50, int misses);
 
@@ -466,7 +459,6 @@ char* errstr(int err) {
   return "unknown error";
 }
 
-#ifndef OPPAI_NODIFFCALC
 /* math ---------------------------------------------------------------- */
 
 float get_inf() {
@@ -485,9 +477,6 @@ float v2f_len(float* v) {
   return sqrt(v[0] * v[0] + v[1] * v[1]);
 }
 
-#endif /* OPPAI_NODIFFCALC */
-
-#ifndef OPPAI_NOPARSER
 /* string utils -------------------------------------------------------- */
 
 int whitespace(char c) {
@@ -576,9 +565,7 @@ int slice_split(slice_t* s, char* separator_list, slice_t* arr,
 exit:
   return res;
 }
-#endif /* OPPAI_NOPARSER */
 
-#if !defined(OPPAI_NOPARSER) || !defined(OPPAI_NODIFFCALC)
 /* array --------------------------------------------------------------- */
 
 /*
@@ -666,8 +653,6 @@ void arena_free(arena_t* arena) {
   arena->block = 0;
   arena->end_of_block = 0;
 }
-
-#endif /* !defined(OPPAI_NOPARSER) || !defined(OPPAI_NODIFFCALC) */
 
 /* mods ---------------------------------------------------------------- */
 
@@ -920,7 +905,6 @@ int b_max_combo(beatmap_t* b) {
   return res;
 }
 
-#ifndef OPPAI_NOPARSER
 /* beatmap parser ------------------------------------------------------ */
 
 /* sets up parser for reuse. must have already been inited with p_init */
@@ -1613,9 +1597,7 @@ int p_map_mem(parser_t* pa, beatmap_t* b, char* data,
 
   return res;
 }
-#endif
 
-#ifndef OPPAI_NODIFFCALC
 /* diff calc ----------------------------------------------------------- */
 
 /* based on tom94's osu!tp aimod and osuElements */
@@ -2202,7 +2184,6 @@ int d_calc(diff_calc_t* d, beatmap_t* b, int mods) {
   info("this gamemode is not yet supported\n");
   return ERR_NOTIMPLEMENTED;
 }
-#endif
 
 /* acc calc ------------------------------------------------------------ */
 
@@ -2274,7 +2255,6 @@ void taiko_acc_round(float acc_percent, int nobjects, int nmisses,
 
 /* std pp calc --------------------------------------------------------- */
 
-#ifndef OPPAI_NOPP
 /* some kind of formula to get a base pp value from stars */
 float base_pp(float stars) {
   return pow(5.0f * mymax(1.0f, stars / 0.0675f) - 4.0f, 3.0f) / 100000.0f;
@@ -2606,7 +2586,6 @@ int b_ppv2p(beatmap_t* map, pp_calc_t* pp, pp_params_t* p) {
   pp_handle_default_params(p);
   return ppv2p(pp, p);
 }
-#endif /* OPPAI_NOPP */
 
 #endif /* OPPAI_IMPLEMENTATION */
 

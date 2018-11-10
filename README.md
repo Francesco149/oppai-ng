@@ -320,29 +320,15 @@ read oppai.c, there's documentation for each function at the top.
 see examples directory for detailed examples. you can also read
 main.c to see how the CLI uses it.
 
-oppai is also modular, you can define out parts of the code
-that you don't use by defining any of:
-```
-OPPAI_NOPARSER
-OPPAI_NOPP
-OPPAI_NODIFFCALC
-```
-
 if you don't feel comfortable writing bindings or using oppai
 from c code, you can use the -o parameter to output in json or
 other parsable formats. ```examples/binary.c``` shows how to parse
 the binary output.
 
-# other build parameters
+# build parameters
 when you build the oppai cli, you can pass any of these parameters
 to the build script to disable features:
 
-* ```-DOPPAI_NOTEXT``` disables text output module
-* ```-DOPPAI_NOJSON``` disables json output module
-* ```-DOPPAI_NOCSV``` disables CSV output module
-* ```-DOPPAI_NOBINARY``` disables binary output module
-* ```-DOPPAI_DEBUG``` enables debug output module and memory usage
-    statistics
-* ```-DOPPAI_NOSTDINT``` doesn't use ```stdint.h```, as some
-    machines or old compilers don't have it
+* ```-DOPPAI_UTF8GRAPH``` use utf-8 characters for the strains graph
+* ```-DOPPAI_DEBUG``` enable debug output and debug output module
 

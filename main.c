@@ -172,7 +172,6 @@ output_sig(output_null) {
   (void)stars; (void)params; (void)pp;
 }
 
-#ifndef OPPAI_NOTEXT
 /* text output --------------------------------------------------------- */
 
 #define ASCIIPLT_W 51
@@ -322,11 +321,9 @@ output_sig(output_text) {
   printf("%g speed, ", twodec(pp->speed));
   printf("%g acc)\n\n", twodec(pp->acc));
 }
-#endif /* OPPAI_NOTEXT */
 
 /* json output --------------------------------------------------------- */
 
-#if !defined(OPPAI_NOJSON) || !defined(OPPAI_NOGNUPLOT)
 void print_escaped_json_string_ex(char* str, int quotes) {
   char* chars_to_escape = "\\\"";
   char* p;
@@ -346,9 +343,7 @@ void print_escaped_json_string_ex(char* str, int quotes) {
     putchar('"');
   }
 }
-#endif
 
-#ifndef OPPAI_NOJSON
 #define print_escaped_json_string(x) \
   print_escaped_json_string_ex(x, 1)
 
@@ -448,9 +443,7 @@ output_sig(output_json) {
     pp->total
   );
 }
-#endif /* OPPAI_NOJSON */
 
-#ifndef OPPAI_NOCSV
 /* csv output ---------------------------------------------------------- */
 
 void print_escaped_csv_string(char* str) {
@@ -526,9 +519,7 @@ output_sig(output_csv) {
     pp->total
   );
 }
-#endif /* OPPAI_NOCSV */
 
-#ifndef OPPAI_NOBINARY
 /* binary output ------------------------------------------------------- */
 
 void write1(int v) {
@@ -610,9 +601,7 @@ output_sig(output_binary) {
   write_flt(pp->acc);
   write_flt(pp->total);
 }
-#endif /* OPPAI_NOBINARY */
 
-#ifndef OPPAI_NOGNUPLOT
 /* gnuplot output ------------------------------------------------------ */
 
 #define gnuplot_string(x) print_escaped_json_string_ex(x, 0)
@@ -668,7 +657,6 @@ output_sig(output_gnuplot) {
   puts("plot '-' with lines lc 2 title 'aim'");
   gnuplot_strains(map, DIFF_AIM);
 }
-#endif /* OPPAI_NOGNUPLOT */
 
 #ifdef OPPAI_DEBUG
 /* debug output -------------------------------------------------------- */
@@ -745,24 +733,17 @@ typedef struct output_module {
 
 output_module_t modules[] = {
   { "null", output_null, { "no output", 0 } },
-#ifndef OPPAI_NOTEXT
   { "text", output_text, { "plain text", 0 } },
-#endif
-#ifndef OPPAI_NOJSON
   {
     "json", output_json,
     { "a single utf-8 json object.\n" CODE_DESC, 0 }
   },
-#endif
-#ifndef OPPAI_NOCSV
   {
     "csv", output_csv,
     { "fieldname;value\n"
     "one value per line. ';' characters in strings will be " 
     "escaped to \"\\;\". utf-8.\n" CODE_DESC, 0 }
   },
-#endif
-#ifndef OPPAI_NOBINARY
   {
     "binary",
     output_binary,
@@ -794,10 +775,7 @@ output_module_t modules[] = {
     "float speed_pp, float acc_pp, float pp",
     0 }
   },
-#endif /* OPPAI_NOBINARY */
-#ifndef OPPAI_NOGNUPLOT
   { "gnuplot", output_gnuplot, { "gnuplot .gp script", 0 } },
-#endif
 #ifdef OPPAI_DEBUG
   { "debug", output_debug, { "debug output", 0 } },
 #endif
