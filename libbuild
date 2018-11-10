@@ -2,5 +2,5 @@
 
 dir="$(dirname "$0")"
 . "$dir"/cflags
-$cc -shared $cflags "$@" main.c $ldflags -fpic -o liboppai.so
+$cc -shared $cflags "$@" oppai.c $ldflags -fpic -o liboppai.so
 
