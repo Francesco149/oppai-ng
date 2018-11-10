@@ -159,10 +159,8 @@ void usage() {
 }
 
 #define output_sig(name) \
-void name(int result, struct beatmap* map, \
-  struct beatmap_stats* mapstats, char* mods_str, \
-  struct diff_calc* stars, struct pp_params* params, \
-  struct pp_calc* pp)
+void name(int result, beatmap_t* map, beatmap_stats_t* mapstats, \
+  char* mods_str, diff_calc_t* stars, pp_params_t* params, pp_calc_t* pp)
 
 typedef output_sig(fnoutput);
 
@@ -231,13 +229,13 @@ void asciiplt(float (* getvalue)(void* data, int i), int n, void* data) {
 }
 
 float getaim(void* data, int i) {
-  struct beatmap* b = (struct beatmap*)data;
-  return (float)b->objects[i].strains[DIFF_AIM];
+  beatmap_t* b = data;
+  return b->objects[i].strains[DIFF_AIM];
 }
 
 float getspeed(void* data, int i) {
-  struct beatmap* b = (struct beatmap*)data;
-  return (float)b->objects[i].strains[DIFF_SPEED];
+  beatmap_t* b = data;
+  return b->objects[i].strains[DIFF_SPEED];
 }
 
 #define twodec(x) (round_oppai((x) * 100.0f) / 100.0f)
@@ -619,10 +617,10 @@ output_sig(output_binary) {
 
 #define gnuplot_string(x) print_escaped_json_string_ex(x, 0)
 
-void gnuplot_strains(struct beatmap* map, int type) {
+void gnuplot_strains(beatmap_t* map, int type) {
   int i;
   for (i = 0; i < map->nobjects; ++i) {
-    struct object* o = &map->objects[i];
+    object_t* o = &map->objects[i];
     printf("%.17g %.17g\n", o->time, o->strains[type]);
   }
 }
@@ -688,16 +686,16 @@ output_sig(output_debug) {
   }
 
   for (i = 0; i < map->ntiming_points; ++i) {
-    struct timing* t = &map->timing_points[i];
+    timing_t* t = &map->timing_points[i];
     printf("timing %gms %g %d\n", t->time, t->ms_per_beat, t->change);
   }
 
   for (i = 0; i < map->nobjects; ++i) {
-    struct object* o = &map->objects[i];
+    object_t* o = &map->objects[i];
     printf("%gs [%g %g] ", o->time / 1000.0, o->strains[0], o->strains[1]);
 
     if (o->type & OBJ_CIRCLE) {
-      struct circle* c = (struct circle*)o->pdata;
+      circle_t* c = o->pdata;
       printf("circle (%g, %g) (%g, %g)\n", c->pos[0], c->pos[1],
         o->normpos[0], o->normpos[1]);
     }
@@ -705,12 +703,9 @@ output_sig(output_debug) {
       puts("spinner");
     }
     else if (o->type & OBJ_SLIDER) {
-      struct slider* s = (struct slider*)o->pdata;
-      printf(
-        "slider (%g, %g) (%g, %g)\n",
-        s->pos[0], s->pos[1],
-        o->normpos[0], o->normpos[1]
-      );
+      slider_t* s = o->pdata;
+      printf("slider (%g, %g) (%g, %g)\n", s->pos[0], s->pos[1],
+        o->normpos[0], o->normpos[1]);
     }
     else {
       printf("invalid hitobject %08X\n", o->type);
@@ -743,14 +738,14 @@ output_sig(output_debug) {
   "should be checked for errors. a negative value for code " \
   "indicates an error"
 
-struct output_module {
+typedef struct output_module {
   char* name;
   fnoutput* func;
   char* description[4];
   /* null terminated array of strings because of c90 literal limits */
-};
+} output_module_t;
 
-struct output_module modules[] = {
+output_module_t modules[] = {
   { "null", output_null, { "no output", 0 } },
 #ifndef OPPAI_NOTEXT
   { "text", output_text, { "plain text", 0 } },
@@ -810,7 +805,7 @@ struct output_module modules[] = {
 #endif
 };
 
-struct output_module* output_by_name(char* name) {
+output_module_t* output_by_name(char* name) {
   int i;
   for (i = 0; i < ARRAY_LEN(modules); ++i) {
     if (!strcmp(modules[i].name, name)) {
@@ -821,7 +816,7 @@ struct output_module* output_by_name(char* name) {
 }
 
 #ifdef OPPAI_DEBUG
-void print_memory_usage(struct parser* pa, struct diff_calc* dc) {
+void print_memory_usage(parser_t* pa, diff_calc_t* dc) {
   info(
     "-------------------------\n"
     "strings: %dK\n"
@@ -891,18 +886,18 @@ int main(int argc, char* argv[]) {
   int i;
   int result;
 
-  struct parser* pstate = 0;
-  struct diff_calc stars;
-  struct beatmap map;
-  struct beatmap_stats mapstats;
-  struct pp_params params;
-  struct pp_calc pp;
-  struct output_module* m;
+  parser_t* pstate = 0;
+  diff_calc_t stars;
+  beatmap_t map;
+  beatmap_stats_t mapstats;
+  pp_params_t params;
+  pp_calc_t pp;
+  output_module_t* m;
 
   char* output_name = "text";
   char* mods_str = 0;
   int mods = MODS_NOMOD;
-  float acc_percent = 100.0;
+  float acc_percent = 100.0f;
   int use_percent = 0;
 
   int overrides = 0;
@@ -916,7 +911,7 @@ int main(int argc, char* argv[]) {
 #define OVERRIDE_AIM (1<<6)
 
   float ar_override = 0, od_override = 0, cs_override = 0;
-  float singletap_threshold = 125.0;
+  float singletap_threshold = 125.0f;
   int mode_override = MODE_STD;
   float speed_override = 0, aim_override = 0;
 
@@ -981,7 +976,7 @@ int main(int argc, char* argv[]) {
     if (strlen(a) >= 3 && !memcmp(a, "-st", 3) &&
       sscanf(a + 3, "%f", &singletap_threshold) == 1)
     {
-      singletap_threshold = (60000.0 / singletap_threshold) / 2.0;
+      singletap_threshold = (60000.0f / singletap_threshold) / 2.0f;
       overrides |= OVERRIDE_SINGLETAP_THRESHOLD;
       continue;
     }
@@ -1102,7 +1097,7 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  pstate = malloc(sizeof(struct parser));
+  pstate = malloc(sizeof(parser_t));
   if (!pstate) {
     result = ERR_OOM;
     goto output;

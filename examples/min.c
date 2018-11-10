@@ -7,12 +7,12 @@
 #include "../oppai.c"
 
 int main() {
-  struct parser pstate;
-  struct beatmap map;
+  parser_t pstate;
+  beatmap_t map;
 
   int mods;
-  struct diff_calc stars;
-  struct pp_calc pp;
+  diff_calc_t stars;
+  pp_calc_t pp;
 
   p_init(&pstate);
   p_map(&pstate, &map, stdin);

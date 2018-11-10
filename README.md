@@ -286,28 +286,27 @@ library.
 #define OPPAI_IMPLEMENTATION
 #include "../oppai.c"
 
-int main()
-{
-    struct parser pstate;
-    struct beatmap map;
+int main() {
+  parser_t pstate;
+  beatmap_t map;
 
-    uint32_t mods;
-    struct diff_calc stars;
-    struct pp_calc pp;
+  uint32_t mods;
+  diff_calc_t stars;
+  pp_calc_t pp;
 
-    p_init(&pstate);
-    p_map(&pstate, &map, stdin);
+  p_init(&pstate);
+  p_map(&pstate, &map, stdin);
 
-    mods = MODS_HD | MODS_DT;
+  mods = MODS_HD | MODS_DT;
 
-    d_init(&stars);
-    d_calc(&stars, &map, mods);
-    printf("%g stars\n", stars.total);
+  d_init(&stars);
+  d_calc(&stars, &map, mods);
+  printf("%g stars\n", stars.total);
 
-    b_ppv2(&map, &pp, stars.aim, stars.speed, mods);
-    printf("%gpp\n", pp.total);
+  b_ppv2(&map, &pp, stars.aim, stars.speed, mods);
+  printf("%gpp\n", pp.total);
 
-    return 0;
+  return 0;
 }
 ```
 

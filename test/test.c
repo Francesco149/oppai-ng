@@ -71,16 +71,16 @@ int main(int argc, char* argv[]) {
 
   int err;
 
-  struct parser* pstate = 0;
-  struct diff_calc stars;
-  struct beatmap map;
-  struct beatmap_stats mapstats;
-  struct pp_params params;
-  struct pp_calc pp;
+  parser_t* pstate = 0;
+  diff_calc_t stars;
+  beatmap_t map;
+  beatmap_stats_t mapstats;
+  pp_params_t params;
+  pp_calc_t pp;
 
   fname += sprintf(fname, "test_suite/");
 
-  pstate = (struct parser*)malloc(sizeof(struct parser));
+  pstate = (parser_t*)malloc(sizeof(parser_t));
   if (!pstate) {
     check_err(ERR_OOM);
   }
@@ -203,13 +203,13 @@ trycalc:
 
 #ifdef OPPAI_DEBUG
       for (i = 0; i < map.nobjects; ++i) {
-        struct object* o = &map.objects[i];
+        object_t* o = &map.objects[i];
 
         printf("%gs [%g %g] ", o->time / 1000.0,
           o->strains[0], o->strains[1]);
 
         if (o->type & OBJ_CIRCLE) {
-          struct circle* c = (struct circle*)o->pdata;
+          circle_t* c = o->pdata;
           printf("circle (%g, %g) (%g, %g)\n", c->pos[0], c->pos[1],
             o->normpos[0], o->normpos[1]);
         }
@@ -217,7 +217,7 @@ trycalc:
           puts("spinner")
         }
         else if (o->type & OBJ_SLIDER) {
-          struct slider* s = (struct slider*)o->pdata;
+          slider_t* s = (slider_t*)o->pdata;
           printf("slider (%g, %g) (%g, %g)\n", s->pos[0], s->pos[1],
             o->normpos[0], o->normpos[1]);
         }
