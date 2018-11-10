@@ -856,7 +856,7 @@ int strcmp_nc(char* a, char* b) {
 
 /* TODO: split main into smaller funcs for readability? */
 int main(int argc, char* argv[]) {
-  FILE* f;
+  FILE* f = 0;
   int i;
   int result;
 
@@ -1182,6 +1182,15 @@ output:
   }
 
   m->func(result, &map, &mapstats, mods_str, &stars, &params, &pp);
+
+  /* this cleanup is only here so that valgrind stops crying */
+  p_free(pstate);
+  d_free(&stars);
+  free(pstate);
+  if (f && f != stdin) {
+    fclose(f);
+  }
+
   return result < 0;
 }
 
