@@ -1326,15 +1326,17 @@ int p_objects(parser_t* pa, slice_t* line) {
     if (b->mode == MODE_TAIKO && ne > 8 && slice_len(&e[8]) > 0) {
       slice_t p = e[8];
       int i, nodes;
-      int first = o->sound_types[0];
+
+      /*
+       * TODO: there's probably something subtly wrong with this.
+       * sometimes we get less sound types than nodes
+       * also I don't know if I'm supposed to include the previous
+       * sound type from the single sound_type field
+       */
 
       /* repeats + head and tail. no repeats is 1 repetition, so -1 */
       nodes = mymax(0, o->repetitions - 1) + 2;
-      o->nsound_types = nodes + 1;
-      o->sound_types = (
-        arena_alloc(&pa->arena, sizeof(int) * o->nsound_types)
-      );
-      o->sound_types[0] = first;
+      o->sound_types = arena_alloc(&pa->arena, sizeof(int) * nodes);
       if (!o->sound_types) {
         return ERR_OOM;
       }
@@ -1349,7 +1351,7 @@ int p_objects(parser_t* pa, slice_t* line) {
           pa->lastpos = p;
           return n;
         }
-        if (p.start >= p.end) {
+        if (node.start >= node.end || !node.start || p.start >= p.end) {
           break;
         }
         p.start += n + 1;
@@ -1357,8 +1359,10 @@ int p_objects(parser_t* pa, slice_t* line) {
           parse_warn("W: malformed sound type", line);
           type = SOUND_NORMAL;
         }
-        o->sound_types[i + 1] = type;
+        o->sound_types[i] = type;
       }
+
+      o->nsound_types = i;
     }
   }
 
