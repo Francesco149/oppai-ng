@@ -748,9 +748,9 @@ struct output_module {
   fnoutput* func;
   char* description[4];
   /* null terminated array of strings because of c90 literal limits */
-}
-modules[] =
-{
+};
+
+struct output_module modules[] = {
   { "null", output_null, { "no output", 0 } },
 #ifndef OPPAI_NOTEXT
   { "text", output_text, { "plain text", 0 } },

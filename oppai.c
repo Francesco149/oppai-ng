@@ -51,7 +51,7 @@
 #define OPPAI_VERSION_MINOR 0
 #define OPPAI_VERSION_PATCH 0
 
-#include <stdio.h> /* FILE */
+#include <stdio.h>
 
 #define round_oppai(x) floor((x) + 0.5)
 #define mymin(a, b) ((a) < (b) ? (a) : (b))
