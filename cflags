@@ -12,7 +12,7 @@ else
   cflags="$cflags -g"
 fi
 if [ $(uname) = "Darwin" ]; then
-  cflags="$cflags -Wl,-dead-strip"
+  cflags="$cflags -Wl,-dead_strip"
 else
   cflags="$cflags -Wl,--gc-sections"
 fi
