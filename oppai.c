@@ -47,11 +47,20 @@
  * ...
  */
 
-#define OPPAI_VERSION_MAJOR 2
-#define OPPAI_VERSION_MINOR 0
-#define OPPAI_VERSION_PATCH 0
-
 #include <stdio.h>
+
+#ifdef _WIN32
+#ifdef OPPAI_IMPLEMENTATION
+#define OPPAIAPI __declspec(dllexport)
+#else
+#define OPPAIAPI __declspec(dllimport)
+#endif
+#else
+#define OPPAIAPI
+#endif
+
+OPPAIAPI void oppai_version(int* major, int* minor, int* patch);
+OPPAIAPI char* oppai_version_str();
 
 #define round_oppai(x) floor((x) + 0.5f)
 #define mymin(a, b) ((a) < (b) ? (a) : (b))
@@ -75,9 +84,10 @@
 #define ERR_FORMAT (-6)
 #define ERR_OOM (-7)
 
-char* errstr(int err);
+OPPAIAPI char* errstr(int err);
 
 /* array --------------------------------------------------------------- */
+
 /*
  * array_t(mytype) is a type-safe resizable array with mytype elements
  * you can use array_* macros to operate on it
@@ -116,8 +126,9 @@ char* errstr(int err);
   (void**)&(arr)->data, \
   (int)sizeof((arr)->data[0])
 
-int array_reserve_i(int n, int* cap, int* len, void** data, int esize);
-void array_free_i(int* cap, int* len, void** data, int esize);
+OPPAIAPI int array_reserve_i(int n, int* cap, int* len, void** data,
+  int esize);
+OPPAIAPI void array_free_i(int* cap, int* len, void** data, int esize);
 
 /* memory arena -------------------------------------------------------- */
 
@@ -140,10 +151,10 @@ typedef struct {
 } arena_t;
 
 /* ensures that there are at least min_size bytes reserved */
-int arena_reserve(arena_t* arena, int min_size);
-void* arena_alloc(arena_t* arena, int size);
-char* arena_strndup(arena_t* m, char* s, int n);
-void arena_free(arena_t* arena);
+OPPAIAPI int arena_reserve(arena_t* arena, int min_size);
+OPPAIAPI void* arena_alloc(arena_t* arena, int size);
+OPPAIAPI char* arena_strndup(arena_t* m, char* s, int n);
+OPPAIAPI void arena_free(arena_t* arena);
 
 /* beatmap utils ------------------------------------------------------- */
 
@@ -243,8 +254,8 @@ typedef struct parser {
   beatmap_t* b;
 } parser_t;
 
-int p_init(parser_t* pa);
-void p_free(parser_t* pa);
+OPPAIAPI int p_init(parser_t* pa);
+OPPAIAPI void p_free(parser_t* pa);
 
 /*
  * parses a beatmap file and stores results in b.
@@ -255,8 +266,8 @@ void p_free(parser_t* pa);
  *
  * returns n. bytes processed on success, < 0 on failure
  */
-int p_map(parser_t* pa, beatmap_t* b, FILE* f);
-int p_map_mem(parser_t* pa, beatmap_t* b, char* data,
+OPPAIAPI int p_map(parser_t* pa, beatmap_t* b, FILE* f);
+OPPAIAPI int p_map_mem(parser_t* pa, beatmap_t* b, char* data,
   int data_size);
 
 /* mods utils ---------------------------------------------------------- */
@@ -326,10 +337,11 @@ typedef struct beatmap_stats {
  *    mods_apply_m(MODE_STD, MODS_DT, &s, APPLY_AR);
  *    // s.ar is now 10.33f, s.speed is now 1.5f
  */
+OPPAIAPI
 int mods_apply_m(int mode, int mods, beatmap_stats_t* s, int flags);
 
 /* legacy function, calls mods_apply(MODE_STD, mods, s, flags) */
-void mods_apply(int mods, beatmap_stats_t* s, int flags);
+OPPAIAPI void mods_apply(int mods, beatmap_stats_t* s, int flags);
 
 /* diff calc ----------------------------------------------------------- */
 
@@ -359,9 +371,9 @@ typedef struct diff_calc {
   int nsingles_threshold;
 } diff_calc_t;
 
-int d_init(diff_calc_t* d);
-void d_free(diff_calc_t* d);
-int d_calc(diff_calc_t* d, beatmap_t* b, int mods);
+OPPAIAPI int d_init(diff_calc_t* d);
+OPPAIAPI void d_free(diff_calc_t* d);
+OPPAIAPI int d_calc(diff_calc_t* d, beatmap_t* b, int mods);
 
 /* pp calc ------------------------------------------------------------- */
 
@@ -380,11 +392,13 @@ typedef struct pp_calc {
  * this also works for other modes by ignoring some parameters:
  * - taiko only uses pp, mode, speed, max_combo, base_od, mods
  */
+OPPAIAPI
 int ppv2(pp_calc_t* pp, int mode, float aim, float speed,
   float base_ar, float base_od, int max_combo, int nsliders, int ncircles,
   int nobjects, int mods);
 
 /* simplest possible call for taiko ppv2 SS */
+OPPAIAPI
 int taiko_ppv2(pp_calc_t* pp, float speed, int max_combo,
   float base_od, int mods);
 
@@ -411,35 +425,38 @@ typedef struct pp_params {
  * initialize struct pp_params with the default values.
  * required values are left untouched
  */
-void pp_init(pp_params_t* p);
+OPPAIAPI void pp_init(pp_params_t* p);
 
 /* calculate ppv2 with advanced parameters, see struct pp_params */
-int ppv2p(pp_calc_t* pp, pp_params_t* p);
+OPPAIAPI int ppv2p(pp_calc_t* pp, pp_params_t* p);
 
 /*
  * same as ppv2p but fills params automatically with the map's
  * base_ar, base_od, max_combo, nsliders, ncircles, nobjects
  * so you only need to provide aim and speed
  */
-int b_ppv2p(beatmap_t* map, pp_calc_t* pp, pp_params_t* p);
+OPPAIAPI int b_ppv2p(beatmap_t* map, pp_calc_t* pp, pp_params_t* p);
 
 /* same as ppv2 but fills params like b_ppv2p */
+OPPAIAPI
 int b_ppv2(beatmap_t* map, pp_calc_t* pp, float aim, float speed,
   int mods);
 
 /* --------------------------------------------------------------------- */
 
 /* calculate accuracy (0.0f - 1.0f) */
-float acc_calc(int n300, int n100, int n50, int misses);
+OPPAIAPI float acc_calc(int n300, int n100, int n50, int misses);
 
 /* calculate taiko accuracy (0.0f - 1.0f) */
-float taiko_acc_calc(int n300, int n150, int nmisses);
+OPPAIAPI float taiko_acc_calc(int n300, int n150, int nmisses);
 
 /* round percent accuracy to closest amount of 300s, 100s, 50s */
+OPPAIAPI
 void acc_round(float acc_percent, int nobjects, int nmisses, int* n300,
   int* n100, int* n50);
 
 /* round percent accuracy to closest amount of 300s and 150s (taiko) */
+OPPAIAPI
 void taiko_acc_round(float acc_percent, int nobjects, int nmisses,
   int* n300, int* n150);
 
@@ -453,6 +470,27 @@ void taiko_acc_round(float acc_percent, int nobjects, int nmisses,
 #include <string.h>
 #include <math.h>
 
+#define OPPAI_VERSION_MAJOR 2
+#define OPPAI_VERSION_MINOR 0
+#define OPPAI_VERSION_PATCH 0
+#define STRINGIFY_(x) #x
+#define STRINGIFY(x) STRINGIFY_(x)
+
+#define OPPAI_VERSION_STRING \
+  STRINGIFY(OPPAI_VERSION_MAJOR) "." \
+  STRINGIFY(OPPAI_VERSION_MINOR) "." \
+  STRINGIFY(OPPAI_VERSION_PATCH)
+
+OPPAIAPI void oppai_version(int* major, int* minor, int* patch) {
+  *major = OPPAI_VERSION_MAJOR;
+  *minor = OPPAI_VERSION_MINOR;
+  *patch = OPPAI_VERSION_PATCH;
+}
+
+OPPAIAPI char* oppai_version_str() {
+  return OPPAI_VERSION_STRING;
+}
+
 /* error utils --------------------------------------------------------- */
 
 int info(char* fmt, ...) {
@@ -464,6 +502,7 @@ int info(char* fmt, ...) {
   return res;
 }
 
+OPPAIAPI
 char* errstr(int err) {
   switch (err) {
     case ERR_MORE: return "call me again with more data";
@@ -595,6 +634,7 @@ exit:
  * fields as an array struct
  */
 
+OPPAIAPI
 int array_reserve_i(int n, int* cap, int* len, void** data, int esize) {
   (void)len;
   if (*cap <= n) {
@@ -610,6 +650,7 @@ int array_reserve_i(int n, int* cap, int* len, void** data, int esize) {
   return 1;
 }
 
+OPPAIAPI
 void array_free_i(int* cap, int* len, void** data, int esize) {
   (void)esize;
   free(*data);
@@ -628,6 +669,7 @@ void array_free_i(int* cap, int* len, void** data, int esize) {
 #define bit_align_up(x, a) \
   bit_align_down((x) + (a) - 1, a)
 
+OPPAIAPI
 int arena_reserve(arena_t* arena, int min_size) {
   int size;
   char* new_block;
@@ -645,6 +687,7 @@ int arena_reserve(arena_t* arena, int min_size) {
   return 1;
 }
 
+OPPAIAPI
 void* arena_alloc(arena_t* arena, int size) {
   void* res;
   if (!arena_reserve(arena, size)) {
@@ -656,6 +699,7 @@ void* arena_alloc(arena_t* arena, int size) {
   return res;
 }
 
+OPPAIAPI
 char* arena_strndup(arena_t* m, char* s, int n) {
   char* res = arena_alloc(m, n + 1);
   if (res) {
@@ -665,6 +709,7 @@ char* arena_strndup(arena_t* m, char* s, int n) {
   return res;
 }
 
+OPPAIAPI
 void arena_free(arena_t* arena) {
   int i;
   for (i = 0; i < arena->blocks.len; ++i) {
@@ -687,6 +732,7 @@ float od_ms_step[] = { 6.0f, 3.0f };
 #define AR_MS_STEP1 120.f /* ar0-5 */
 #define AR_MS_STEP2 150.f /* ar5-10 */
 
+OPPAIAPI
 int mods_apply_m(int mode, int mods, beatmap_stats_t* s, int flags) {
   float od_ar_hp_multiplier;
 
@@ -782,6 +828,7 @@ int mods_apply_m(int mode, int mods, beatmap_stats_t* s, int flags) {
   return 0;
 }
 
+OPPAIAPI
 void mods_apply(int mods, beatmap_stats_t* s, int flags) {
   int n;
   n = mods_apply_m(MODE_STD, mods, s, flags);
@@ -808,6 +855,7 @@ void mods_apply(int mods, beatmap_stats_t* s, int flags) {
  * 2.0f randomly
  */
 
+OPPAIAPI
 int b_max_combo(beatmap_t* b) {
   int res = b->nobjects;
   int i;
@@ -948,12 +996,14 @@ void p_reset(parser_t* pa, beatmap_t* b) {
   }
 }
 
+OPPAIAPI
 int p_init(parser_t* pa) {
   memset(pa, 0, sizeof(parser_t));
   p_reset(pa, 0);
   return 0;
 }
 
+OPPAIAPI
 void p_free(parser_t* pa) {
   arena_free(&pa->arena);
   array_free(&pa->objects);
@@ -1484,6 +1534,7 @@ void p_end(parser_t* pa, beatmap_t* b) {
   s(version);
 }
 
+OPPAIAPI
 int p_map(parser_t* pa, beatmap_t* b, FILE* f) {
   int res = 0;
   char* pbuf;
@@ -1567,6 +1618,7 @@ int p_map(parser_t* pa, beatmap_t* b, FILE* f) {
   return res;
 }
 
+OPPAIAPI
 int p_map_mem(parser_t* pa, beatmap_t* b, char* data,
   int data_size)
 {
@@ -1676,6 +1728,7 @@ float playfield_center[] = {
  */
 #define DECAY_WEIGHT 0.9f
 
+OPPAIAPI
 int d_init(diff_calc_t* d) {
   memset(d, 0, sizeof(diff_calc_t));
   if (!array_reserve(&d->highest_strains, sizeof(float) * 600)) {
@@ -1685,6 +1738,7 @@ int d_init(diff_calc_t* d) {
   return 0;
 }
 
+OPPAIAPI
 void d_free(diff_calc_t* d) {
   array_free(&d->highest_strains);
 }
@@ -2196,6 +2250,7 @@ continue_loop:
 
 /* --------------------------------------------------------------------- */
 
+OPPAIAPI
 int d_calc(diff_calc_t* d, beatmap_t* b, int mods) {
   d->b = b;
   switch (b->mode) {
@@ -2210,6 +2265,7 @@ int d_calc(diff_calc_t* d, beatmap_t* b, int mods) {
 
 /* acc calc ------------------------------------------------------------ */
 
+OPPAIAPI
 float acc_calc(int n300, int n100, int n50, int misses) {
   int total_hits = n300 + n100 + n50 + misses;
   float acc = 0;
@@ -2220,6 +2276,7 @@ float acc_calc(int n300, int n100, int n50, int misses) {
   return acc;
 }
 
+OPPAIAPI
 void acc_round(float acc_percent, int nobjects, int misses, int* n300,
   int* n100, int* n50)
 {
@@ -2250,6 +2307,7 @@ void acc_round(float acc_percent, int nobjects, int misses, int* n300,
   *n300 = nobjects - *n100 - *n50 - misses;
 }
 
+OPPAIAPI
 float taiko_acc_calc(int n300, int n150, int nmiss) {
   int total_hits = n300 + n150 + nmiss;
   float acc = 0;
@@ -2259,6 +2317,7 @@ float taiko_acc_calc(int n300, int n150, int nmiss) {
   return acc;
 }
 
+OPPAIAPI
 void taiko_acc_round(float acc_percent, int nobjects, int nmisses,
   int* n300, int* n150)
 {
@@ -2515,6 +2574,7 @@ int taiko_ppv2x(pp_calc_t* pp, float stars, int max_combo,
   return 0;
 }
 
+OPPAIAPI
 int taiko_ppv2(pp_calc_t* pp, float speed, int max_combo,
   float base_od, int mods)
 {
@@ -2523,6 +2583,7 @@ int taiko_ppv2(pp_calc_t* pp, float speed, int max_combo,
 
 /* common pp calc stuff ------------------------------------------------ */
 
+OPPAIAPI
 void pp_init(pp_params_t* p) {
   p->mode = MODE_STD;
   p->mods = MODS_NOMOD;
@@ -2542,6 +2603,7 @@ void pp_handle_default_params(pp_params_t* p) {
   }
 }
 
+OPPAIAPI
 int ppv2(pp_calc_t* pp, int mode, float aim, float speed, float base_ar,
   float base_od, int max_combo, int nsliders, int ncircles, int nobjects,
   int mods)
@@ -2561,6 +2623,7 @@ int ppv2(pp_calc_t* pp, int mode, float aim, float speed, float base_ar,
 }
 
 /* TODO: replace ppv2x with this? */
+OPPAIAPI
 int ppv2p(pp_calc_t* pp, pp_params_t* p) {
   pp_handle_default_params(p);
   switch (p->mode) {
@@ -2576,6 +2639,7 @@ int ppv2p(pp_calc_t* pp, pp_params_t* p) {
   return ERR_NOTIMPLEMENTED;
 }
 
+OPPAIAPI
 int b_ppv2(beatmap_t* b, pp_calc_t* pp, float aim, float speed, int mods) {
   pp_params_t params;
   int max_combo = b_max_combo(b);
@@ -2595,6 +2659,7 @@ int b_ppv2(beatmap_t* b, pp_calc_t* pp, float aim, float speed, int mods) {
   return ppv2p(pp, &params);
 }
 
+OPPAIAPI
 int b_ppv2p(beatmap_t* map, pp_calc_t* pp, pp_params_t* p) {
   p->base_ar = map->ar;
   p->base_od = map->od;

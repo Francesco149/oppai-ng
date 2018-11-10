@@ -10,15 +10,7 @@
 #define OPPAI_IMPLEMENTATION
 #include "oppai.c"
 
-#define STRINGIFY_(x) #x
-#define STRINGIFY(x) STRINGIFY_(x)
 #define ARRAY_LEN(x) (sizeof(x) / sizeof((x)[0]))
-
-#define OPPAI_VERSION_STRING \
-  STRINGIFY(OPPAI_VERSION_MAJOR) "." \
-  STRINGIFY(OPPAI_VERSION_MINOR) "." \
-  STRINGIFY(OPPAI_VERSION_PATCH)
-
 char* me = "oppai";
 
 void usage() {
@@ -375,7 +367,7 @@ void fix_json_flt(float* v) {
 }
 
 output_sig(output_json) {
-  printf("{\"oppai_version\":\"" OPPAI_VERSION_STRING "\",");
+  printf("{\"oppai_version\":\"%s\",", oppai_version_str());
 
   if (result < 0) {
     printf("\"code\":%d,", result);
@@ -461,7 +453,7 @@ void print_escaped_csv_string(char* str) {
 }
 
 output_sig(output_csv) {
-  printf("oppai_version;" OPPAI_VERSION_STRING "\n");
+  printf("oppai_version;%s\n", oppai_version_str());
 
   if (result < 0) {
     printf("code;%d\nerrstr;", result);
@@ -556,6 +548,7 @@ void write_str(char* str) {
 }
 
 output_sig(output_binary) {
+  int major, minor, patch;
   (void)mods_str;
 
   if (!freopen(0, "wb", stdout)) {
@@ -564,9 +557,10 @@ output_sig(output_binary) {
   }
 
   printf("binoppai");
-  write1(OPPAI_VERSION_MAJOR);
-  write1(OPPAI_VERSION_MINOR);
-  write1(OPPAI_VERSION_PATCH);
+  oppai_version(&major, &minor, &patch);
+  write1(major);
+  write1(minor);
+  write1(patch);
   write4(result);
 
   if (result < 0) {
@@ -900,7 +894,7 @@ int main(int argc, char* argv[]) {
   if (*argv[1] == '-' && strlen(argv[1]) > 1) {
     char* a = argv[1] + 1;
     if (!strcmp_nc(a, "version") || !strcmp_nc(a, "v")) {
-      puts(OPPAI_VERSION_STRING);
+      puts(oppai_version_str());
       return 0;
     }
   }

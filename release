@@ -8,6 +8,7 @@ git pull origin master
 
 echo -e "\nCompiling and Stripping"
 ./build -static -no-pie || exit 1
+./libbuild || exit 1
 
 echo -e "\nPackaging"
 folder="oppai-$(./oppai -version)-"
@@ -15,6 +16,7 @@ folder="${folder}$(gcc -dumpmachine)"
 
 mkdir -p "$folder"
 mv ./oppai $folder/oppai
+mv ./liboppai.so $folder/liboppai.so
 git archive HEAD --prefix=src/ -o "$folder"/src.tar
 cd "$folder"
 tar xf src.tar

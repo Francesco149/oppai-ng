@@ -325,6 +325,47 @@ from c code, you can use the -o parameter to output in json or
 other parsable formats. ```examples/binary.c``` shows how to parse
 the binary output.
 
+# shared library
+you can also build oppai as a shared library with
+
+```sh
+./libbuild
+```
+
+this will generate a liboppai.so on linux/mac which you can copy to
+```/usr/local/lib``` or anywhere in your library search paths
+
+you can then use it by simply not defining ```OPPAI_IMPLEMENTATION``` .
+this will exclude all the oppai code and just leave the header part
+
+
+```c
+#include "oppai.c"
+
+int main() {
+  /* ... */
+}
+```
+
+then you can compile and run with
+
+```
+gcc test.c -lm -loppai
+cat /path/to/file.osu | ./a.out
+```
+
+for windows you can use ```libbuild.bat``` to build (for details see the
+info on compiling on windows) which will generate a oppai.dll and .lib pair
+
+and then compile your program with msvc like so
+
+```
+cl test.c oppai.lib -Fetest.exe
+```
+
+then you can simply place the dll in the same folder as your executable
+and run
+
 # build parameters
 when you build the oppai cli, you can pass any of these parameters
 to the build script to disable features:

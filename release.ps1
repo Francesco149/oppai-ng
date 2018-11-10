@@ -12,7 +12,8 @@ Write-Host ""
 Write-Host "########################" -Foreground Yellow -Background Black
 Write-Host "> Compiling and stripping" -Foreground Yellow -Background Black
 cmd /c "build.bat"
-
+cmd /c "libbuild.bat"
+lib
 Write-Host ""
 Write-Host "########################" -Foreground Yellow -Background Black
 Write-Host "> Packaging" -Foreground Yellow -Background Black
@@ -22,6 +23,8 @@ $clout = & cl 2>&1 | %{ "$_" }
 $folder = $folder + $Matches[2]
 mkdir $folder
 Copy-Item oppai.exe $folder
+Copy-Item oppai.dll $folder
+Copy-Item oppai.lib $folder
 git archive HEAD --prefix=src\ -o $folder\src.zip
 Set-Location $folder
 &7z x src.zip
