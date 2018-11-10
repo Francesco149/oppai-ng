@@ -11,7 +11,11 @@ if [ -z $DBGINFO ]; then
 else
   cflags="$cflags -g"
 fi
-cflags="$cflags -Wl,--gc-sections"
+if [ $(uname) = "Darwin" ]; then
+  cflags="$cflags -Wl,-dead-strip"
+else
+  cflags="$cflags -Wl,--gc-sections"
+fi
 
 ldflags="-lm"
 
