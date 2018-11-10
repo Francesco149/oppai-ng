@@ -37,7 +37,7 @@ void check_err(int result) {
   }
 }
 
-void print_score(score_t const* s) {
+void print_score(score_t* s) {
   char mods_str_buf[20];
   char* mods_str = mods_str_buf;
 
@@ -88,10 +88,9 @@ int main(int argc, char* argv[]) {
   check_err(p_init(pstate));
   check_err(d_init(&stars));
 
-  for (i = 0; i < n; ++i)
-  {
+  for (i = 0; i < n; ++i) {
     FILE* f;
-    score_t const* s = &suite[i];
+    score_t* s = &suite[i];
     double margin;
 
     print_score(s);

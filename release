@@ -22,8 +22,8 @@ cd ..
 
 rm "$folder".tar.xz
 tar -cvJf "$folder".tar.xz \
-    "$folder"/oppai \
-    "$folder"/src
+  "$folder"/oppai \
+  "$folder"/src
 
 echo -e "\nResult:"
 tar tf "$folder".tar.xz

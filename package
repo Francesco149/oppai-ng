@@ -5,6 +5,6 @@ dir=$(readlink -f $dir)
 prevdir=$(pwd)
 cd $dir
 for d in $dir/docker/*; do
-    docker run --rm -v $dir:/tmp oppai-ng:$(basename $d)
+  docker run --rm -v $dir:/tmp oppai-ng:$(basename $d)
 done
 cd $prevdir

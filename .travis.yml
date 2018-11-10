@@ -2,21 +2,20 @@ language: c
 
 matrix:
   include:
-    - os: linux
-      dist: precise
-    - os: linux
-      dist: trusty
-    - os: osx
-
+  - os: linux
+    dist: precise
+  - os: linux
+    dist: trusty
+  - os: osx
 
 install: true
 cache:
-    directories:
-        - test/test_suite
+  directories:
+  - test/test_suite
 
 script:
-  - ./build
-  - cd test
-  - ./download_suite
-  - ./build
-  - ./oppai_test
+- ./build
+- cd test
+- ./download_suite
+- ./build
+- ./oppai_test

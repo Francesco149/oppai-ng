@@ -17,9 +17,9 @@ ldflags="$ldflags $LDFLAGS"
 cc="$CC"
 
 if [ $(uname) = "Darwin" ]; then
-    cc=${cc:-clang}
+  cc=${cc:-clang}
 else
-    cc=${cc:-gcc}
+  cc=${cc:-gcc}
 fi
 
 uname -a > flags.log

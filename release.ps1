@@ -28,7 +28,7 @@ Set-Location $folder
 Set-Location ..
 
 if (Test-Path "$folder.zip") {
-    Remove-Item "$folder.zip"
+  Remove-Item "$folder.zip"
 }
 
 &7z a "$folder.zip" $folder\oppai.exe $folder\src
