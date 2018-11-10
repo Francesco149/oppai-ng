@@ -2468,7 +2468,7 @@ int ppv2x(pp_calc_t* pp, float aim, float speed, float base_ar,
     (float)pow(real_acc, 24.0f) * 2.83f;
 
   /* length bonus (not the same as speed/aim length bonus) */
-  pp->acc *= mymin(1.15f, pow(ncircles / 1000.0f, 0.3f));
+  pp->acc *= mymin(1.15f, (float)pow(ncircles / 1000.0f, 0.3f));
 
   /* hidden bonus */
   if (mods & MODS_HD) {
