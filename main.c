@@ -541,7 +541,7 @@ void write_flt(float f) {
 }
 
 void write_str(char* str) {
-  int len = mymin(0xFFFF, strlen(str));
+  int len = mymin(0xFFFF, (int)strlen(str));
   write2(len);
   printf("%s", str);
   write1(0);

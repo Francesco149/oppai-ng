@@ -62,7 +62,7 @@
 OPPAIAPI void oppai_version(int* major, int* minor, int* patch);
 OPPAIAPI char* oppai_version_str();
 
-#define round_oppai(x) floor((x) + 0.5f)
+#define round_oppai(x) (float)floor((x) + 0.5f)
 #define mymin(a, b) ((a) < (b) ? (a) : (b))
 #define mymax(a, b) ((a) > (b) ? (a) : (b))
 #define al_min mymin
@@ -534,7 +534,7 @@ void v2f_sub(float* dst, float* a, float* b) {
 }
 
 float v2f_len(float* v) {
-  return sqrt(v[0] * v[0] + v[1] * v[1]);
+  return (float)sqrt(v[0] * v[0] + v[1] * v[1]);
 }
 
 /* string utils -------------------------------------------------------- */
@@ -1465,7 +1465,7 @@ int p_line(parser_t* pa, slice_t* line) {
     if (section.end - section.start >= sizeof(pa->section)) {
       parse_warn("W: truncated long section name", line);
     }
-    len = mymin(sizeof(pa->section) - 1, section.end - section.start);
+    len = (int)mymin(sizeof(pa->section) - 1, section.end - section.start);
     memcpy(pa->section, section.start, len);
     pa->section[len] = 0;
     return n;
@@ -1766,7 +1766,7 @@ float d_spacing_weight(float distance, int type, int* is_single) {
       }
       return 0.95f;
     case DIFF_AIM:
-      return pow(distance, 0.99f);
+      return (float)pow(distance, 0.99f);
   }
   return 0.0f;
 }
@@ -1774,7 +1774,7 @@ float d_spacing_weight(float distance, int type, int* is_single) {
 void d_calc_strain(int type, object_t* o, object_t* prev, float speedmul) {
   float res = 0;
   float time_elapsed = (o->time - prev->time) / speedmul;
-  float decay = pow(decay_base[type], time_elapsed / 1000.0f);
+  float decay = (float)pow(decay_base[type], time_elapsed / 1000.0f);
   float scaling = weight_scaling[type];
 
   /* this implementation doesn't account for sliders */
@@ -1815,7 +1815,8 @@ int d_update_max_strains(diff_calc_t* d, float decay_factor,
       d->max_strain = 0;
     } else {
       float decay;
-      decay = pow(decay_factor, (d->interval_end - prev_time) / 1000.0f);
+      decay = (float)pow(decay_factor,
+        (d->interval_end - prev_time) / 1000.0f);
       d->max_strain = prev_strain * decay;
     }
     d->interval_end += STRAIN_STEP * d->speed_mul;
@@ -1931,16 +1932,16 @@ int d_std(diff_calc_t* d, int mods) {
     return res;
   }
 
-  d->aim = sqrt(d->aim) * STAR_SCALING_FACTOR;
+  d->aim = (float)sqrt(d->aim) * STAR_SCALING_FACTOR;
   if (mods & MODS_TOUCH_DEVICE) {
-    d->aim = pow(d->aim, 0.8f);
+    d->aim = (float)pow(d->aim, 0.8f);
   }
 
-  d->speed = sqrt(d->speed) * STAR_SCALING_FACTOR;
+  d->speed = (float)sqrt(d->speed) * STAR_SCALING_FACTOR;
 
   /* calculate total star rating */
   d->total = d->aim + d->speed +
-    fabs(d->speed - d->aim) * EXTREME_SCALING_FACTOR;
+    (float)fabs(d->speed - d->aim) * EXTREME_SCALING_FACTOR;
 
   /* singletap stats */
   for (i = 1; i < b->nobjects; ++i) {
@@ -2019,7 +2020,7 @@ float taiko_rhythm_bonus(taiko_object_t* cur, taiko_object_t* prev) {
   }
 
   /* this is log base TAIKO_RHYTHM_CHANGE_BASE of ratio */
-  diff = fmod(log(ratio) / log(TAIKO_RHYTHM_CHANGE_BASE), 1.0f);
+  diff = (float)fmod(log(ratio) / log(TAIKO_RHYTHM_CHANGE_BASE), 1.0f);
 
   /*
    * threshold that determines whether the rhythm changed enough
@@ -2039,7 +2040,7 @@ void taiko_strain(taiko_object_t* cur, taiko_object_t* prev) {
   float addition = 1.0f;
   float factor = 1.0f;
 
-  decay = pow(decay_base[0], cur->time_elapsed / 1000.0f);
+  decay = (float)pow(decay_base[0], cur->time_elapsed / 1000.0f);
 
   /*
    * we only have strains for hits, also ignore objects that are
@@ -2339,7 +2340,8 @@ void taiko_acc_round(float acc_percent, int nobjects, int nmisses,
 
 /* some kind of formula to get a base pp value from stars */
 float base_pp(float stars) {
-  return pow(5.0f * mymax(1.0f, stars / 0.0675f) - 4.0f, 3.0f) / 100000.0f;
+  return (float)pow(5.0f * mymax(1.0f, stars / 0.0675f) - 4.0f, 3.0f)
+    / 100000.0f;
 }
 
 int ppv2x(pp_calc_t* pp, float aim, float speed, float base_ar,
@@ -2355,10 +2357,12 @@ int ppv2x(pp_calc_t* pp, float aim, float speed, float base_ar,
   float length_bonus = (
     0.95f +
     0.4f * mymin(1.0f, nobjects_over_2k) +
-    (nobjects > 2000 ? log10(nobjects_over_2k) * 0.5f : 0.0f)
+    (nobjects > 2000 ? (float)log10(nobjects_over_2k) * 0.5f : 0.0f)
   );
-  float miss_penality = pow(0.97f, nmiss);
-  float combo_break = pow(combo, 0.8f) / pow(max_combo, 0.8f);
+  float miss_penality = (float)pow(0.97f, nmiss);
+  float combo_break = (
+    (float)pow(combo, 0.8f) / (float)pow(max_combo, 0.8f)
+  );
   float ar_bonus;
   float final_multiplier;
   float acc_bonus, od_bonus;
@@ -2441,7 +2445,7 @@ int ppv2x(pp_calc_t* pp, float aim, float speed, float base_ar,
   acc_bonus = 0.5f + pp->accuracy / 2.0f;
 
   /* od bonus (high od requires better aim timing to acc, reuse in spd) */
-  od_bonus = 0.98f + pow(mapstats.od, 2) / 2500.0f;
+  od_bonus = 0.98f + (float)pow(mapstats.od, 2) / 2500.0f;
 
   pp->aim *= acc_bonus;
   pp->aim *= od_bonus;
@@ -2460,7 +2464,8 @@ int ppv2x(pp_calc_t* pp, float aim, float speed, float base_ar,
 
   /* acc pp ---------------------------------------------------------- */
   /* arbitrary values tom crafted out of trial and error */
-  pp->acc = pow(1.52163f, mapstats.od) * pow(real_acc, 24.0f) * 2.83f;
+  pp->acc = (float)pow(1.52163f, mapstats.od) *
+    (float)pow(real_acc, 24.0f) * 2.83f;
 
   /* length bonus (not the same as speed/aim length bonus) */
   pp->acc *= mymin(1.15f, pow(ncircles / 1000.0f, 0.3f));
@@ -2488,7 +2493,7 @@ int ppv2x(pp_calc_t* pp, float aim, float speed, float base_ar,
     final_multiplier *= 0.95f;
   }
 
-  pp->total = (
+  pp->total = (float)(
     pow(
       pow(pp->aim, 1.1f) +
       pow(pp->speed, 1.1f) +
@@ -2521,14 +2526,14 @@ int taiko_ppv2x(pp_calc_t* pp, float stars, int max_combo,
   pp->accuracy = taiko_acc_calc(n300, n150, nmiss);
 
   /* base acc pp */
-  pp->acc = pow(150.0f / mapstats.odms, 1.1f);
-  pp->acc *= pow(pp->accuracy, 15.0f) * 22.0f;
+  pp->acc = (float)pow(150.0f / mapstats.odms, 1.1f);
+  pp->acc *= (float)pow(pp->accuracy, 15.0f) * 22.0f;
 
   /* length bonus */
-  pp->acc *= mymin(1.15f, pow(max_combo / 1500.0f, 0.3f));
+  pp->acc *= mymin(1.15f, (float)pow(max_combo / 1500.0f, 0.3f));
 
   /* base speed pp */
-  pp->speed = pow(5.0f * mymax(1.0f, stars / 0.0075f) - 4.0f, 2.0f);
+  pp->speed = (float)pow(5.0f * mymax(1.0f, stars / 0.0075f) - 4.0f, 2.0f);
   pp->speed /= 100000.0f;
 
   /* length bonus (not the same as acc length bonus) */
@@ -2536,7 +2541,7 @@ int taiko_ppv2x(pp_calc_t* pp, float stars, int max_combo,
   pp->speed *= length_bonus;
 
   /* miss penality */
-  pp->speed *= pow(0.985f, nmiss);
+  pp->speed *= (float)pow(0.985f, nmiss);
 
 #if 0
   /* combo scaling (removed?) */
@@ -2569,8 +2574,13 @@ int taiko_ppv2x(pp_calc_t* pp, float stars, int max_combo,
     final_multiplier *= 1.10f;
   }
 
-  pp->total = pow(pow(pp->speed, 1.1f) + pow(pp->acc, 1.1f), 1.0f / 1.1f)
-    * final_multiplier;
+  pp->total = (
+    (float)pow(
+      pow(pp->speed, 1.1f) +
+      pow(pp->acc, 1.1f),
+      1.0f / 1.1f
+    ) * final_multiplier
+  );
   return 0;
 }
 
