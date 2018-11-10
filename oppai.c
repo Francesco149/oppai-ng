@@ -935,6 +935,8 @@ int p_init(parser_t* pa) {
 
 void p_free(parser_t* pa) {
   arena_free(&pa->arena);
+  array_free(&pa->objects);
+  array_free(&pa->timing_points);
 }
 
 /*
