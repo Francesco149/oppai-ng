@@ -13,7 +13,6 @@ Write-Host "########################" -Foreground Yellow -Background Black
 Write-Host "> Compiling and stripping" -Foreground Yellow -Background Black
 cmd /c "build.bat"
 cmd /c "libbuild.bat"
-lib
 Write-Host ""
 Write-Host "########################" -Foreground Yellow -Background Black
 Write-Host "> Packaging" -Foreground Yellow -Background Black
