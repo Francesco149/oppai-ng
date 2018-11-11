@@ -360,7 +360,7 @@ info on compiling on windows) which will generate a oppai.dll and .lib pair
 and then compile your program with msvc like so
 
 ```
-cl test.c oppai.lib -Fetest.exe
+cl test.c oppai.lib
 ```
 
 then you can simply place the dll in the same folder as your executable
