@@ -9,5 +9,4 @@ cl  -D_CRT_SECURE_NO_WARNINGS=1 ^
   -DOPPAI_EXPORT ^
   -D_WINDLL -D_USRDLL ^
   oppai.c ^
-  -Feoppai.dll ^
   || EXIT /B 1
