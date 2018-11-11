@@ -33,7 +33,8 @@ if (Test-Path "$folder.zip") {
   Remove-Item "$folder.zip"
 }
 
-&7z a "$folder.zip" $folder\oppai.exe $folder\src
+&7z a "$folder.zip" $folder\oppai.exe $folder\oppai.dll $folder\oppai.lib `
+  $folder\src
 
 Write-Host ""
 Write-Host "########################" -Foreground Yellow -Background Black
