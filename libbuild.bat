@@ -11,4 +11,4 @@ cl ^
   oppai.c ^
   || EXIT /B 1
 echo making dll
-link /NOLOGO /DLL oppai.obj
+link /OUT:oppai.dll /IMPLIB:oppai.lib /NOLOGO /DLL oppai.obj
