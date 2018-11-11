@@ -25,6 +25,7 @@ cd ..
 rm "$folder".tar.xz
 tar -cvJf "$folder".tar.xz \
   "$folder"/oppai \
+  "$folder"/liboppai.so \
   "$folder"/src
 
 echo -e "\nResult:"
