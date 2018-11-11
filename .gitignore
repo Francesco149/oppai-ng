@@ -10,5 +10,6 @@ tags
 *.so
 *.dll
 *.lib
+*.exp
 /test/test_suite
 /test/oppai_test
