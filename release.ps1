@@ -20,21 +20,27 @@ function Header {
   Write-Header "> $Title"
 }
 
-cmd /c "build.bat"
-cmd /c "libbuild.bat"
+cmd /c "build.bat"; if (-not $?) { exit $LastExitCode }
+cmd /c "libbuild.bat"; if (-not $?) { exit $LastExitCode }
 Header "Packaging"
 $folder = "oppai-" + $(.\oppai.exe -version) + "-windows-"
 $clout = & cl 2>&1 | %{ "$_" }
 "$clout" -match "(Microsoft.*for )([a-z0-9\-_]+)" | Out-Null
+if (-not $?) {
+  exit $LastExitCode
+}
 $folder = $folder + $Matches[2]
-mkdir $folder
-Copy-Item oppai.exe $folder
-Copy-Item oppai.dll $folder
-Copy-Item oppai.lib $folder
+mkdir $folder; if (-not $?) { exit $LastExitCode }
+Copy-Item oppai.exe $folder; if (-not $?) { exit $LastExitCode }
+Copy-Item oppai.dll $folder; if (-not $?) { exit $LastExitCode }
+Copy-Item oppai.lib $folder; if (-not $?) { exit $LastExitCode }
 git archive HEAD --prefix=src\ -o $folder\src.zip
-Set-Location $folder
-&7z x src.zip
-Set-Location ..
+if (-not $?) {
+  exit $LastExitCode
+}
+Set-Location $folder; if (-not $?) { exit $LastExitCode }
+&7z x src.zip; if (-not $?) { exit $LastExitCode }
+Set-Location ..; if (-not $?) { exit $LastExitCode }
 
 if (Test-Path "$folder.zip") {
   Remove-Item "$folder.zip"
@@ -42,6 +48,9 @@ if (Test-Path "$folder.zip") {
 
 &7z a "$folder.zip" $folder\oppai.exe $folder\oppai.dll $folder\oppai.lib `
   $folder\src
+if (-not $?) {
+  exit $LastExitCode
+}
 
 Header "Result:"
 &7z l "$folder.zip"
