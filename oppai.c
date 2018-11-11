@@ -49,8 +49,9 @@
 
 #include <stdio.h>
 
-#ifdef _WIN32
-#ifdef OPPAI_IMPLEMENTATION
+#if defined(_WIN32) && !defined(OPPAI_IMPLEMENTATION)
+#ifdef OPPAI_EXPORT
+#define OPPAI_IMPLEMENTATION
 #define OPPAIAPI __declspec(dllexport)
 #else
 #define OPPAIAPI __declspec(dllimport)

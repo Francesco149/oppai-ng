@@ -2,6 +2,6 @@
 
 dir="$(dirname "$0")"
 . "$dir"/cflags
-$cc -shared $cflags -DOPPAI_IMPLEMENTATION \
+$cc -shared $cflags -DOPPAI_EXPORT \
   "$@" oppai.c $ldflags -fpic -o liboppai.so
 
