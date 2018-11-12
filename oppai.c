@@ -20,25 +20,11 @@
  * #include "../oppai.c"
  *
  * int main() {
- *   parser_t pstate;
- *   beatmap_t map;
- *
- *   int mods;
- *   diff_calc_t stars;
- *   pp_calc_t pp;
- *
- *   p_init(&pstate);
- *   p_map(&pstate, &map, stdin);
- *
- *   mods = MODS_HD | MODS_DT;
- *
- *   d_init(&stars);
- *   d_calc(&stars, &map, mods);
- *   printf("%g stars\n", stars.total);
- *
- *   b_ppv2(&map, &pp, stars.aim, stars.speed, mods);
- *   printf("%gpp\n", pp.total);
- *
+ *   ezpp_t ez;
+ *   ezpp_init(&ez);
+ *   ez.mods = MODS_HD | MODS_DT;
+ *   ezpp(&ez, "-");
+ *   printf("%gpp\n", ez.pp);
  *   return 0;
  * }
  * ------------------------------------------------------------------------
@@ -66,11 +52,58 @@
 OPPAIAPI void oppai_version(int* major, int* minor, int* patch);
 OPPAIAPI char* oppai_version_str();
 
-#define round_oppai(x) (float)floor((x) + 0.5f)
-#define mymin(a, b) ((a) < (b) ? (a) : (b))
-#define mymax(a, b) ((a) > (b) ? (a) : (b))
-#define al_min mymin
-#define al_max mymax
+/* simple interface ---------------------------------------------------- */
+
+struct ezpp;
+typedef struct ezpp ezpp_t;
+
+/* populate ezpp_t with default settings */
+OPPAIAPI void ezpp_init(ezpp_t* ez);
+
+/*
+ * parse map and calculate difficulty and pp with advanced parameters,
+ * see struct pp_params
+ *
+ * - if params is 0, default parameters will be used
+ * - if map is "-" the map is read from standard input
+ * - if data_size is specified in ez, map is interpreted as raw beatmap
+ *   data in memory
+ */
+OPPAIAPI int ezpp(ezpp_t* ez, char* map);
+
+/*
+ * - if data_size is  set, ezpp will interpret map as raw .osu file data
+ * - mode defaults to MODE_STD
+ * - mods default to MODS_NOMOD
+ * - combo defaults to full combo
+ * - nmiss defaults to 0
+ * - score_version defaults to PP_DEFAULT_SCORING
+ * - if accuracy_percent is set, n300/100/50 are automatically
+ *   calculated and stored
+ * - if n300/100/50 are set, accuracy_percent is automatically
+ *   calculated and stored
+ * - if none of the above are set, SS (100%) is assumed
+ */
+
+struct ezpp {
+  /* inputs */
+  int data_size;
+  float ar_override, od_override, cs_override;
+  int mode_override;
+  int mode;
+  int mods;
+  int combo;
+  int nmiss;
+  int score_version;
+  float accuracy_percent;
+  int n300, n100, n50;
+
+  /* outputs */
+  float stars;
+  float aim_stars;
+  float speed_stars;
+  float pp, aim_pp, speed_pp, acc_pp;
+};
 
 /* errors -------------------------------------------------------------- */
 
@@ -464,6 +497,14 @@ OPPAIAPI
 void taiko_acc_round(float acc_percent, int nobjects, int nmisses,
   int* n300, int* n150);
 
+/* --------------------------------------------------------------------- */
+
+#define round_oppai(x) (float)floor((x) + 0.5f)
+#define mymin(a, b) ((a) < (b) ? (a) : (b))
+#define mymax(a, b) ((a) > (b) ? (a) : (b))
+#define al_min mymin
+#define al_max mymax
+
 /* ##################################################################### */
 /* ##################################################################### */
 /* ##################################################################### */
@@ -475,7 +516,7 @@ void taiko_acc_round(float acc_percent, int nobjects, int nmisses,
 #include <math.h>
 
 #define OPPAI_VERSION_MAJOR 2
-#define OPPAI_VERSION_MINOR 0
+#define OPPAI_VERSION_MINOR 1
 #define OPPAI_VERSION_PATCH 0
 #define STRINGIFY_(x) #x
 #define STRINGIFY(x) STRINGIFY_(x)
@@ -2687,6 +2728,125 @@ int b_ppv2p(beatmap_t* map, pp_calc_t* pp, pp_params_t* p) {
   p->mode = map->mode;
   pp_handle_default_params(p);
   return ppv2p(pp, p);
+}
+
+OPPAIAPI void ezpp_init(ezpp_t* ez) {
+  memset(ez, 0, sizeof(ezpp_t));
+  ez->mode = MODE_STD;
+  ez->mods = MODS_NOMOD;
+  ez->combo = -1;
+  ez->n300 = 0xFFFF;
+  ez->n100 = ez->n50 = ez->nmiss = 0;
+  ez->score_version = PP_DEFAULT_SCORING;
+}
+
+/* simple interface ---------------------------------------------------- */
+
+OPPAIAPI
+int ezpp(ezpp_t* ez, char* mapfile) {
+  int res, r1, r2;
+  parser_t parser;
+  beatmap_t map;
+  diff_calc_t stars;
+  pp_params_t params;
+  pp_calc_t pp;
+
+  r1 = p_init(&parser);
+  r2 = d_init(&stars);
+  if (r1 < 0 || r2 < 0) {
+    res = al_min(r1, r2);
+    goto cleanup;
+  }
+
+  if (ez->mode_override) {
+    parser.flags = PARSER_OVERRIDE_MODE;
+    parser.mode_override = ez->mode_override;
+  }
+
+  if (ez->data_size) {
+    res = p_map_mem(&parser, &map, mapfile, ez->data_size);
+  } else if (!strcmp(mapfile, "-")) {
+    res = p_map(&parser, &map, stdin);
+  } else {
+    FILE* f = fopen(mapfile, "rb");
+    if (!f) {
+      perror("fopen");
+      res = ERR_IO;
+    } else {
+      res = p_map(&parser, &map, f);
+      fclose(f);
+    }
+  }
+
+  if (res < 0) {
+    goto cleanup;
+  }
+
+  if (ez->ar_override) {
+    map.ar = ez->ar_override;
+  }
+
+  if (ez->od_override) {
+    map.od = ez->od_override;
+  }
+
+  if (ez->cs_override) {
+    map.cs = ez->cs_override;
+  }
+
+  res = d_calc(&stars, &map, ez->mods);
+  if (res < 0) {
+    goto cleanup;
+  }
+
+  pp_init(&params);
+  params.mods = ez->mods;
+  params.combo = ez->combo;
+  params.nmiss = ez->nmiss;
+  params.score_version = ez->score_version;
+  if (ez->accuracy_percent) {
+    switch (map.mode) {
+      case MODE_STD:
+        acc_round(ez->accuracy_percent, map.nobjects, params.nmiss,
+          &params.n300, &params.n100, &params.n50);
+        break;
+      case MODE_TAIKO: {
+        int taiko_max_combo = b_max_combo(&map);
+        if (taiko_max_combo < 0) {
+          res = taiko_max_combo;
+          goto cleanup;
+        }
+        params.max_combo = taiko_max_combo;
+        taiko_acc_round(ez->accuracy_percent, taiko_max_combo,
+          params.nmiss, &params.n300, &params.n100);
+        break;
+      }
+    }
+  } else {
+    params.n300 = ez->n300;
+    params.n100 = ez->n100;
+    params.n50 = ez->n50;
+  }
+  params.aim = stars.aim;
+  params.speed = stars.speed;
+  res = b_ppv2p(&map, &pp, &params);
+  if (res < 0) {
+    goto cleanup;
+  }
+
+  ez->stars = stars.total;
+  ez->aim_stars = stars.aim;
+  ez->speed_stars = stars.speed;
+  ez->pp = pp.total;
+  ez->aim_pp = pp.aim;
+  ez->speed_pp = pp.speed;
+  ez->acc_pp = pp.acc;
+  ez->accuracy_percent = pp.accuracy * 100.0f;
+
+cleanup:
+  p_free(&parser);
+  d_free(&stars);
+  return res;
 }
 
 #endif /* OPPAI_IMPLEMENTATION */

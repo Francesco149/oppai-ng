@@ -84,20 +84,16 @@ void print_memory_usage(parser_t* pa, diff_calc_t* dc) {
 #endif /* OPPAI_DEBUG */
 
 int main(int argc, char* argv[]) {
-#ifndef OPPAI_NOCURL
-  CURL* curl = 0;
-  char url_buf[128];
-  char* url = url_buf;
-#endif
-
   char fname_buf[4096];
   char* fname = fname_buf;
 
   int i;
   int n = (int)(sizeof(suite) / sizeof(suite[0]));
 
+#ifdef OPPAI_EZ
+  ezpp_t ez;
+#else
   int err;
-
   parser_t* pstate = 0;
   diff_calc_t stars;
   beatmap_t map;
@@ -105,7 +101,11 @@ int main(int argc, char* argv[]) {
   pp_params_t params;
   pp_calc_t pp;
 
-  fname += sprintf(fname, "test_suite/");
+#ifndef OPPAI_NOCURL
+  CURL* curl = 0;
+  char url_buf[128];
+  char* url = url_buf;
+#endif
 
   pstate = (parser_t*)malloc(sizeof(parser_t));
   if (!pstate) {
@@ -114,17 +114,33 @@ int main(int argc, char* argv[]) {
 
   check_err(p_init(pstate));
   check_err(d_init(&stars));
+#endif
+
+  fname += sprintf(fname, "test_suite/");
 
   for (i = 0; i < n; ++i) {
     FILE* f;
     score_t* s = &suite[i];
     double margin;
+    float pptotal;
 
     print_score(s);
+    sprintf(fname, "%u.osu", s->id);
+#ifdef OPPAI_EZ
+    (void)f;
+    ezpp_init(&ez);
+    ez.mods = s->mods;
+    ez.n300 = s->n300;
+    ez.n100 = s->n100;
+    ez.n50 = s->n50;
+    ez.nmiss = s->nmiss;
+    ez.combo = s->max_combo;
+    check_err(ezpp(&ez, fname_buf));
+    pptotal = ez.pp;
+#else
 #ifndef OPPAI_NOCURL
 trycalc:
 #endif
-    sprintf(fname, "%u.osu", s->id);
     f = fopen(fname_buf, "rb");
     err = p_map(pstate, &map, f);
     if (err < 0) {
@@ -188,15 +204,13 @@ trycalc:
 
     fclose(f);
 
-    check_err(d_calc(&stars, &map, s->mods));
-
     mapstats.ar = map.ar;
     mapstats.cs = map.cs;
     mapstats.od = map.od;
     mapstats.hp = map.hp;
 
     mods_apply(s->mods, &mapstats, APPLY_ALL);
-
+    check_err(d_calc(&stars, &map, s->mods));
     pp_init(&params);
 
     params.aim = stars.aim;
@@ -209,6 +223,8 @@ trycalc:
     params.combo = s->max_combo;
 
     check_err(b_ppv2p(&map, &pp, &params));
+    pptotal = pp.total;
+#endif
 
     margin = s->pp * ERROR_MARGIN;
     if (s->pp < 100) {
@@ -221,14 +237,14 @@ trycalc:
       margin *= 1.5;
     }
 
-    if (fabs(pp.total - s->pp) >= margin) {
+    if (fabs(pptotal - s->pp) >= margin) {
 #ifdef OPPAI_DEBUG
       int i;
 #endif
 
-      info("failed test: got %g pp, expected %g\n", pp.total, s->pp);
+      info("failed test: got %g pp, expected %g\n", pptotal, s->pp);
 
-#ifdef OPPAI_DEBUG
+#if defined(OPPAI_DEBUG) && !defined(OPPAI_EZ)
       for (i = 0; i < map.nobjects; ++i) {
         object_t* o = &map.objects[i];
 
@@ -270,10 +286,12 @@ trycalc:
     }
   }
 
+#ifndef OPPAI_EZ
   print_memory_usage(pstate, &stars);
   p_free(pstate);
   d_free(&stars);
   free(pstate);
+#endif
 
   return 0;
 }

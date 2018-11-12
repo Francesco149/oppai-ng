@@ -287,25 +287,11 @@ library.
 #include "../oppai.c"
 
 int main() {
-  parser_t pstate;
-  beatmap_t map;
-
-  uint32_t mods;
-  diff_calc_t stars;
-  pp_calc_t pp;
-
-  p_init(&pstate);
-  p_map(&pstate, &map, stdin);
-
-  mods = MODS_HD | MODS_DT;
-
-  d_init(&stars);
-  d_calc(&stars, &map, mods);
-  printf("%g stars\n", stars.total);
-
-  b_ppv2(&map, &pp, stars.aim, stars.speed, mods);
-  printf("%gpp\n", pp.total);
-
+  ezpp_t ez;
+  ezpp_init(&ez);
+  ez.mods = MODS_HD | MODS_DT;
+  ezpp(&ez, "-");
+  printf("%gpp\n", ez.pp);
   return 0;
 }
 ```

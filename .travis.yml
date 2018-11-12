@@ -17,5 +17,5 @@ script:
 - ./build
 - cd test
 - ./download_suite
-- ./build
+- ./build -DOPPAI_EZ -DOPPAI_NOCURL
 - ./oppai_test
