@@ -51,13 +51,16 @@
 
 #if defined(_WIN32) && !defined(OPPAI_IMPLEMENTATION)
 #ifdef OPPAI_EXPORT
-#define OPPAI_IMPLEMENTATION
 #define OPPAIAPI __declspec(dllexport)
 #else
 #define OPPAIAPI __declspec(dllimport)
 #endif
 #else
 #define OPPAIAPI
+#endif
+
+#ifdef OPPAI_EXPORT
+#define OPPAI_IMPLEMENTATION
 #endif
 
 OPPAIAPI void oppai_version(int* major, int* minor, int* patch);
