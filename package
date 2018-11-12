@@ -4,7 +4,13 @@ dir=$(dirname $0)
 dir=$(readlink -f $dir)
 prevdir=$(pwd)
 cd $dir
-for d in $dir/docker/*; do
-  docker run --rm -v $dir:/tmp oppai-ng:$(basename $d)
+git pull origin master || exit $?
+for prefix in i386/ ""; do
+  container="${prefix}oppai-ng:ubuntu"
+  docker build -t "$container" \
+    --build-arg PREFIX="$prefix" . || exit $?
+  docker run --rm -v $dir:/tmp \
+    -e arch=$(echo ${prefix:-x86_64} | tr -d /) \
+    "$container" || exit $?
 done
 cd $prevdir
