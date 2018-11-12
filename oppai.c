@@ -64,7 +64,6 @@ OPPAIAPI void ezpp_init(ezpp_t* ez);
  * parse map and calculate difficulty and pp with advanced parameters,
  * see struct pp_params
  *
- * - if params is 0, default parameters will be used
  * - if map is "-" the map is read from standard input
  * - if data_size is specified in ez, map is interpreted as raw beatmap
  *   data in memory
