@@ -515,7 +515,7 @@ void taiko_acc_round(float acc_percent, int nobjects, int nmisses,
 #include <math.h>
 
 #define OPPAI_VERSION_MAJOR 2
-#define OPPAI_VERSION_MINOR 1
+#define OPPAI_VERSION_MINOR 2
 #define OPPAI_VERSION_PATCH 0
 #define STRINGIFY_(x) #x
 #define STRINGIFY(x) STRINGIFY_(x)
@@ -2482,7 +2482,14 @@ int ppv2x(pp_calc_t* pp, float aim, float speed, float base_ar,
 
   /* flashlight */
   if (mods & MODS_FL) {
-    pp->aim *= 1.45f * length_bonus;
+    float fl_bonus = 1.0f + 0.35f * mymin(1.0f, nobjects / 200.0f);
+    if (nobjects > 200) {
+      fl_bonus += 0.3f * mymin(1, (nobjects - 200) / 300.0f);
+    }
+    if (nobjects > 500) {
+      fl_bonus += (nobjects - 500) / 1200.0f;
+    }
+    pp->aim *= fl_bonus;
   }
 
   /* acc bonus (bad aim can lead to bad acc, reused in speed) */
