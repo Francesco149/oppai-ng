@@ -2455,7 +2455,7 @@ int ppv2x(pp_calc_t* pp, float aim, float speed, float base_ar,
 
   /* high ar bonus */
   if (mapstats.ar > 10.33f) {
-    ar_bonus += 0.45f * (mapstats.ar - 10.33f);
+    ar_bonus += 0.3f * (mapstats.ar - 10.33f);
   }
 
   /* low ar bonus */
@@ -2508,6 +2508,7 @@ int ppv2x(pp_calc_t* pp, float aim, float speed, float base_ar,
   pp->speed *= combo_break;
   pp->speed *= acc_bonus;
   pp->speed *= od_bonus;
+  pp->speed *= ar_bonus;
 
   if (mods & MODS_HD) {
     pp->speed *= 1.18f;
