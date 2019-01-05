@@ -2412,6 +2412,7 @@ int ppv2x(pp_calc_t* pp, float aim, float speed, float base_ar,
   float acc_bonus, od_bonus;
   float od_squared;
   float acc_od_bonus;
+  float hd_bonus;
 
   /* acc used for pp is different in scorev1 because it ignores sliders */
   float real_acc;
@@ -2462,11 +2463,7 @@ int ppv2x(pp_calc_t* pp, float aim, float speed, float base_ar,
 
   /* low ar bonus */
   else if (mapstats.ar < 8.0f) {
-    float low_ar_bonus = 0.01f * (8.0f - mapstats.ar);
-    if (mods & MODS_HD) {
-      low_ar_bonus *= 2.0f;
-    }
-    ar_bonus += low_ar_bonus;
+    ar_bonus += 0.01f * (8.0f - mapstats.ar);
   }
 
   /* aim pp ---------------------------------------------------------- */
@@ -2477,10 +2474,12 @@ int ppv2x(pp_calc_t* pp, float aim, float speed, float base_ar,
   pp->aim *= ar_bonus;
 
   /* hidden */
+  hd_bonus = 1.0f;
   if (mods & MODS_HD) {
-    /* 1.04f bonus for AR10, 1.06f for AR9, 1.02f for AR11 */
-    pp->aim *= 1.02f + (11.0f - mapstats.ar) / 50.0f;
+    hd_bonus += 0.04f * (12.0f - mapstats.ar);
   }
+
+  pp->aim *= hd_bonus;
 
   /* flashlight */
   if (mods & MODS_FL) {
@@ -2510,6 +2509,7 @@ int ppv2x(pp_calc_t* pp, float aim, float speed, float base_ar,
   pp->speed *= miss_penality;
   pp->speed *= combo_break;
   pp->speed *= ar_bonus;
+  pp->speed *= hd_bonus;
 
   /* scale speed with acc and od */
   acc_od_bonus = 1.0f / (
@@ -2518,10 +2518,6 @@ int ppv2x(pp_calc_t* pp, float aim, float speed, float base_ar,
   acc_od_bonus += od_squared / 5000.0f + 0.49f;
 
   pp->speed *= acc_od_bonus;
-
-  if (mods & MODS_HD) {
-    pp->speed *= 1.18f;
-  }
 
   /* acc pp ---------------------------------------------------------- */
   /* arbitrary values tom crafted out of trial and error */
@@ -2533,7 +2529,7 @@ int ppv2x(pp_calc_t* pp, float aim, float speed, float base_ar,
 
   /* hidden bonus */
   if (mods & MODS_HD) {
-    pp->acc *= 1.02f;
+    pp->acc *= 1.08f;
   }
 
   /* flashlight bonus */
