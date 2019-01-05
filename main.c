@@ -346,14 +346,6 @@ int is_inf(float b) {
   return *p == 0x7F800000 || *p == 0xFF800000;
 }
 
-int is_nan(float b) {
-  int* p = (int*)&b;
-  return (
-    (*p > 0x7F800000 && *p < 0x80000000) ||
-    (*p > 0x7FBFFFFF && *p <= 0xFFFFFFFF)
-  );
-}
-
 /*
  * json is mentally challenged and can't handle inf and nan so
  * we're gonna be mathematically incorrect
