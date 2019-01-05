@@ -2410,6 +2410,8 @@ int ppv2x(pp_calc_t* pp, float aim, float speed, float base_ar,
   float ar_bonus;
   float final_multiplier;
   float acc_bonus, od_bonus;
+  float od_squared;
+  float acc_od_bonus;
 
   /* acc used for pp is different in scorev1 because it ignores sliders */
   float real_acc;
@@ -2492,11 +2494,12 @@ int ppv2x(pp_calc_t* pp, float aim, float speed, float base_ar,
     pp->aim *= fl_bonus;
   }
 
-  /* acc bonus (bad aim can lead to bad acc, reused in speed) */
+  /* acc bonus (bad aim can lead to bad acc) */
   acc_bonus = 0.5f + pp->accuracy / 2.0f;
 
-  /* od bonus (high od requires better aim timing to acc, reuse in spd) */
-  od_bonus = 0.98f + (float)pow(mapstats.od, 2) / 2500.0f;
+  /* od bonus (high od requires better aim timing to acc) */
+  od_squared = (float)pow(mapstats.od, 2);
+  od_bonus = 0.98f + od_squared / 2500.0f;
 
   pp->aim *= acc_bonus;
   pp->aim *= od_bonus;
@@ -2506,9 +2509,15 @@ int ppv2x(pp_calc_t* pp, float aim, float speed, float base_ar,
   pp->speed *= length_bonus;
   pp->speed *= miss_penality;
   pp->speed *= combo_break;
-  pp->speed *= acc_bonus;
-  pp->speed *= od_bonus;
   pp->speed *= ar_bonus;
+
+  /* scale speed with acc and od */
+  acc_od_bonus = 1.0f / (
+    1.0f + exp(-20.0f * (pp->accuracy + od_squared / 2310.0f - 0.8733f))
+  ) / 1.89f;
+  acc_od_bonus += od_squared / 5000.0f + 0.49f;
+
+  pp->speed *= acc_od_bonus;
 
   if (mods & MODS_HD) {
     pp->speed *= 1.18f;
