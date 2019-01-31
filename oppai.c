@@ -510,7 +510,6 @@ void taiko_acc_round(float acc_percent, int nobjects, int nmisses,
 #define mymax(a, b) ((a) > (b) ? (a) : (b))
 #define al_min mymin
 #define al_max mymax
-#define al_clamp(x, lo, hi) al_min(al_max(x, lo), hi)
 
 /* ##################################################################### */
 /* ##################################################################### */
@@ -1759,14 +1758,10 @@ int p_map_mem(parser_t* pa, beatmap_t* b, char* data,
 /* how much strains decay per interval */
 float decay_base[] = { 0.3f, 0.15f };
 
-/* almost the normalized circle diameter (104) */
-#define ALMOST_DIAMETER 90.0f
-
 /*
  * arbitrary thresholds to determine when a stream is spaced enough
  * that it becomes hard to alternate
  */
-#define STREAM_SPACING 110.0f
 #define SINGLE_SPACING 125.0f
 
 /* used to keep speed and aim balanced between eachother */
