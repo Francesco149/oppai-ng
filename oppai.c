@@ -2455,8 +2455,11 @@ int ppv2x(pp_calc_t* pp, float aim, float speed, float base_ar,
 
   /* high ar bonus */
   if (mapstats.ar > 10.33f) {
-    ar_bonus += 0.45f * (mapstats.ar - 10.33f);
+    ar_bonus += 0.3f * (mapstats.ar - 10.33f);
   }
+
+
+  
 
   /* low ar bonus */
   else if (mapstats.ar < 8.0f) {
@@ -2486,10 +2489,10 @@ int ppv2x(pp_calc_t* pp, float aim, float speed, float base_ar,
   }
 
   /* acc bonus (bad aim can lead to bad acc, reused in speed) */
-  acc_bonus = 0.5f + pp->accuracy / 2.0f;
+  acc_bonus = 0.02f + pp->accuracy;
 
   /* od bonus (high od requires better aim timing to acc, reuse in spd) */
-  od_bonus = 0.98f + (float)pow(mapstats.od, 2) / 2500.0f;
+  od_bonus = 0.96f + (float)pow(mapstats.od, 2) / 1600;
 
   pp->aim *= acc_bonus;
   pp->aim *= od_bonus;
