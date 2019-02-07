@@ -216,8 +216,11 @@ typedef struct object {
 
   /* only used by d_calc */
   float normpos[2];
+  float angle;
   float strains[2];
   int is_single; /* 1 if diff calc sees this as a singletap */
+  float delta_time;
+  float d_distance;
 
   float pos[2];
   float distance;  /* only for sliders */
@@ -402,7 +405,11 @@ typedef struct diff_calc {
   /* calls to d_calc will store results here */
   float total;
   float aim;
+  float aim_difficulty;
+  float aim_length_bonus; /* unused for now */
   float speed;
+  float speed_difficulty;
+  float speed_length_bonus; /* unused for now */
   int nsingles;
   int nsingles_threshold;
 } diff_calc_t;
@@ -515,7 +522,7 @@ void taiko_acc_round(float acc_percent, int nobjects, int nmisses,
 #include <math.h>
 
 #define OPPAI_VERSION_MAJOR 2
-#define OPPAI_VERSION_MINOR 1
+#define OPPAI_VERSION_MINOR 2
 #define OPPAI_VERSION_PATCH 0
 #define STRINGIFY_(x) #x
 #define STRINGIFY(x) STRINGIFY_(x)
@@ -565,8 +572,18 @@ char* errstr(int err) {
 
 /* math ---------------------------------------------------------------- */
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 float get_inf() {
   static unsigned raw = 0x7F800000;
+  float* p = (float*)&raw;
+  return *p;
+}
+
+float get_nan() {
+  static unsigned raw = 0x7FFFFFFF;
   float* p = (float*)&raw;
   return *p;
 }
@@ -579,6 +596,20 @@ void v2f_sub(float* dst, float* a, float* b) {
 
 float v2f_len(float* v) {
   return (float)sqrt(v[0] * v[0] + v[1] * v[1]);
+}
+
+float v2f_dot(float* a, float* b) {
+  return a[0] * b[0] + a[1] * b[1];
+}
+
+/* https://www.doc.ic.ac.uk/%7Eeedwards/compsys/float/nan.html */
+
+int is_nan(float b) {
+  int* p = (int*)&b;
+  return (
+    (*p > 0x7F800000 && *p < 0x80000000) ||
+    (*p > 0x7FBFFFFF && *p <= 0xFFFFFFFF)
+  );
 }
 
 /* string utils -------------------------------------------------------- */
@@ -1727,14 +1758,10 @@ int p_map_mem(parser_t* pa, beatmap_t* b, char* data,
 /* how much strains decay per interval */
 float decay_base[] = { 0.3f, 0.15f };
 
-/* almost the normalized circle diameter (104) */
-#define ALMOST_DIAMETER 90.0f
-
 /*
  * arbitrary thresholds to determine when a stream is spaced enough
  * that it becomes hard to alternate
  */
-#define STREAM_SPACING 110.0f
 #define SINGLE_SPACING 125.0f
 
 /* used to keep speed and aim balanced between eachother */
@@ -1786,31 +1813,78 @@ OPPAIAPI
 void d_free(diff_calc_t* d) {
   array_free(&d->highest_strains);
 }
+#define MAX_SPEED_BONUS 45.0f /* ~330BPM 1/4 streams */
+#define MIN_SPEED_BONUS 75.0f /* ~200BPM 1/4 streams */
+#define ANGLE_BONUS_SCALE 90
+#define AIM_TIMING_THRESHOLD 107
+#define SPEED_ANGLE_BONUS_BEGIN (5 * M_PI / 6)
+#define AIM_ANGLE_BONUS_BEGIN (M_PI / 3)
 
-float d_spacing_weight(float distance, int type, int* is_single) {
+/*
+ * TODO: unbloat these params
+ * this function has become a mess with the latest changes, I should split
+ * it into separate funcs for speed and im
+ */
+float d_spacing_weight(float distance, float delta_time,
+  float prev_distance, float prev_delta_time,
+  float angle, int type, int* is_single)
+{
+  float angle_bonus;
+  float strain_time = al_max(delta_time, 50.0f);
   switch (type) {
-    case DIFF_SPEED:
-      if (distance > SINGLE_SPACING) {
-        *is_single = 1;
-        return 2.5f;
+    case DIFF_SPEED: {
+      float speed_bonus;
+      *is_single = distance > SINGLE_SPACING;
+      distance = al_min(distance, SINGLE_SPACING);
+      delta_time = al_max(delta_time, MAX_SPEED_BONUS);
+      speed_bonus = 1.0f;
+      if (delta_time < MIN_SPEED_BONUS) {
+        speed_bonus += (float)
+          pow((MIN_SPEED_BONUS - delta_time) / 40.0f, 2);
       }
-      else if (distance > STREAM_SPACING) {
-        return 1.6f + 0.9f *
-          (distance - STREAM_SPACING) /
-          (SINGLE_SPACING - STREAM_SPACING);
+      angle_bonus = 1.0f;
+      if (!is_nan(angle) && angle < SPEED_ANGLE_BONUS_BEGIN) {
+        float s = (float)sin(1.5 * (SPEED_ANGLE_BONUS_BEGIN - angle));
+        angle_bonus += (float)pow(s, 2) / 3.57f;
+        if (angle < M_PI / 2) {
+          angle_bonus = 1.28f;
+          if (distance < ANGLE_BONUS_SCALE && angle < M_PI / 4) {
+            angle_bonus += (1 - angle_bonus)
+              * al_min((ANGLE_BONUS_SCALE - distance) / 10, 1);
+          }
+          else if (distance < ANGLE_BONUS_SCALE) {
+            angle_bonus += (1 - angle_bonus)
+              * al_min((ANGLE_BONUS_SCALE - distance) / 10, 1)
+              * (float)sin((M_PI / 2 - angle) * 4 / M_PI);
+          }
+        }
       }
-      else if (distance > ALMOST_DIAMETER) {
-        return 1.2f + 0.4f * (distance - ALMOST_DIAMETER)
-          / (STREAM_SPACING - ALMOST_DIAMETER);
+      return (
+        (1 + (speed_bonus - 1) * 0.75f) *
+        angle_bonus *
+        (0.95f + speed_bonus * (float)pow(distance / SINGLE_SPACING, 3.5))
+      ) / strain_time;
+    }
+    case DIFF_AIM: {
+      float result = 0;
+      float weighted_distance;
+      float prev_strain_time = al_max(prev_delta_time, 50.0f);
+      if (!is_nan(angle) && angle > AIM_ANGLE_BONUS_BEGIN) {
+        angle_bonus = (float)sqrt(
+          al_max(prev_distance - ANGLE_BONUS_SCALE, 0)
+          * pow(sin(angle - AIM_ANGLE_BONUS_BEGIN), 2)
+          * al_max(distance - ANGLE_BONUS_SCALE, 0)
+        );
+        result = 1.5f * (float)pow(al_max(0, angle_bonus), 0.99)
+          / al_max(AIM_TIMING_THRESHOLD, prev_strain_time);
       }
-      else if (distance > ALMOST_DIAMETER / 2.0f) {
-        return 0.95f + 0.25f *
-          (distance - ALMOST_DIAMETER / 2.0f) /
-          (ALMOST_DIAMETER / 2.0f);
-      }
-      return 0.95f;
-    case DIFF_AIM:
-      return (float)pow(distance, 0.99f);
+      weighted_distance = (float)pow(distance, 0.99);
+      return al_max(
+        result + weighted_distance /
+          al_max(AIM_TIMING_THRESHOLD, strain_time),
+        weighted_distance / strain_time
+      );
+    }
   }
   return 0.0f;
 }
@@ -1821,16 +1895,18 @@ void d_calc_strain(int type, object_t* o, object_t* prev, float speedmul) {
   float decay = (float)pow(decay_base[type], time_elapsed / 1000.0f);
   float scaling = weight_scaling[type];
 
+  o->delta_time = time_elapsed;
+
   /* this implementation doesn't account for sliders */
   if (o->type & (OBJ_SLIDER | OBJ_CIRCLE)) {
     float diff[2];
     v2f_sub(diff, o->normpos, prev->normpos);
-    res = d_spacing_weight(v2f_len(diff), type, &o->is_single);
+    o->d_distance = v2f_len(diff);
+    res = d_spacing_weight(o->d_distance, time_elapsed, prev->d_distance,
+      prev->delta_time, o->angle, type, &o->is_single);
     res *= scaling;
   }
 
-  /* prevents retarded results for hit object spams */
-  res /= mymax(time_elapsed, 50.0f);
   o->strains[type] = prev->strains[type] * decay + res;
 }
 
@@ -1870,11 +1946,12 @@ int d_update_max_strains(diff_calc_t* d, float decay_factor,
   return 0;
 }
 
-float d_weigh_strains(diff_calc_t* d) {
+void d_weigh_strains2(diff_calc_t* d, float* pdiff, float* ptotal) {
   int i;
   int nstrains = 0;
   float* strains;
-  float difficulty = 0.0f;
+  float total = 0;
+  float difficulty = 0;
   float weight = 1.0f;
 
   strains = (float*)d->highest_strains.data;
@@ -1884,14 +1961,24 @@ float d_weigh_strains(diff_calc_t* d) {
   qsort(strains, nstrains, sizeof(float), dbl_desc);
 
   for (i = 0; i < nstrains; ++i) {
+    total += (float)pow(strains[i], 1.2);
     difficulty += strains[i] * weight;
     weight *= DECAY_WEIGHT;
   }
 
-  return difficulty;
+  *pdiff = difficulty;
+  if (ptotal) {
+    *ptotal = total;
+  }
 }
 
-int d_calc_individual(int type, diff_calc_t* d, float* result) {
+float d_weigh_strains(diff_calc_t* d) {
+  float diff;
+  d_weigh_strains2(d, &diff, 0);
+  return diff;
+}
+
+int d_calc_individual(int type, diff_calc_t* d) {
   int i;
   beatmap_t* b = d->b;
 
@@ -1917,8 +2004,21 @@ int d_calc_individual(int type, diff_calc_t* d, float* result) {
     }
   }
 
-  *result = d_weigh_strains(d);
+  switch (type) {
+    case DIFF_SPEED:
+      d_weigh_strains2(d, &d->speed, &d->speed_difficulty);
+      break;
+    case DIFF_AIM:
+      d_weigh_strains2(d, &d->aim, &d->aim_difficulty);
+      break;
+  }
   return 0;
+}
+
+#define log10f (float)log10
+
+float d_length_bonus(float stars, float difficulty) {
+  return 0.32f + 0.5f * (log10f(difficulty + stars) - log10f(stars));
 }
 
 int d_std(diff_calc_t* d, int mods) {
@@ -1948,13 +2048,14 @@ int d_std(diff_calc_t* d, int mods) {
   /* cs buff (originally from osuElements) */
   if (radius < CIRCLESIZE_BUFF_TRESHOLD) {
     scaling_factor *=
-      1.0f + mymin((CIRCLESIZE_BUFF_TRESHOLD - radius), 5.0f) / 50.0f;
+      1.0f + mymin((CIRCLESIZE_BUFF_TRESHOLD - radius), 5.0f) / 30.0f;
   }
 
   /* calculate normalized positions */
   for (i = 0; i < b->nobjects; ++i) {
     object_t* o = &b->objects[i];
     float* pos;
+    float dot, det;
     if (o->type & OBJ_SPINNER) {
       pos = playfield_center;
     } else {
@@ -1963,25 +2064,39 @@ int d_std(diff_calc_t* d, int mods) {
     }
     o->normpos[0] = pos[0] * scaling_factor;
     o->normpos[1] = pos[1] * scaling_factor;
+    if (i >= 2) {
+      object_t* prev1 = &b->objects[i - 1];
+      object_t* prev2 = &b->objects[i - 2];
+      float v1[2], v2[2];
+      v2f_sub(v1, prev2->normpos, prev1->normpos);
+      v2f_sub(v2, o->normpos, prev1->normpos);
+      dot = v2f_dot(v1, v2);
+      det = v1[0] * v2[1] - v1[1] * v2[0];
+      o->angle = (float)fabs(atan2(det, dot));
+    } else {
+      o->angle = get_nan();
+    }
   }
 
   /* calculate speed and aim stars */
-  res = d_calc_individual(DIFF_SPEED, d, &d->speed);
+  res = d_calc_individual(DIFF_SPEED, d);
   if (res < 0) {
     return res;
   }
 
-  res = d_calc_individual(DIFF_AIM, d, &d->aim);
+  res = d_calc_individual(DIFF_AIM, d);
   if (res < 0) {
     return res;
   }
 
+  d->aim_length_bonus = d_length_bonus(d->aim, d->aim_difficulty);
+  d->speed_length_bonus = d_length_bonus(d->speed, d->speed_difficulty);
   d->aim = (float)sqrt(d->aim) * STAR_SCALING_FACTOR;
+  d->speed = (float)sqrt(d->speed) * STAR_SCALING_FACTOR;
+
   if (mods & MODS_TOUCH_DEVICE) {
     d->aim = (float)pow(d->aim, 0.8f);
   }
-
-  d->speed = (float)sqrt(d->speed) * STAR_SCALING_FACTOR;
 
   /* calculate total star rating */
   d->total = d->aim + d->speed +
@@ -2410,6 +2525,9 @@ int ppv2x(pp_calc_t* pp, float aim, float speed, float base_ar,
   float ar_bonus;
   float final_multiplier;
   float acc_bonus, od_bonus;
+  float od_squared;
+  float acc_od_bonus;
+  float hd_bonus;
 
   /* acc used for pp is different in scorev1 because it ignores sliders */
   float real_acc;
@@ -2458,16 +2576,9 @@ int ppv2x(pp_calc_t* pp, float aim, float speed, float base_ar,
     ar_bonus += 0.3f * (mapstats.ar - 10.33f);
   }
 
-
-  
-
   /* low ar bonus */
   else if (mapstats.ar < 8.0f) {
-    float low_ar_bonus = 0.01f * (8.0f - mapstats.ar);
-    if (mods & MODS_HD) {
-      low_ar_bonus *= 2.0f;
-    }
-    ar_bonus += low_ar_bonus;
+    ar_bonus += 0.01f * (8.0f - mapstats.ar);
   }
 
   /* aim pp ---------------------------------------------------------- */
@@ -2478,21 +2589,31 @@ int ppv2x(pp_calc_t* pp, float aim, float speed, float base_ar,
   pp->aim *= ar_bonus;
 
   /* hidden */
+  hd_bonus = 1.0f;
   if (mods & MODS_HD) {
-    /* 1.04f bonus for AR10, 1.06f for AR9, 1.02f for AR11 */
-    pp->aim *= 1.02f + (11.0f - mapstats.ar) / 50.0f;
+    hd_bonus += 0.04f * (12.0f - mapstats.ar);
   }
+
+  pp->aim *= hd_bonus;
 
   /* flashlight */
   if (mods & MODS_FL) {
-    pp->aim *= 1.45f * length_bonus;
+    float fl_bonus = 1.0f + 0.35f * mymin(1.0f, nobjects / 200.0f);
+    if (nobjects > 200) {
+      fl_bonus += 0.3f * mymin(1, (nobjects - 200) / 300.0f);
+    }
+    if (nobjects > 500) {
+      fl_bonus += (nobjects - 500) / 1200.0f;
+    }
+    pp->aim *= fl_bonus;
   }
 
-  /* acc bonus (bad aim can lead to bad acc, reused in speed) */
-  acc_bonus = 0.02f + pp->accuracy;
+  /* acc bonus (bad aim can lead to bad acc) */
+  acc_bonus = 0.5f + pp->accuracy / 2.0f;
 
-  /* od bonus (high od requires better aim timing to acc, reuse in spd) */
-  od_bonus = 0.96f + (float)pow(mapstats.od, 2) / 1600;
+  /* od bonus (high od requires better aim timing to acc) */
+  od_squared = (float)pow(mapstats.od, 2);
+  od_bonus = 0.98f + od_squared / 2500.0f;
 
   pp->aim *= acc_bonus;
   pp->aim *= od_bonus;
@@ -2502,12 +2623,16 @@ int ppv2x(pp_calc_t* pp, float aim, float speed, float base_ar,
   pp->speed *= length_bonus;
   pp->speed *= miss_penality;
   pp->speed *= combo_break;
-  pp->speed *= acc_bonus;
-  pp->speed *= od_bonus;
+  pp->speed *= ar_bonus;
+  pp->speed *= hd_bonus;
 
-  if (mods & MODS_HD) {
-    pp->speed *= 1.18f;
-  }
+  /* scale speed with acc and od */
+  acc_od_bonus = 1.0f / (
+    1.0f + exp(-20.0f * (pp->accuracy + od_squared / 2310.0f - 0.8733f))
+  ) / 1.89f;
+  acc_od_bonus += od_squared / 5000.0f + 0.49f;
+
+  pp->speed *= acc_od_bonus;
 
   /* acc pp ---------------------------------------------------------- */
   /* arbitrary values tom crafted out of trial and error */
@@ -2519,7 +2644,7 @@ int ppv2x(pp_calc_t* pp, float aim, float speed, float base_ar,
 
   /* hidden bonus */
   if (mods & MODS_HD) {
-    pp->acc *= 1.02f;
+    pp->acc *= 1.08f;
   }
 
   /* flashlight bonus */
@@ -2852,4 +2977,3 @@ cleanup:
 }
 
 #endif /* OPPAI_IMPLEMENTATION */
-
