@@ -2048,7 +2048,7 @@ int d_std(diff_calc_t* d, int mods) {
   /* cs buff (originally from osuElements) */
   if (radius < CIRCLESIZE_BUFF_TRESHOLD) {
     scaling_factor *=
-      1.0f + mymin((CIRCLESIZE_BUFF_TRESHOLD - radius), 5.0f) / 30.0f;
+      1.0f + mymin((CIRCLESIZE_BUFF_TRESHOLD - radius), 5.0f) / 50.0f;
   }
 
   /* calculate normalized positions */
