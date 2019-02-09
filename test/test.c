@@ -90,6 +90,12 @@ int main(int argc, char* argv[]) {
   int i;
   int n = (int)(sizeof(suite) / sizeof(suite[0]));
 
+  float max_err = 0;
+  int max_err_map = 0;
+  float avg_err = 0;
+  float error = 0;
+  float error_percent = 0;
+
 #ifdef OPPAI_EZ
   ezpp_t ez;
 #else
@@ -237,7 +243,15 @@ trycalc:
       margin *= 1.5;
     }
 
-    if (fabs(pptotal - s->pp) >= margin) {
+    error = fabs(pptotal - s->pp);
+    error_percent = error / s->pp;
+    avg_err += error_percent;
+    if (error_percent > max_err) {
+      max_err = error_percent;
+      max_err_map = s->id;
+    }
+
+    if (error >= margin) {
 #ifdef OPPAI_DEBUG
       int i;
 #endif
@@ -292,6 +306,10 @@ trycalc:
   d_free(&stars);
   free(pstate);
 #endif
+
+  avg_err /= n;
+  printf("avg err %f\n", avg_err);
+  printf("max err %f on %d\n", max_err, max_err_map);
 
   return 0;
 }
