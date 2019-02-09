@@ -5,7 +5,7 @@ wdir="$(realpath "$dir")"
 
 olddir="$(pwd)"
 cd "$wdir" || exit $?
-tar -cvJf test_suite_$(date +%F).tar.xz test_suite/*.osu
+tar -zcvf test_suite_$(date +%F).tar.gz test_suite/*.osu
 res=$?
 cd "$olddir"
 exit $res
