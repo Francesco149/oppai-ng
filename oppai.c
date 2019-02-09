@@ -2628,7 +2628,8 @@ int ppv2x(pp_calc_t* pp, float aim, float speed, float base_ar,
 
   /* scale speed with acc and od */
   acc_od_bonus = 1.0f / (
-    1.0f + exp(-20.0f * (pp->accuracy + od_squared / 2310.0f - 0.8733f))
+    1.0f + (float)exp(-20.0f *
+      (pp->accuracy + od_squared / 2310.0f - 0.8733f))
   ) / 1.89f;
   acc_od_bonus += od_squared / 5000.0f + 0.49f;
 
