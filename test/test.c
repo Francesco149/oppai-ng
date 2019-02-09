@@ -148,6 +148,7 @@ int main(int argc, char* argv[]) {
 trycalc:
 #endif
     f = fopen(fname_buf, "rb");
+    memset(pstate, 0, sizeof(parser_t));
     err = p_map(pstate, &map, f);
     if (err < 0) {
 #ifndef OPPAI_NOCURL
