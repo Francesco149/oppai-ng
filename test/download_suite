@@ -9,7 +9,7 @@ fi
 olddir="$(pwd)"
 cd "$wdir" || exit $?
 
-url="https://github.com/Francesco149/oppai-ng/releases/download/2.2.0-test/test_suite_2019-02-09.tar.gz"
+url="https://github.com/Francesco149/oppai-ng/releases/download/2.2.0/test_suite_2019-02-09.tar.gz"
 
 if [ $(find test_suite 2>/dev/null | tail -n +2 | wc -l) = "0" ]; then
   curl -LO "$url" || exit $?
