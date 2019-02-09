@@ -1,6 +1,7 @@
 tags
 *.log
 *.tar.xz
+*.tar.gz
 *.zip
 /oppai
 *.json
