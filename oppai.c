@@ -2526,7 +2526,6 @@ int ppv2x(pp_calc_t* pp, float aim, float speed, float base_ar,
   float final_multiplier;
   float acc_bonus, od_bonus;
   float od_squared;
-  float acc_od_bonus;
   float hd_bonus;
 
   /* acc used for pp is different in scorev1 because it ignores sliders */
@@ -2628,14 +2627,11 @@ int ppv2x(pp_calc_t* pp, float aim, float speed, float base_ar,
   }
   pp->speed *= hd_bonus;
 
-  /* scale speed with acc and od */
-  acc_od_bonus = 1.0f / (
-    1.0f + (float)exp(-20.0f *
-      (pp->accuracy + od_squared / 2310.0f - 0.8733f))
-  ) / 1.89f;
-  acc_od_bonus += od_squared / 5000.0f + 0.49f;
+  /* "scale the speed value with accuracy slightly" */
+  pp->speed *= 0.02f + pp->accuracy;
 
-  pp->speed *= acc_od_bonus;
+  /* "it is important to also consider accuracy difficulty when doing that" */
+  pp->speed *= 0.96f + (od_squared / 1600.0f);
 
   /* acc pp ---------------------------------------------------------- */
   /* arbitrary values tom crafted out of trial and error */
