@@ -1,7 +1,11 @@
 #!/bin/sh
 
 dir="$(dirname "$0")"
-wdir="$(realpath "$dir")"
+if command -v realpath 2>&1 >/dev/null; then
+  wdir="$(realpath "$dir")"
+else
+  wdir="$dir"
+fi
 olddir="$(pwd)"
 cd "$wdir" || exit $?
 
