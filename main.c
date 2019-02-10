@@ -954,6 +954,16 @@ int main(int argc, char* argv[]) {
       continue;
     }
 
+    if (!cmpsuffix(a, "speed") && sscanf(a, "%f", &speed_override) == 1) {
+      overrides |= OVERRIDE_SPEED;
+      continue;
+    }
+
+    if (!cmpsuffix(a, "aim") && sscanf(a, "%f", &aim_override) == 1) {
+      overrides |= OVERRIDE_AIM;
+      continue;
+    }
+
     if (!cmpsuffix(a, "xm") || !cmpsuffix(a, "xmiss") ||
       !cmpsuffix(a, "m"))
     {
@@ -993,16 +1003,6 @@ int main(int argc, char* argv[]) {
     if (!strcmp(a, "-taiko")) {
       overrides |= OVERRIDE_MODE;
       mode_override = MODE_TAIKO;
-      continue;
-    }
-
-    if (!cmpsuffix(a, "speed") && sscanf(a, "%f", &speed_override) == 1) {
-      overrides |= OVERRIDE_SPEED;
-      continue;
-    }
-
-    if (!cmpsuffix(a, "aim") && sscanf(a, "%f", &aim_override) == 1) {
-      overrides |= OVERRIDE_AIM;
       continue;
     }
 
