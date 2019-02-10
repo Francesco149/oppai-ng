@@ -797,8 +797,8 @@ void arena_free(arena_t* arena) {
 
 /* mods ---------------------------------------------------------------- */
 
-float od10_ms[] = { 19.5f, 19.5f }; /* std, taiko */
-float od0_ms[] = { 79.5f, 49.5f };
+float od10_ms[] = { 20, 20 }; /* std, taiko */
+float od0_ms[] = { 80, 50 };
 #define AR0_MS 1800.0f
 #define AR5_MS 1200.0f
 #define AR10_MS 450.0f
