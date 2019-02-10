@@ -147,6 +147,9 @@ void usage() {
     "useful for maps with incorrect star rating\n"
     "  default: uses computed aim stars\n"
     "  example: 2.4aim\n"
+    "\n"
+    "-end[n]\n"
+    "  cuts map to a certain number of objects\n"
   );
 }
 
@@ -874,6 +877,7 @@ int main(int argc, char* argv[]) {
   float singletap_threshold = 125.0f;
   int mode_override = MODE_STD;
   float speed_override = 0, aim_override = 0;
+  int end;
 
   /* parse arguments ------------------------------------------------- */
   me = argv[0];
@@ -1000,6 +1004,10 @@ int main(int argc, char* argv[]) {
       continue;
     }
 
+    if (sscanf(a, "-end%d", &end) == 1) {
+      continue;
+    }
+
     if (!strcmp(a, "-taiko")) {
       overrides |= OVERRIDE_MODE;
       mode_override = MODE_TAIKO;
@@ -1089,6 +1097,10 @@ int main(int argc, char* argv[]) {
 
   if (overrides & OVERRIDE_CS) {
     map.cs = cs_override;
+  }
+
+  if (end > 0 && end < map.nobjects) {
+    map.nobjects = end;
   }
 
   /* diff calc --------------------------------------------------------- */

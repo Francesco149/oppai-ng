@@ -96,6 +96,7 @@ struct ezpp {
   int score_version;
   float accuracy_percent;
   int n300, n100, n50;
+  int end; /* if set, the map will be cut to this object index */
 
   /* outputs */
   float stars;
@@ -2906,6 +2907,10 @@ int ezpp(ezpp_t* ez, char* mapfile) {
 
   if (res < 0) {
     goto cleanup;
+  }
+
+  if (ez->end > 0 && ez->end < map.nobjects) {
+    map.nobjects = ez->end;
   }
 
   if (ez->ar_override) {
