@@ -877,7 +877,7 @@ int main(int argc, char* argv[]) {
   float singletap_threshold = 125.0f;
   int mode_override = MODE_STD;
   float speed_override = 0, aim_override = 0;
-  int end;
+  int end = 0;
 
   /* parse arguments ------------------------------------------------- */
   me = argv[0];
