@@ -522,7 +522,7 @@ void taiko_acc_round(float acc_percent, int nobjects, int nmisses,
 #include <math.h>
 
 #define OPPAI_VERSION_MAJOR 2
-#define OPPAI_VERSION_MINOR 2
+#define OPPAI_VERSION_MINOR 3
 #define OPPAI_VERSION_PATCH 0
 #define STRINGIFY_(x) #x
 #define STRINGIFY(x) STRINGIFY_(x)
@@ -2623,7 +2623,9 @@ int ppv2x(pp_calc_t* pp, float aim, float speed, float base_ar,
   pp->speed *= length_bonus;
   pp->speed *= miss_penality;
   pp->speed *= combo_break;
-  pp->speed *= ar_bonus;
+  if (mapstats.ar > 10.33f) {
+    pp->speed *= ar_bonus;
+  }
   pp->speed *= hd_bonus;
 
   /* scale speed with acc and od */
