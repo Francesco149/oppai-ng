@@ -524,7 +524,7 @@ void taiko_acc_round(float acc_percent, int nobjects, int nmisses,
 
 #define OPPAI_VERSION_MAJOR 2
 #define OPPAI_VERSION_MINOR 3
-#define OPPAI_VERSION_PATCH 1
+#define OPPAI_VERSION_PATCH 2
 #define STRINGIFY_(x) #x
 #define STRINGIFY(x) STRINGIFY_(x)
 
