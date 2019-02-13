@@ -2,7 +2,7 @@
 #include "../oppai.c"
 #include "test_suite.c" /* defines suite */
 
-#define ERROR_MARGIN 0.06 /* pp can be off by +- 6% */
+#define ERROR_MARGIN 0.02 /* pp can be off by +- 2% */
 
 /*
  * margin is actually
