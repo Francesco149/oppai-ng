@@ -1988,7 +1988,7 @@ int d_calc_individual(int type, diff_calc_t* d) {
    * so we begin with an incremented interval end
    */
   d->max_strain = 0.0f;
-  d->interval_end = ceil(b->objects[i].time / (STRAIN_STEP * d->speed_mul))
+  d->interval_end = ceil(b->objects[0].time / (STRAIN_STEP * d->speed_mul))
     * (STRAIN_STEP * d->speed_mul);
   d->highest_strains.len = 0;
 
