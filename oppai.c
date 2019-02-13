@@ -1983,8 +1983,13 @@ int d_calc_individual(int type, diff_calc_t* d) {
   int i;
   beatmap_t* b = d->b;
 
+  /* 
+   * the first object doesn't generate a strain,
+   * so we begin with an incremented interval end
+   */
   d->max_strain = 0.0f;
-  d->interval_end = STRAIN_STEP * d->speed_mul;
+  d->interval_end = ceil(b->objects[i].time / (STRAIN_STEP * d->speed_mul))
+    * (STRAIN_STEP * d->speed_mul);
   d->highest_strains.len = 0;
 
   for (i = 0; i < b->nobjects; ++i) {
@@ -2003,6 +2008,14 @@ int d_calc_individual(int type, diff_calc_t* d) {
     if (err < 0) {
       return err;
     }
+  }
+
+  /* 
+   * the peak strain will not be saved for
+   * the last section in the above loop
+   */
+  if (!array_append(&d->highest_strains, d->max_strain)) {
+    return ERR_OOM;
   }
 
   switch (type) {
