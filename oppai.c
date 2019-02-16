@@ -1898,9 +1898,9 @@ continue_loop:
     swap_ptrs((void**)&prev, (void**)&cur);
   }
 
-  d_weigh_strains(ez, &ez->speed_pp, 0);
-  ez->speed_pp *= TAIKO_STAR_SCALING_FACTOR;
-  ez->stars = ez->speed_pp;
+  d_weigh_strains(ez, &ez->speed_stars, 0);
+  ez->speed_stars *= TAIKO_STAR_SCALING_FACTOR;
+  ez->stars = ez->speed_stars;
 
   return 0;
 }
