@@ -644,6 +644,11 @@ typedef struct timing {
   float time;        /* milliseconds */
   float ms_per_beat;
   int change;        /* if 0, ms_per_beat is -100.0f * sv_multiplier */
+  float px_per_beat;
+
+  /* taiko stuff */
+  float beat_len;
+  float velocity;
 } timing_t;
 
 typedef struct object {
@@ -666,6 +671,11 @@ typedef struct object {
   float pos[2];
   float distance;  /* only for sliders */
   int repetitions;
+
+  /* taiko stuff */
+  float duration;
+  float tick_spacing;
+  int slider_is_drum_roll;
 } object_t;
 
 typedef struct beatmap {
@@ -710,15 +720,6 @@ int b_max_combo(beatmap_t* b) {
   int res = b->nobjects;
   int i;
 
-  float px_per_beat;
-  float sv_multiplier;
-
-  /* taiko */
-  float ms_per_beat = 0; /* last timing change */
-  float beat_len;        /* beat spacing */
-  float duration = 0;    /* duration of the hit object */
-  float tick_spacing;    /* slider tick spacing */
-
   if (!b->ntiming_points) {
     info("beatmap has no timing points\n");
     return ERR_FORMAT;
@@ -740,67 +741,36 @@ int b_max_combo(beatmap_t* b) {
       continue;
     }
 
-    sv_multiplier = 1.0f;
-    if (!t->change && t->ms_per_beat < 0) {
-      sv_multiplier = -100.0f / t->ms_per_beat;
-    }
-
     switch (b->mode) {
-      case MODE_STD:
-        px_per_beat = b->sv * 100.0f * sv_multiplier;
-        if (b->format_version < 8) {
-          px_per_beat /= sv_multiplier;
-        }
-        break;
       case MODE_TAIKO: {
-        /* see d_taiko for details on what this does */
-        float velocity;
-
-        if (b->original_mode == MODE_TAIKO) {
-          /* no slider conversion for taiko -> taiko */
-          continue;
+        if (!o->slider_is_drum_roll) {
+          res += (int)(
+            ceil((o->duration + o->tick_spacing / 8) / o->tick_spacing)
+          );
         }
-
-        if (t->change) {
-          ms_per_beat = t->ms_per_beat;
-        }
-
-        beat_len = ms_per_beat;
-        if (b->format_version < 8) {
-          beat_len *= sv_multiplier;
-        }
-
-        velocity = 100.0f * b->sv / beat_len;
-        duration = o->distance * o->repetitions / velocity;
-        tick_spacing = al_min(beat_len / b->tick_rate,
-            duration / o->repetitions);
         break;
       }
+      case MODE_STD:
+        /* std slider ticks */
+        num_beats = (o->distance * o->repetitions) / t->px_per_beat;
+
+        ticks = (int)ceil(
+          (num_beats - 0.1f) / o->repetitions * b->tick_rate
+        );
+        --ticks;
+
+        ticks *= o->repetitions;     /* account for repetitions */
+        ticks += o->repetitions + 1; /* add heads and tails */
+
+        /*
+         * actually doesn't include first head because we already
+         * added it by setting res = nobjects
+         */
+        res += al_max(0, ticks - 1);
+        break;
       default:
         return ERR_NOTIMPLEMENTED;
     }
-
-    if (b->mode == MODE_TAIKO) {
-      if (tick_spacing > 0 && duration < 2 * beat_len) {
-        res += (int)ceil((duration + tick_spacing / 8) / tick_spacing);
-      }
-      continue;
-    }
-
-    /* std slider ticks */
-    num_beats = (o->distance * o->repetitions) / px_per_beat;
-
-    ticks = (int)ceil((num_beats - 0.1f) / o->repetitions * b->tick_rate);
-    --ticks;
-
-    ticks *= o->repetitions;     /* account for repetitions */
-    ticks += o->repetitions + 1; /* add heads and tails */
-
-    /*
-     * actually doesn't include first head because we already
-     * added it by setting res = nobjects
-     */
-    res += al_max(0, ticks - 1);
   }
 
   return res;
@@ -1351,6 +1321,7 @@ void p_end(parser_t* pa, beatmap_t* b) {
   float infinity = get_inf();
   float tnext = -infinity;
   int tindex = -1;
+  float ms_per_beat = infinity;
 
   if (!(pa->flags & PARSER_FOUND_AR)) {
     /* in old maps ar = od */
@@ -1379,9 +1350,29 @@ void p_end(parser_t* pa, beatmap_t* b) {
   s(version);
   #undef s
 
+  for (i = 0; i < b->ntiming_points; ++i) {
+    timing_t* t = &b->timing_points[i];
+    float sv_multiplier = 1.0f;
+    if (t->change) {
+      ms_per_beat = t->ms_per_beat;
+    }
+    if (!t->change && t->ms_per_beat < 0) {
+      sv_multiplier = -100.0f / t->ms_per_beat;
+    }
+    t->beat_len = ms_per_beat;
+    t->px_per_beat = b->sv * 100.0f;
+    if (b->format_version < 8) {
+      t->beat_len *= sv_multiplier;
+    } else {
+      t->px_per_beat *= sv_multiplier;
+    }
+    t->velocity = 100.0f * b->sv / t->beat_len;
+  }
+
   /* TODO: merge this with normpos & angle calc */
   for (i = 0; i < b->nobjects; ++i) {
     object_t* o = &b->objects[i];
+    timing_t* t;
     /* keep track of the current timing point */
     while (o->time >= tnext) {
       ++tindex;
@@ -1392,6 +1383,13 @@ void p_end(parser_t* pa, beatmap_t* b) {
       }
     }
     o->timing_point = tindex;
+    t = &b->timing_points[tindex];
+    o->duration = o->distance * o->repetitions / t->velocity;
+    o->tick_spacing = al_min(t->beat_len / b->tick_rate,
+        o->duration / o->repetitions);
+    o->slider_is_drum_roll = (
+      o->tick_spacing <= 0 || o->duration >= 2 * t->beat_len
+    );
   }
 }
 
@@ -2016,19 +2014,6 @@ int d_taiko(diff_calc_t* d, int mods) {
   taiko_object_t* cur = &curprev[0];
   taiko_object_t* prev = &curprev[1];
 
-  /*
-   * these values keep track of the current timing point and
-   * corresponding beat spacing. these are used to convert
-   * sliders to taiko streams if they are suitable
-   */
-
-  float sv_multiplier;
-  float velocity;
-  float ms_per_beat = 0;          /* last timing change */
-  float beat_len = infinity;      /* beat spacing */
-  float duration = 0;             /* duration of the hit object */
-  float tick_spacing = -infinity; /* slider tick spacing */
-
   int result;
 
   if (!b->ntiming_points) {
@@ -2073,38 +2058,9 @@ int d_taiko(diff_calc_t* d, int mods) {
       /* TODO: too much indentation, pull this out */
       int isound = 0;
       float j;
-      timing_t* t = &b->timing_points[o->timing_point];
-
-      sv_multiplier = 1.0f;
-
-      if (t->change) {
-        ms_per_beat = t->ms_per_beat;
-      }
-
-      else if (t->ms_per_beat < 0) {
-        sv_multiplier = -100.0f / t->ms_per_beat;
-      }
-
-      beat_len = ms_per_beat / sv_multiplier;
-      velocity = 100.0f * b->sv / beat_len;
-
-      /* format-specific quirk */
-      if (b->format_version >= 8) {
-        beat_len *= sv_multiplier;
-      }
-
-      /* this is similar to what we do in b_max_combo with px_per_beat */
-      duration = o->distance * o->repetitions / velocity;
-
-      /*
-       * if slider is shorter than 1 beat, cut tick to exactly the length
-       * of the slider
-       */
-      tick_spacing = al_min(beat_len / b->tick_rate,
-          duration / o->repetitions);
 
       /* drum roll, ignore */
-      if (tick_spacing <= 0 || duration >= 2 * beat_len) {
+      if (o->slider_is_drum_roll) {
         goto continue_loop;
       }
 
@@ -2112,8 +2068,9 @@ int d_taiko(diff_calc_t* d, int mods) {
        * sliders that meet the requirements will
        * become streams of the slider's tick rate
        */
-      for (j = o->time; j < o->time + duration + tick_spacing / 8;
-         j += tick_spacing)
+      for (j = o->time;
+           j < o->time + o->duration + o->tick_spacing / 8;
+           j += o->tick_spacing)
       {
         int sound_type = o->sound_types[isound];
         cur->rim = (sound_type & (SOUND_CLAP | SOUND_WHISTLE));
