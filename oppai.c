@@ -2266,388 +2266,6 @@ void taiko_acc_round(float acc_percent, int nobjects, int nmisses,
   *n300 = nobjects - *n150 - nmisses;
 }
 
-/* std pp calc --------------------------------------------------------- */
-
-typedef struct pp_calc {
-  float total, aim, speed, acc;
-  float accuracy; /* 0.0f - 1.0f */
-} pp_calc_t;
-
-/* some kind of formula to get a base pp value from stars */
-float base_pp(float stars) {
-  return (float)pow(5.0f * al_max(1.0f, stars / 0.0675f) - 4.0f, 3.0f)
-    / 100000.0f;
-}
-
-int ppv2x(pp_calc_t* pp, float aim, float speed, float base_ar,
-  float base_od, int max_combo, int nsliders, int ncircles, int nobjects,
-  int mods, int combo, int n300, int n100, int n50, int nmiss,
-  int score_version)
-{
-  int nspinners = nobjects - nsliders - ncircles;
-  beatmap_stats_t mapstats;
-
-  /* various pp calc multipliers */
-  float nobjects_over_2k = nobjects / 2000.0f;
-  float length_bonus = (
-    0.95f +
-    0.4f * al_min(1.0f, nobjects_over_2k) +
-    (nobjects > 2000 ? (float)log10(nobjects_over_2k) * 0.5f : 0.0f)
-  );
-  float miss_penality = (float)pow(0.97f, nmiss);
-  float combo_break = (
-    (float)pow(combo, 0.8f) / (float)pow(max_combo, 0.8f)
-  );
-  float ar_bonus;
-  float final_multiplier;
-  float acc_bonus, od_bonus;
-  float od_squared;
-  float hd_bonus;
-
-  /* acc used for pp is different in scorev1 because it ignores sliders */
-  float real_acc;
-
-  memset(pp, 0, sizeof(pp_calc_t));
-
-  /* sanitize some input */
-  if (max_combo <= 0) {
-    info("W: max_combo <= 0, changing to 1\n");
-    max_combo = 1;
-  }
-
-  /* accuracy */
-  pp->accuracy = acc_calc(n300, n100, n50, nmiss);
-
-  switch (score_version) {
-    case 1:
-      /*
-       * scorev1 ignores sliders since they are free 300s
-       * apparently it also ignores spinners...
-       * can go negative if we miss everything
-       */
-      real_acc = acc_calc(al_max(0, (int)n300 - nsliders - nspinners),
-        n100, n50, nmiss);
-      break;
-    case 2:
-      real_acc = pp->accuracy;
-      ncircles = nobjects;
-      break;
-    default:
-      info("unsupported scorev%d\n", score_version);
-      return ERR_NOTIMPLEMENTED;
-  }
-
-  /* calculate stats with mods */
-  mapstats.ar = base_ar;
-  mapstats.od = base_od;
-
-  mods_apply(MODE_STD, mods, &mapstats, APPLY_AR | APPLY_OD);
-
-  /* ar bonus -------------------------------------------------------- */
-  ar_bonus = 1.0f;
-
-  /* high ar bonus */
-  if (mapstats.ar > 10.33f) {
-    ar_bonus += 0.3f * (mapstats.ar - 10.33f);
-  }
-
-  /* low ar bonus */
-  else if (mapstats.ar < 8.0f) {
-    ar_bonus += 0.01f * (8.0f - mapstats.ar);
-  }
-
-  /* aim pp ---------------------------------------------------------- */
-  pp->aim = base_pp(aim);
-  pp->aim *= length_bonus;
-  pp->aim *= miss_penality;
-  pp->aim *= combo_break;
-  pp->aim *= ar_bonus;
-
-  /* hidden */
-  hd_bonus = 1.0f;
-  if (mods & MODS_HD) {
-    hd_bonus += 0.04f * (12.0f - mapstats.ar);
-  }
-
-  pp->aim *= hd_bonus;
-
-  /* flashlight */
-  if (mods & MODS_FL) {
-    float fl_bonus = 1.0f + 0.35f * al_min(1.0f, nobjects / 200.0f);
-    if (nobjects > 200) {
-      fl_bonus += 0.3f * al_min(1, (nobjects - 200) / 300.0f);
-    }
-    if (nobjects > 500) {
-      fl_bonus += (nobjects - 500) / 1200.0f;
-    }
-    pp->aim *= fl_bonus;
-  }
-
-  /* acc bonus (bad aim can lead to bad acc) */
-  acc_bonus = 0.5f + pp->accuracy / 2.0f;
-
-  /* od bonus (high od requires better aim timing to acc) */
-  od_squared = (float)pow(mapstats.od, 2);
-  od_bonus = 0.98f + od_squared / 2500.0f;
-
-  pp->aim *= acc_bonus;
-  pp->aim *= od_bonus;
-
-  /* speed pp -------------------------------------------------------- */
-  pp->speed = base_pp(speed);
-  pp->speed *= length_bonus;
-  pp->speed *= miss_penality;
-  pp->speed *= combo_break;
-  if (mapstats.ar > 10.33f) {
-    pp->speed *= ar_bonus;
-  }
-  pp->speed *= hd_bonus;
-
-  /* "scale the speed value with accuracy slightly" */
-  pp->speed *= 0.02f + pp->accuracy;
-
-  /* "it is important to also consider accuracy difficulty when doing that" */
-  pp->speed *= 0.96f + (od_squared / 1600.0f);
-
-  /* acc pp ---------------------------------------------------------- */
-  /* arbitrary values tom crafted out of trial and error */
-  pp->acc = (float)pow(1.52163f, mapstats.od) *
-    (float)pow(real_acc, 24.0f) * 2.83f;
-
-  /* length bonus (not the same as speed/aim length bonus) */
-  pp->acc *= al_min(1.15f, (float)pow(ncircles / 1000.0f, 0.3f));
-
-  /* hidden bonus */
-  if (mods & MODS_HD) {
-    pp->acc *= 1.08f;
-  }
-
-  /* flashlight bonus */
-  if (mods & MODS_FL) {
-    pp->acc *= 1.02f;
-  }
-
-  /* total pp -------------------------------------------------------- */
-  final_multiplier = 1.12f;
-
-  /* nofail */
-  if (mods & MODS_NF) {
-    final_multiplier *= 0.90f;
-  }
-
-  /* spun-out */
-  if (mods & MODS_SO) {
-    final_multiplier *= 0.95f;
-  }
-
-  pp->total = (float)(
-    pow(
-      pow(pp->aim, 1.1f) +
-      pow(pp->speed, 1.1f) +
-      pow(pp->acc, 1.1f),
-      1.0f / 1.1f
-    ) * final_multiplier
-  );
-
-  return 0;
-}
-
-/* taiko pp calc ------------------------------------------------------- */
-
-int taiko_ppv2x(pp_calc_t* pp, float stars, int max_combo,
-  float base_od, int n150, int nmiss, int mods)
-{
-  beatmap_stats_t mapstats;
-  int n300 = al_max(0, max_combo - n150 - nmiss);
-  int result;
-  float length_bonus;
-  float final_multiplier;
-
-  /* calculate stats with mods */
-  mapstats.od = base_od;
-  result = mods_apply(MODE_TAIKO, mods, &mapstats, APPLY_OD);
-  if (result < 0) {
-    return result;
-  }
-
-  pp->accuracy = taiko_acc_calc(n300, n150, nmiss);
-
-  /* base acc pp */
-  pp->acc = (float)pow(150.0f / mapstats.odms, 1.1f);
-  pp->acc *= (float)pow(pp->accuracy, 15.0f) * 22.0f;
-
-  /* length bonus */
-  pp->acc *= al_min(1.15f, (float)pow(max_combo / 1500.0f, 0.3f));
-
-  /* base speed pp */
-  pp->speed = (float)pow(5.0f * al_max(1.0f, stars / 0.0075f) - 4.0f, 2.0f);
-  pp->speed /= 100000.0f;
-
-  /* length bonus (not the same as acc length bonus) */
-  length_bonus = 1.0f + 0.1f * al_min(1.0f, max_combo / 1500.0f);
-  pp->speed *= length_bonus;
-
-  /* miss penality */
-  pp->speed *= (float)pow(0.985f, nmiss);
-
-#if 0
-  /* combo scaling (removed?) */
-  if (max_combo > 0) {
-    pp->speed *=
-      al_min(pow(max_combo - nmiss, 0.5f) / pow(max_combo, 0.5f), 1.0f);
-  }
-#endif
-
-  /* speed mod bonuses */
-  if (mods & MODS_HD) {
-    pp->speed *= 1.025f;
-  }
-
-  if (mods & MODS_FL) {
-    pp->speed *= 1.05f * length_bonus;
-  }
-
-  /* acc scaling */
-  pp->speed *= pp->accuracy;
-
-  /* overall mod bonuses */
-  final_multiplier = 1.1f;
-
-  if (mods & MODS_NF) {
-    final_multiplier *= 0.90f;
-  }
-
-  if (mods & MODS_HD) {
-    final_multiplier *= 1.10f;
-  }
-
-  pp->total = (
-    (float)pow(
-      pow(pp->speed, 1.1f) +
-      pow(pp->acc, 1.1f),
-      1.0f / 1.1f
-    ) * final_multiplier
-  );
-  return 0;
-}
-
-int taiko_ppv2(pp_calc_t* pp, float speed, int max_combo,
-  float base_od, int mods)
-{
-  return taiko_ppv2x(pp, speed, max_combo, base_od, 0, 0, mods);
-}
-
-/* common pp calc stuff ------------------------------------------------ */
-
-#define PP_DEFAULT_SCORING 1
-
-typedef struct pp_params {
-  /* required parameters */
-  float aim, speed;
-  float base_ar, base_od;
-  int max_combo;
-  int nsliders; /* required for scorev1 only */
-  int ncircles; /* ^ */
-  int nobjects;
-
-  /* optional parameters */
-  int mode;            /* defaults to MODE_STD */
-  int mods;            /* defaults to MODS_NOMOD */
-  int combo;           /* defaults to FC */
-  int n300, n100, n50; /* defaults to SS */
-  int nmiss;           /* defaults to 0 */
-  int score_version;   /* defaults to PP_DEFAULT_SCORING */
-} pp_params_t;
-
-void pp_init(pp_params_t* p) {
-  p->mode = MODE_STD;
-  p->mods = MODS_NOMOD;
-  p->combo = -1;
-  p->n300 = 0xFFFF;
-  p->n100 = p->n50 = p->nmiss = 0;
-  p->score_version = PP_DEFAULT_SCORING;
-}
-
-/* should be called inside ppv2p before calling ppv2x */
-void pp_handle_default_params(pp_params_t* p) {
-  if (p->combo < 0) {
-    p->combo = p->max_combo - p->nmiss;
-  }
-  if (p->n300 == 0xFFFF) {
-    p->n300 = p->nobjects - p->n100 - p->n50 - p->nmiss;
-  }
-}
-
-/* taiko only uses pp, mode, speed, max_combo, base_od, mods */
-int ppv2p(pp_calc_t* pp, pp_params_t* p) {
-  pp_handle_default_params(p);
-  switch (p->mode) {
-  case MODE_STD:
-    return ppv2x(pp, p->aim, p->speed, p->base_ar, p->base_od,
-      p->max_combo, p->nsliders, p->ncircles, p->nobjects, p->mods,
-      p->combo, p->n300, p->n100, p->n50, p->nmiss, p->score_version);
-  case MODE_TAIKO:
-    return taiko_ppv2x(pp, p->speed, p->max_combo, p->base_od,
-      p->n100, p->nmiss, p->mods);
-  }
-  info("this mode is not yet supported for ppv2p\n");
-  return ERR_NOTIMPLEMENTED;
-}
-
-int b_ppv2(beatmap_t* b, pp_calc_t* pp, float aim, float speed, int mods) {
-  pp_params_t params;
-  int max_combo = b_max_combo(b);
-  if (max_combo < 0) {
-    return max_combo;
-  }
-  pp_init(&params);
-  params.mode = b->mode;
-  params.aim = aim, params.speed = speed;
-  params.base_ar = b->ar;
-  params.base_od = b->od;
-  params.max_combo = max_combo;
-  params.nsliders = b->nsliders;
-  params.ncircles = b->ncircles;
-  params.nobjects = b->nobjects;
-  params.mods = mods;
-  return ppv2p(pp, &params);
-}
-
-int b_ppv2p(beatmap_t* map, pp_calc_t* pp, pp_params_t* p) {
-  p->base_ar = map->ar;
-  p->base_od = map->od;
-  p->max_combo = b_max_combo(map);
-  if (p->max_combo < 0) {
-    return p->max_combo;
-  }
-  p->nsliders = map->nsliders;
-  p->ncircles = map->ncircles;
-  p->nobjects = map->nobjects;
-  p->mode = map->mode;
-  pp_handle_default_params(p);
-  return ppv2p(pp, p);
-}
-
-int ppv2(pp_calc_t* pp, int mode, float aim, float speed, float base_ar,
-  float base_od, int max_combo, int nsliders, int ncircles, int nobjects,
-  int mods)
-{
-  pp_params_t params;
-  pp_init(&params);
-  params.mode = mode;
-  params.aim = aim, params.speed = speed;
-  params.base_ar = base_ar;
-  params.base_od = base_od;
-  params.max_combo = max_combo;
-  params.nsliders = nsliders;
-  params.ncircles = ncircles;
-  params.nobjects = nobjects;
-  params.mods = mods;
-  return ppv2p(pp, &params);
-}
-
-/* simple interface ---------------------------------------------------- */
-
 /*
  * exposing the struct would cut down lines of code but makes it harder
  * to use from langs that aren't c/c++ or don't have the same memory
@@ -2681,92 +2299,247 @@ struct ezpp {
   diff_calc_t stars_;
 };
 
-OPPAIAPI float ezpp_pp(ezpp_t ez) { return ez->pp; }
-OPPAIAPI float ezpp_stars(ezpp_t ez) { return ez->stars; }
-OPPAIAPI int ezpp_mode(ezpp_t ez) { return ez->mode; }
-OPPAIAPI int ezpp_combo(ezpp_t ez) { return ez->combo; }
-OPPAIAPI int ezpp_max_combo(ezpp_t ez) { return ez->max_combo; }
-OPPAIAPI int ezpp_mods(ezpp_t ez) { return ez->mods; }
-OPPAIAPI int ezpp_score_version(ezpp_t ez) { return ez->score_version; }
-OPPAIAPI float ezpp_aim_stars(ezpp_t ez) { return ez->aim_stars; }
-OPPAIAPI float ezpp_speed_stars(ezpp_t ez) { return ez->speed_stars; }
-OPPAIAPI float ezpp_aim_pp(ezpp_t ez) { return ez->aim_pp; }
-OPPAIAPI float ezpp_speed_pp(ezpp_t ez) { return ez->speed_pp; }
-OPPAIAPI float ezpp_acc_pp(ezpp_t ez) { return ez->acc_pp; }
-OPPAIAPI float ezpp_accuracy_percent(ezpp_t ez) { return ez->accuracy_percent; }
-OPPAIAPI int ezpp_n300(ezpp_t ez) { return ez->n300; }
-OPPAIAPI int ezpp_n100(ezpp_t ez) { return ez->n100; }
-OPPAIAPI int ezpp_n50(ezpp_t ez) { return ez->n50; }
-OPPAIAPI int ezpp_nmiss(ezpp_t ez) { return ez->nmiss; }
-OPPAIAPI char* ezpp_title(ezpp_t ez) { return ez->title; }
-OPPAIAPI char* ezpp_title_unicode(ezpp_t ez) { return ez->title_unicode; }
-OPPAIAPI char* ezpp_artist(ezpp_t ez) { return ez->artist; }
-OPPAIAPI char* ezpp_artist_unicode(ezpp_t ez) { return ez->artist_unicode; }
-OPPAIAPI char* ezpp_creator(ezpp_t ez) { return ez->creator; }
-OPPAIAPI char* ezpp_version(ezpp_t ez) { return ez->version; }
-OPPAIAPI int ezpp_ncircles(ezpp_t ez) { return ez->ncircles; }
-OPPAIAPI int ezpp_nsliders(ezpp_t ez) { return ez->nsliders; }
-OPPAIAPI int ezpp_nspinners(ezpp_t ez) { return ez->nspinners; }
-OPPAIAPI int ezpp_nobjects(ezpp_t ez) { return ez->nobjects; }
-OPPAIAPI float ezpp_ar(ezpp_t ez) { return ez->ar; }
-OPPAIAPI float ezpp_cs(ezpp_t ez) { return ez->cs; }
-OPPAIAPI float ezpp_od(ezpp_t ez) { return ez->od; }
-OPPAIAPI float ezpp_hp(ezpp_t ez) { return ez->hp; }
-OPPAIAPI float ezpp_odms(ezpp_t ez) { return ez->odms; }
+/* std pp calc --------------------------------------------------------- */
 
-OPPAIAPI float ezpp_time_at(ezpp_t ez, int i) {
-  /* TEMPORARY */
-  return ez->map.objects ? ez->map.objects[i].time : 0;
+/* some kind of formula to get a base pp value from stars */
+float base_pp(float stars) {
+  return (float)pow(5.0f * al_max(1.0f, stars / 0.0675f) - 4.0f, 3.0f)
+    / 100000.0f;
 }
 
-OPPAIAPI float ezpp_strain_at(ezpp_t ez, int i, int difficulty_type) {
-  /* TEMPORARY */
-  return ez->map.objects ? ez->map.objects[i].strains[difficulty_type] : 0;
-}
+int ezpp_std_ppcalc(ezpp_t ez) {
+  int ncircles = ez->ncircles;
+  beatmap_stats_t mapstats;
+  float nobjects_over_2k = ez->nobjects / 2000.0f;
+  float length_bonus = (
+    0.95f +
+    0.4f * al_min(1.0f, nobjects_over_2k) +
+    (ez->nobjects > 2000 ? (float)log10(nobjects_over_2k) * 0.5f : 0.0f)
+  );
+  float miss_penality = (float)pow(0.97f, ez->nmiss);
+  float combo_break = (
+    (float)pow(ez->combo, 0.8f) / (float)pow(ez->max_combo, 0.8f)
+  );
+  float ar_bonus;
+  float final_multiplier;
+  float acc_bonus, od_bonus;
+  float od_squared;
+  float hd_bonus;
 
-#define setter(t, x) \
-  OPPAIAPI void ezpp_set_##x(ezpp_t ez, t x) {  ez->x = x;  }
-setter(float, aim_stars)
-setter(float, speed_stars)
-setter(float, base_ar)
-setter(float, base_od)
-setter(float, base_cs)
-setter(float, base_hp)
-setter(int, mode_override)
-setter(int, mode)
-setter(int, mods)
-setter(int, combo)
-setter(int, nmiss)
-setter(int, score_version)
-setter(float, accuracy_percent)
-setter(int, end)
-#undef setter
+  /* acc used for pp is different in scorev1 because it ignores sliders */
+  float real_acc;
+  float accuracy;
 
-OPPAIAPI
-void ezpp_set_accuracy(ezpp_t ez, int n300, int n100, int n50) {
-  ez->n300 = n300;
-  ez->n100 = n100;
-  ez->n50 = n50;
-}
+  ez->nspinners = ez->nobjects - ez->nsliders - ez->ncircles;
 
-OPPAIAPI
-ezpp_t ezpp_new() {
-  ezpp_t ez = calloc(sizeof(struct ezpp), 1);
-  if (ez) {
-    ez->mode = MODE_STD;
-    ez->mods = MODS_NOMOD;
-    ez->combo = -1;
-    ez->n300 = 0xFFFF;
-    ez->n100 = ez->n50 = ez->nmiss = 0;
-    ez->score_version = PP_DEFAULT_SCORING;
+  if (ez->max_combo <= 0) {
+    info("W: max_combo <= 0, changing to 1\n");
+    ez->max_combo = 1;
   }
-  return ez;
+
+  accuracy = acc_calc(ez->n300, ez->n100, ez->n50, ez->nmiss);
+
+  /*
+   * scorev1 ignores sliders and spinners since they are free 300s
+   * can go negative if we miss everything so we must clamp it
+   */
+
+  switch (ez->score_version) {
+    case 1:
+      real_acc = acc_calc(
+        al_max(0, ez->n300 - ez->nsliders - ez->nspinners),
+        ez->n100, ez->n50, ez->nmiss);
+      break;
+    case 2:
+      real_acc = accuracy;
+      ncircles = ez->nobjects;
+      break;
+    default:
+      info("unsupported scorev%d\n", ez->score_version);
+      return ERR_NOTIMPLEMENTED;
+  }
+
+  /* calculate stats with mods */
+  mapstats.ar = ez->base_ar;
+  mapstats.od = ez->base_od;
+  mods_apply(MODE_STD, ez->mods, &mapstats, APPLY_AR | APPLY_OD);
+
+  /* ar bonus -------------------------------------------------------- */
+  ar_bonus = 1.0f;
+
+  /* high ar bonus */
+  if (mapstats.ar > 10.33f) {
+    ar_bonus += 0.3f * (mapstats.ar - 10.33f);
+  }
+
+  /* low ar bonus */
+  else if (mapstats.ar < 8.0f) {
+    ar_bonus += 0.01f * (8.0f - mapstats.ar);
+  }
+
+  /* aim pp ---------------------------------------------------------- */
+  ez->aim_pp = base_pp(ez->aim_stars);
+  ez->aim_pp *= length_bonus;
+  ez->aim_pp *= miss_penality;
+  ez->aim_pp *= combo_break;
+  ez->aim_pp *= ar_bonus;
+
+  /* hidden */
+  hd_bonus = 1.0f;
+  if (ez->mods & MODS_HD) {
+    hd_bonus += 0.04f * (12.0f - mapstats.ar);
+  }
+
+  ez->aim_pp *= hd_bonus;
+
+  /* flashlight */
+  if (ez->mods & MODS_FL) {
+    float fl_bonus = 1.0f + 0.35f * al_min(1.0f, ez->nobjects / 200.0f);
+    if (ez->nobjects > 200) {
+      fl_bonus += 0.3f * al_min(1, (ez->nobjects - 200) / 300.0f);
+    }
+    if (ez->nobjects > 500) {
+      fl_bonus += (ez->nobjects - 500) / 1200.0f;
+    }
+    ez->aim_pp *= fl_bonus;
+  }
+
+  /* acc bonus (bad aim can lead to bad acc) */
+  acc_bonus = 0.5f + accuracy / 2.0f;
+
+  /* od bonus (high od requires better aim timing to acc) */
+  od_squared = (float)pow(mapstats.od, 2);
+  od_bonus = 0.98f + od_squared / 2500.0f;
+
+  ez->aim_pp *= acc_bonus;
+  ez->aim_pp *= od_bonus;
+
+  /* speed pp -------------------------------------------------------- */
+  ez->speed_pp = base_pp(ez->speed_stars);
+  ez->speed_pp *= length_bonus;
+  ez->speed_pp *= miss_penality;
+  ez->speed_pp *= combo_break;
+  if (mapstats.ar > 10.33f) {
+    ez->speed_pp *= ar_bonus;
+  }
+  ez->speed_pp *= hd_bonus;
+
+  /* scale the speed value with accuracy slightly */
+  ez->speed_pp *= 0.02f + accuracy;
+
+  /* it's important to also consider accuracy difficulty when doing that */
+  ez->speed_pp *= 0.96f + (od_squared / 1600.0f);
+
+  /* acc pp ---------------------------------------------------------- */
+  /* arbitrary values tom crafted out of trial and error */
+  ez->acc_pp = (float)pow(1.52163f, mapstats.od) *
+    (float)pow(real_acc, 24.0f) * 2.83f;
+
+  /* length bonus (not the same as speed/aim length bonus) */
+  ez->acc_pp *= al_min(1.15f, (float)pow(ncircles / 1000.0f, 0.3f));
+
+  if (ez->mods & MODS_HD) ez->acc_pp *= 1.08f;
+  if (ez->mods & MODS_FL) ez->acc_pp *= 1.02f;
+
+  /* total pp -------------------------------------------------------- */
+  final_multiplier = 1.12f;
+  if (ez->mods & MODS_NF) final_multiplier *= 0.90f;
+  if (ez->mods & MODS_SO) final_multiplier *= 0.95f;
+
+  ez->pp = (float)(
+    pow(
+      pow(ez->aim_pp, 1.1f) +
+      pow(ez->speed_pp, 1.1f) +
+      pow(ez->acc_pp, 1.1f),
+      1.0f / 1.1f
+    ) * final_multiplier
+  );
+
+  ez->accuracy_percent = accuracy * 100.0f;
+
+  return 0;
 }
 
-OPPAIAPI
-void ezpp_free(ezpp_t ez) {
-  free(ez);
+/* taiko pp calc ------------------------------------------------------- */
+
+int ezpp_taiko_ppcalc(ezpp_t ez) {
+  beatmap_stats_t mapstats;
+  int result;
+  float length_bonus;
+  float final_multiplier;
+  float accuracy;
+
+  ez->n300 = al_max(0, ez->max_combo - ez->n100 - ez->nmiss);
+
+  /* calculate stats with mods */
+  mapstats.od = ez->base_od;
+  result = mods_apply(MODE_TAIKO, ez->mods, &mapstats, APPLY_OD);
+  if (result < 0) {
+    return result;
+  }
+
+  accuracy = taiko_acc_calc(ez->n300, ez->n100, ez->nmiss);
+
+  /* base acc pp */
+  ez->acc_pp = (float)pow(150.0f / mapstats.odms, 1.1f);
+  ez->acc_pp *= (float)pow(accuracy, 15.0f) * 22.0f;
+
+  /* length bonus */
+  ez->acc_pp *= al_min(1.15f, (float)pow(ez->max_combo / 1500.0f, 0.3f));
+
+  /* base speed pp */
+  ez->speed_pp = (
+    (float)pow(5.0f * al_max(1.0f, ez->stars / 0.0075f) - 4.0f, 2.0f)
+  ) / 100000.0f;
+
+  /* length bonus (not the same as acc length bonus) */
+  length_bonus = 1.0f + 0.1f * al_min(1.0f, ez->max_combo / 1500.0f);
+  ez->speed_pp *= length_bonus;
+
+  /* miss penality */
+  ez->speed_pp *= (float)pow(0.985f, ez->nmiss);
+
+#if 0
+  /* combo scaling (removed?) */
+  if (b->max_combo > 0) {
+    ez->speed_pp *= (
+      al_min(pow(ez->max_combo - ez->nmiss, 0.5f)
+      / pow(ez->max_combo, 0.5f), 1.0f)
+    );
+  }
+#endif
+
+  /* speed mod bonuses */
+  if (ez->mods & MODS_HD) {
+    ez->speed_pp *= 1.025f;
+  }
+
+  if (ez->mods & MODS_FL) {
+    ez->speed_pp *= 1.05f * length_bonus;
+  }
+
+  /* acc scaling */
+  ez->speed_pp *= accuracy;
+
+  /* overall multipliers */
+  final_multiplier = 1.1f;
+  if (ez->mods & MODS_NF) final_multiplier *= 0.90f;
+  if (ez->mods & MODS_HD) final_multiplier *= 1.10f;
+
+  ez->pp = (
+    (float)pow(
+      pow(ez->speed_pp, 1.1f) +
+      pow(ez->acc_pp, 1.1f),
+      1.0f / 1.1f
+    ) * final_multiplier
+  );
+
+  ez->accuracy_percent = accuracy * 100.0f;
+
+  return 0;
 }
+
+/* map parser ---------------------------------------------------------- */
 
 int ezpp_from_map(ezpp_t ez, char* mapfile) {
   int res;
@@ -2850,11 +2623,30 @@ cleanup:
   return res;
 }
 
+/* main interface ------------------------------------------------------ */
+
+OPPAIAPI
+ezpp_t ezpp_new() {
+  ezpp_t ez = calloc(sizeof(struct ezpp), 1);
+  if (ez) {
+    ez->mode = MODE_STD;
+    ez->mods = MODS_NOMOD;
+    ez->combo = -1;
+    ez->n300 = -1;
+    ez->n100 = ez->n50 = ez->nmiss = 0;
+    ez->score_version = 1;
+  }
+  return ez;
+}
+
+OPPAIAPI
+void ezpp_free(ezpp_t ez) {
+  free(ez);
+}
+
 OPPAIAPI
 int ezpp(ezpp_t ez, char* mapfile) {
   int res;
-  pp_params_t params;
-  pp_calc_t pp;
   beatmap_stats_t stats;
 
   if (mapfile) {
@@ -2868,53 +2660,38 @@ int ezpp(ezpp_t ez, char* mapfile) {
     ez->stars = ez->speed_stars;
   }
 
-  pp_init(&params);
-  params.mods = ez->mods;
-  params.combo = ez->combo;
-  params.nmiss = ez->nmiss;
-  params.score_version = ez->score_version;
-  params.mode = ez->mode;
-  params.aim = ez->aim_stars;
-  params.speed = ez->speed_stars;
-  params.base_ar = ez->base_ar;
-  params.base_od = ez->base_od;
-  params.max_combo = ez->max_combo;
-  params.nsliders = ez->nsliders;
-  params.ncircles = ez->ncircles;
-  params.nobjects = ez->nobjects;
-  params.mods = ez->mods;
-
   if (ez->accuracy_percent) {
     switch (ez->mode) {
       case MODE_STD:
-        acc_round(ez->accuracy_percent, ez->nobjects, params.nmiss,
-          &params.n300, &params.n100, &params.n50);
+        acc_round(ez->accuracy_percent, ez->nobjects, ez->nmiss,
+          &ez->n300, &ez->n100, &ez->n50);
         break;
       case MODE_TAIKO:
         taiko_acc_round(ez->accuracy_percent, ez->max_combo,
-          params.nmiss, &params.n300, &params.n100);
+          ez->nmiss, &ez->n300, &ez->n100);
         break;
     }
-  } else {
-    params.n300 = ez->n300;
-    params.n100 = ez->n100;
-    params.n50 = ez->n50;
   }
 
-  params.aim = ez->aim_stars;
-  params.speed = ez->speed_stars;
+  if (ez->combo < 0) {
+    ez->combo = ez->max_combo - ez->nmiss;
+  }
 
-  res = ppv2p(&pp, &params);
+  if (ez->n300 < 0) {
+    ez->n300 = ez->nobjects - ez->n100 - ez->n50 - ez->nmiss;
+  }
+
+  switch (ez->mode) {
+    case MODE_STD: res = ezpp_std_ppcalc(ez); break;
+    case MODE_TAIKO: res = ezpp_taiko_ppcalc(ez); break;
+    default:
+      info("pp calc for this mode is not yet supported\n");
+      return ERR_NOTIMPLEMENTED;
+  }
+
   if (res < 0) {
     return res;
   }
-
-  ez->combo = params.combo;
-  ez->pp = pp.total;
-  ez->aim_pp = pp.aim;
-  ez->speed_pp = pp.speed;
-  ez->acc_pp = pp.acc;
-  ez->accuracy_percent = pp.accuracy * 100.0f;
 
   stats.ar = ez->base_ar;
   stats.cs = ez->base_cs;
@@ -2942,6 +2719,74 @@ OPPAIAPI
 int ezpp_data(ezpp_t ez, char* data, int data_size) {
   ez->data_size = data_size;
   return ezpp(ez, data);
+}
+
+OPPAIAPI float ezpp_pp(ezpp_t ez) { return ez->pp; }
+OPPAIAPI float ezpp_stars(ezpp_t ez) { return ez->stars; }
+OPPAIAPI int ezpp_mode(ezpp_t ez) { return ez->mode; }
+OPPAIAPI int ezpp_combo(ezpp_t ez) { return ez->combo; }
+OPPAIAPI int ezpp_max_combo(ezpp_t ez) { return ez->max_combo; }
+OPPAIAPI int ezpp_mods(ezpp_t ez) { return ez->mods; }
+OPPAIAPI int ezpp_score_version(ezpp_t ez) { return ez->score_version; }
+OPPAIAPI float ezpp_aim_stars(ezpp_t ez) { return ez->aim_stars; }
+OPPAIAPI float ezpp_speed_stars(ezpp_t ez) { return ez->speed_stars; }
+OPPAIAPI float ezpp_aim_pp(ezpp_t ez) { return ez->aim_pp; }
+OPPAIAPI float ezpp_speed_pp(ezpp_t ez) { return ez->speed_pp; }
+OPPAIAPI float ezpp_acc_pp(ezpp_t ez) { return ez->acc_pp; }
+OPPAIAPI float ezpp_accuracy_percent(ezpp_t ez) { return ez->accuracy_percent; }
+OPPAIAPI int ezpp_n300(ezpp_t ez) { return ez->n300; }
+OPPAIAPI int ezpp_n100(ezpp_t ez) { return ez->n100; }
+OPPAIAPI int ezpp_n50(ezpp_t ez) { return ez->n50; }
+OPPAIAPI int ezpp_nmiss(ezpp_t ez) { return ez->nmiss; }
+OPPAIAPI char* ezpp_title(ezpp_t ez) { return ez->title; }
+OPPAIAPI char* ezpp_title_unicode(ezpp_t ez) { return ez->title_unicode; }
+OPPAIAPI char* ezpp_artist(ezpp_t ez) { return ez->artist; }
+OPPAIAPI char* ezpp_artist_unicode(ezpp_t ez) { return ez->artist_unicode; }
+OPPAIAPI char* ezpp_creator(ezpp_t ez) { return ez->creator; }
+OPPAIAPI char* ezpp_version(ezpp_t ez) { return ez->version; }
+OPPAIAPI int ezpp_ncircles(ezpp_t ez) { return ez->ncircles; }
+OPPAIAPI int ezpp_nsliders(ezpp_t ez) { return ez->nsliders; }
+OPPAIAPI int ezpp_nspinners(ezpp_t ez) { return ez->nspinners; }
+OPPAIAPI int ezpp_nobjects(ezpp_t ez) { return ez->nobjects; }
+OPPAIAPI float ezpp_ar(ezpp_t ez) { return ez->ar; }
+OPPAIAPI float ezpp_cs(ezpp_t ez) { return ez->cs; }
+OPPAIAPI float ezpp_od(ezpp_t ez) { return ez->od; }
+OPPAIAPI float ezpp_hp(ezpp_t ez) { return ez->hp; }
+OPPAIAPI float ezpp_odms(ezpp_t ez) { return ez->odms; }
+
+OPPAIAPI float ezpp_time_at(ezpp_t ez, int i) {
+  /* TEMPORARY */
+  return ez->map.objects ? ez->map.objects[i].time : 0;
+}
+
+OPPAIAPI float ezpp_strain_at(ezpp_t ez, int i, int difficulty_type) {
+  /* TEMPORARY */
+  return ez->map.objects ? ez->map.objects[i].strains[difficulty_type] : 0;
+}
+
+#define setter(t, x) \
+  OPPAIAPI void ezpp_set_##x(ezpp_t ez, t x) {  ez->x = x;  }
+setter(float, aim_stars)
+setter(float, speed_stars)
+setter(float, base_ar)
+setter(float, base_od)
+setter(float, base_cs)
+setter(float, base_hp)
+setter(int, mode_override)
+setter(int, mode)
+setter(int, mods)
+setter(int, combo)
+setter(int, nmiss)
+setter(int, score_version)
+setter(float, accuracy_percent)
+setter(int, end)
+#undef setter
+
+OPPAIAPI
+void ezpp_set_accuracy(ezpp_t ez, int n300, int n100, int n50) {
+  ez->n300 = n300;
+  ez->n100 = n100;
+  ez->n50 = n50;
 }
 
 #endif /* OPPAI_IMPLEMENTATION */
