@@ -797,7 +797,10 @@ typedef struct parser {
 
 /* sets up parser for reuse. must have already been inited with p_init */
 int p_reset(parser_t* pa, beatmap_t* b) {
-  memset(pa, 0, sizeof(parser_t));
+  memset(&pa->lastpos, 0, sizeof(pa->lastpos));
+  memset(&pa->lastline, 0, sizeof(pa->lastline));
+  memset(pa->buf, 0, sizeof(pa->buf));
+  memset(pa->section, 0, sizeof(pa->section));
   pa->objects.len = 0;
   pa->timing_points.len = 0;
 
