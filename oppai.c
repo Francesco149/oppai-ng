@@ -640,6 +640,12 @@ int mods_apply(int mode, int mods, beatmap_stats_t* s, int flags) {
 #define SOUND_FINISH (1<<2)
 #define SOUND_CLAP (1<<3)
 
+typedef struct timing {
+  float time;        /* milliseconds */
+  float ms_per_beat;
+  int change;        /* if 0, ms_per_beat is -100.0f * sv_multiplier */
+} timing_t;
+
 typedef struct object {
   float time; /* milliseconds */
   int type;
@@ -655,17 +661,12 @@ typedef struct object {
   int is_single; /* 1 if diff calc sees this as a singletap */
   float delta_time;
   float d_distance;
+  int timing_point;
 
   float pos[2];
   float distance;  /* only for sliders */
   int repetitions;
 } object_t;
-
-typedef struct timing {
-  float time;        /* milliseconds */
-  float ms_per_beat;
-  int change;        /* if 0, ms_per_beat is -100.0f * sv_multiplier */
-} timing_t;
 
 typedef struct beatmap {
   int format_version;
@@ -709,17 +710,14 @@ int b_max_combo(beatmap_t* b) {
   int res = b->nobjects;
   int i;
 
-  float infinity = get_inf();
-  float tnext = -infinity;
-  int tindex = -1;
-
-  float px_per_beat = infinity; /* for std sliders */
+  float px_per_beat;
+  float sv_multiplier;
 
   /* taiko */
-  float ms_per_beat = 0;          /* last timing change */
-  float beat_len = infinity;      /* beat spacing */
-  float duration = 0;             /* duration of the hit object */
-  float tick_spacing = -infinity; /* slider tick spacing */
+  float ms_per_beat = 0; /* last timing change */
+  float beat_len;        /* beat spacing */
+  float duration = 0;    /* duration of the hit object */
+  float tick_spacing;    /* slider tick spacing */
 
   if (!b->ntiming_points) {
     info("beatmap has no timing points\n");
@@ -734,6 +732,7 @@ int b_max_combo(beatmap_t* b) {
   /* slider ticks */
   for (i = 0; i < b->nobjects; ++i) {
     object_t* o = &b->objects[i];
+    timing_t* t = &b->timing_points[o->timing_point];
     int ticks;
     float num_beats;
 
@@ -741,32 +740,18 @@ int b_max_combo(beatmap_t* b) {
       continue;
     }
 
-    while (o->time >= tnext) {
-      float sv_multiplier;
-      timing_t* t;
-      ++tindex;
+    sv_multiplier = 1.0f;
+    if (!t->change && t->ms_per_beat < 0) {
+      sv_multiplier = -100.0f / t->ms_per_beat;
+    }
 
-      if (b->ntiming_points > tindex + 1) {
-        tnext = b->timing_points[tindex + 1].time;
-      } else {
-        tnext = infinity;
-      }
-
-      t = &b->timing_points[tindex];
-
-      sv_multiplier = 1.0f;
-      if (!t->change && t->ms_per_beat < 0) {
-        sv_multiplier = -100.0f / t->ms_per_beat;
-      }
-
-      switch (b->mode) {
+    switch (b->mode) {
       case MODE_STD:
         px_per_beat = b->sv * 100.0f * sv_multiplier;
         if (b->format_version < 8) {
           px_per_beat /= sv_multiplier;
         }
         break;
-
       case MODE_TAIKO: {
         /* see d_taiko for details on what this does */
         float velocity;
@@ -791,10 +776,8 @@ int b_max_combo(beatmap_t* b) {
             duration / o->repetitions);
         break;
       }
-
       default:
         return ERR_NOTIMPLEMENTED;
-      }
     }
 
     if (b->mode == MODE_TAIKO) {
@@ -858,7 +841,6 @@ int p_reset(parser_t* pa, beatmap_t* b) {
     b->ar = b->cs = b->hp = b->od = 5.0f;
     b->sv = b->tick_rate = 1.0f;
   }
-
   return 0;
 }
 
@@ -1365,6 +1347,11 @@ void p_begin(parser_t* pa, beatmap_t* b) {
 }
 
 void p_end(parser_t* pa, beatmap_t* b) {
+  int i;
+  float infinity = get_inf();
+  float tnext = -infinity;
+  int tindex = -1;
+
   if (!(pa->flags & PARSER_FOUND_AR)) {
     /* in old maps ar = od */
     b->ar = b->od;
@@ -1391,6 +1378,21 @@ void p_end(parser_t* pa, beatmap_t* b) {
   s(creator);
   s(version);
   #undef s
+
+  /* TODO: merge this with normpos & angle calc */
+  for (i = 0; i < b->nobjects; ++i) {
+    object_t* o = &b->objects[i];
+    /* keep track of the current timing point */
+    while (o->time >= tnext) {
+      ++tindex;
+      if (tindex + 1 < b->ntiming_points) {
+        tnext = b->timing_points[tindex + 1].time;
+      } else {
+        tnext = infinity;
+      }
+    }
+    o->timing_point = tindex;
+  }
 }
 
 int p_map(parser_t* pa, beatmap_t* b, FILE* f) {
@@ -2020,8 +2022,8 @@ int d_taiko(diff_calc_t* d, int mods) {
    * sliders to taiko streams if they are suitable
    */
 
-  float tnext = -infinity;        /* start time of next timing point */
-  int tindex = -1;                /* timing point index */
+  float sv_multiplier;
+  float velocity;
   float ms_per_beat = 0;          /* last timing change */
   float beat_len = infinity;      /* beat spacing */
   float duration = 0;             /* duration of the hit object */
@@ -2071,48 +2073,35 @@ int d_taiko(diff_calc_t* d, int mods) {
       /* TODO: too much indentation, pull this out */
       int isound = 0;
       float j;
+      timing_t* t = &b->timing_points[o->timing_point];
 
-      while (o->time > tnext) {
-        float sv_multiplier;
-        float velocity;
-        timing_t* t;
+      sv_multiplier = 1.0f;
 
-        ++tindex;
-        if (b->ntiming_points > tindex + 1) {
-          tnext = b->timing_points[tindex + 1].time;
-        } else {
-          tnext = infinity;
-        }
-
-        t = &b->timing_points[tindex];
-        sv_multiplier = 1.0f;
-
-        if (t->change) {
-          ms_per_beat = t->ms_per_beat;
-        }
-
-        else if (t->ms_per_beat < 0) {
-          sv_multiplier = -100.0f / t->ms_per_beat;
-        }
-
-        beat_len = ms_per_beat / sv_multiplier;
-        velocity = 100.0f * b->sv / beat_len;
-
-        /* format-specific quirk */
-        if (b->format_version >= 8) {
-          beat_len *= sv_multiplier;
-        }
-
-        /* this is similar to what we do in b_max_combo with px_per_beat */
-        duration = o->distance * o->repetitions / velocity;
-
-        /*
-         * if slider is shorter than 1 beat, cut tick to exactly the length
-         * of the slider
-         */
-        tick_spacing = al_min(beat_len / b->tick_rate,
-            duration / o->repetitions);
+      if (t->change) {
+        ms_per_beat = t->ms_per_beat;
       }
+
+      else if (t->ms_per_beat < 0) {
+        sv_multiplier = -100.0f / t->ms_per_beat;
+      }
+
+      beat_len = ms_per_beat / sv_multiplier;
+      velocity = 100.0f * b->sv / beat_len;
+
+      /* format-specific quirk */
+      if (b->format_version >= 8) {
+        beat_len *= sv_multiplier;
+      }
+
+      /* this is similar to what we do in b_max_combo with px_per_beat */
+      duration = o->distance * o->repetitions / velocity;
+
+      /*
+       * if slider is shorter than 1 beat, cut tick to exactly the length
+       * of the slider
+       */
+      tick_spacing = al_min(beat_len / b->tick_rate,
+          duration / o->repetitions);
 
       /* drum roll, ignore */
       if (tick_spacing <= 0 || duration >= 2 * beat_len) {
