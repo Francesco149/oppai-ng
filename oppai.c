@@ -442,72 +442,6 @@ void array_free_i(int* cap, int* len, void** data, int esize) {
   *data = 0;
 }
 
-/* memory arena -------------------------------------------------------- */
-
-#define ARENA_ALIGN sizeof(void*)
-#define ARENA_BLOCK_SIZE 4096
-
-typedef struct {
-  char* block;
-  char* end_of_block;
-  array_t(char*) blocks;
-} arena_t;
-
-/* aligns x down to a power-of-two value a */
-#define bit_align_down(x, a) \
-  ((x) & ~((a) - 1))
-
-/* aligns x up to a power-of-two value a */
-#define bit_align_up(x, a) \
-  bit_align_down((x) + (a) - 1, a)
-
-int arena_reserve(arena_t* arena, int min_size) {
-  int size;
-  char* new_block;
-  if (arena->end_of_block - arena->block >= min_size) {
-    return 1;
-  }
-  size = bit_align_up(al_max(min_size, ARENA_BLOCK_SIZE), ARENA_ALIGN);
-  new_block = malloc(size);
-  if (!new_block) {
-    return 0;
-  }
-  arena->block = new_block;
-  arena->end_of_block = new_block + size;
-  array_append(&arena->blocks, arena->block);
-  return 1;
-}
-
-void* arena_alloc(arena_t* arena, int size) {
-  void* res;
-  if (!arena_reserve(arena, size)) {
-    return 0;
-  }
-  size = bit_align_up(size, ARENA_ALIGN);
-  res = arena->block;
-  arena->block += size;
-  return res;
-}
-
-char* arena_strndup(arena_t* m, char* s, int n) {
-  char* res = arena_alloc(m, n + 1);
-  if (res) {
-    memcpy(res, s, n);
-    res[n] = 0;
-  }
-  return res;
-}
-
-void arena_free(arena_t* arena) {
-  int i;
-  for (i = 0; i < arena->blocks.len; ++i) {
-    free(arena->blocks.data[i]);
-  }
-  array_free(&arena->blocks);
-  arena->block = 0;
-  arena->end_of_block = 0;
-}
-
 /* --------------------------------------------------------------------- */
 
 #define OBJ_CIRCLE (1<<0)
@@ -586,7 +520,6 @@ struct ezpp {
   char section[64];
   char buf[0xFFFF];
   int parse_flags;
-  arena_t arena;
   array_t(object_t) objects;
   array_t(timing_t) timing_points;
 
@@ -594,7 +527,72 @@ struct ezpp {
   float interval_end;
   float max_strain;
   array_t(float) highest_strains;
+
+  /* allocator */
+  char* block;
+  char* end_of_block;
+  array_t(char*) blocks;
 };
+
+/* memory arena (allocator) -------------------------------------------- */
+
+#define ARENA_ALIGN sizeof(void*)
+#define ARENA_BLOCK_SIZE 4096
+
+/* aligns x down to a power-of-two value a */
+#define bit_align_down(x, a) \
+  ((x) & ~((a) - 1))
+
+/* aligns x up to a power-of-two value a */
+#define bit_align_up(x, a) \
+  bit_align_down((x) + (a) - 1, a)
+
+int ezpp_reserve(ezpp_t ez, int min_size) {
+  int size;
+  char* new_block;
+  if (ez->end_of_block - ez->block >= min_size) {
+    return 1;
+  }
+  size = bit_align_up(al_max(min_size, ARENA_BLOCK_SIZE), ARENA_ALIGN);
+  new_block = malloc(size);
+  if (!new_block) {
+    return 0;
+  }
+  ez->block = new_block;
+  ez->end_of_block = new_block + size;
+  array_append(&ez->blocks, ez->block);
+  return 1;
+}
+
+void* ezpp_alloc(ezpp_t ez, int size) {
+  void* res;
+  if (!ezpp_reserve(ez, size)) {
+    return 0;
+  }
+  size = bit_align_up(size, ARENA_ALIGN);
+  res = ez->block;
+  ez->block += size;
+  return res;
+}
+
+char* ezpp_strndup(ezpp_t ez, char* s, int n) {
+  char* res = ezpp_alloc(ez, n + 1);
+  if (res) {
+    memcpy(res, s, n);
+    res[n] = 0;
+  }
+  return res;
+}
+
+void ezpp_free_arena(ezpp_t ez) {
+  int i;
+  for (i = 0; i < ez->blocks.len; ++i) {
+    free(ez->blocks.data[i]);
+  }
+  array_free(&ez->blocks);
+  ez->block = 0;
+  ez->end_of_block = 0;
+}
 
 /* mods ---------------------------------------------------------------- */
 
@@ -773,7 +771,7 @@ int p_property(ezpp_t ez, slice_t* s, slice_t* name, slice_t* value) {
 }
 
 char* p_slicedup(ezpp_t ez, slice_t* s) {
-  return arena_strndup(&ez->arena, s->start, slice_len(s));
+  return ezpp_strndup(ez, s->start, slice_len(s));
 }
 
 int p_metadata(ezpp_t ez, slice_t* line) {
@@ -939,7 +937,7 @@ int p_objects(ezpp_t ez, slice_t* line) {
   }
 
   if (ez->mode == MODE_TAIKO) {
-    int* sound_type = arena_alloc(&ez->arena, sizeof(int));
+    int* sound_type = ezpp_alloc(ez, sizeof(int));
     if (!sound_type) {
       return ERR_OOM;
     }
@@ -999,7 +997,7 @@ int p_objects(ezpp_t ez, slice_t* line) {
 
       /* repeats + head and tail. no repeats is 1 repetition, so -1 */
       nodes = al_max(0, o->repetitions - 1) + 2;
-      o->sound_types = arena_alloc(&ez->arena, sizeof(int) * nodes);
+      o->sound_types = ezpp_alloc(ez, sizeof(int) * nodes);
       if (!o->sound_types) {
         return ERR_OOM;
       }
@@ -2285,10 +2283,10 @@ ezpp_t ezpp_new() {
 
 OPPAIAPI
 void ezpp_free(ezpp_t ez) {
-  arena_free(&ez->arena);
   array_free(&ez->objects);
   array_free(&ez->timing_points);
   array_free(&ez->highest_strains);
+  ezpp_free_arena(ez);
   free(ez);
 }
 
