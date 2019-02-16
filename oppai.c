@@ -108,7 +108,7 @@ OPPAIAPI void ezpp_set_combo(ezpp_t ez, int combo);
 OPPAIAPI void ezpp_set_nmiss(ezpp_t ez, int nmiss);
 OPPAIAPI void ezpp_set_score_version(ezpp_t ez, int score_version);
 OPPAIAPI void ezpp_set_accuracy_percent(ezpp_t ez, float accuracy_percent);
-OPPAIAPI void ezpp_set_accuracy(ezpp_t ez, int n300, int n100, int n50);
+OPPAIAPI void ezpp_set_accuracy(ezpp_t ez, int n100, int n50);
 OPPAIAPI void ezpp_set_end(ezpp_t ez, int end);
 
 /* errors -------------------------------------------------------------- */
@@ -2729,8 +2729,7 @@ setter(int, end)
 #undef setter
 
 OPPAIAPI
-void ezpp_set_accuracy(ezpp_t ez, int n300, int n100, int n50) {
-  ez->n300 = n300;
+void ezpp_set_accuracy(ezpp_t ez, int n100, int n50) {
   ez->n100 = n100;
   ez->n50 = n50;
 }

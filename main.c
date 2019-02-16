@@ -949,6 +949,7 @@ int main(int argc, char* argv[]) {
     goto output;
   }
 
+  ezpp_set_accuracy(ez, n100, n50);
   ezpp_set_mods(ez, mods);
   result = ezpp(ez, argv[1]);
 
