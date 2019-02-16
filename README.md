@@ -356,5 +356,4 @@ when you build the oppai cli, you can pass any of these parameters
 to the build script to disable features:
 
 * ```-DOPPAI_UTF8GRAPH``` use utf-8 characters for the strains graph
-* ```-DOPPAI_DEBUG``` enable debug output and debug output module
 
