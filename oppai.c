@@ -508,128 +508,7 @@ void arena_free(arena_t* arena) {
   arena->end_of_block = 0;
 }
 
-/* mods ---------------------------------------------------------------- */
-
-float od10_ms[] = { 20, 20 }; /* std, taiko */
-float od0_ms[] = { 80, 50 };
-#define AR0_MS 1800.0f
-#define AR5_MS 1200.0f
-#define AR10_MS 450.0f
-
-float od_ms_step[] = { 6.0f, 3.0f };
-#define AR_MS_STEP1 120.f /* ar0-5 */
-#define AR_MS_STEP2 150.f /* ar5-10 */
-
-/* beatmap stats after applying mods to them */
-typedef struct beatmap_stats {
-  float ar, od, cs, hp;
-  float speed; /* multiplier */
-  float odms;
-} beatmap_stats_t;
-
-/* flags bits for mods_apply */
-#define APPLY_AR (1<<0)
-#define APPLY_OD (1<<1)
-#define APPLY_CS (1<<2)
-#define APPLY_HP (1<<3)
-#define APPLY_ALL (~0)
-
-int mods_apply(int mode, int mods, beatmap_stats_t* s, int flags) {
-  float od_ar_hp_multiplier;
-
-  switch (mode) {
-  case MODE_STD:
-  case MODE_TAIKO:
-    break;
-  default:
-    info("this gamemode is not yet supported for mods calc\n");
-    return ERR_NOTIMPLEMENTED;
-  }
-
-  s->speed = 1;
-
-  if (!(mods & MODS_MAP_CHANGING)) {
-    int m = mode;
-    if (flags & APPLY_OD) {
-      s->odms = od0_ms[m] - (float)ceil(od_ms_step[m] * s->od);
-    }
-    return 0;
-  }
-
-  /* speed */
-  if (mods & (MODS_DT | MODS_NC)) {
-    s->speed *= 1.5f;
-  }
-  if (mods & MODS_HT) {
-    s->speed *= 0.75f;
-  }
-  if (!flags) {
-    return 0;
-  }
-
-  /* global multipliers */
-  od_ar_hp_multiplier = 1;
-  if (mods & MODS_HR) {
-    od_ar_hp_multiplier *= 1.4f;
-  }
-  if (mods & MODS_EZ) {
-    od_ar_hp_multiplier *= 0.5f;
-  }
-
-  /*
-   * stats must be capped to 0-10 before HT/DT which brings them to a range
-   * of -4.42f to 11.08f for OD and -5 to 11 for AR
-   */
-
-  /* od */
-  if (flags & APPLY_OD) {
-    int m = mode;
-    s->od *= od_ar_hp_multiplier;
-    s->odms = od0_ms[m] - (float)ceil(od_ms_step[m] * s->od);
-    s->odms = al_min(od0_ms[m], al_max(od10_ms[m], s->odms));
-    s->odms /= s->speed; /* apply speed-changing mods */
-    s->od = (od0_ms[m] - s->odms) / od_ms_step[m]; /* back to stat */
-  }
-
-  /* ar */
-  if (flags & APPLY_AR) {
-    float arms;
-    s->ar *= od_ar_hp_multiplier;
-
-    /* convert AR into its milliseconds value */
-    arms = s->ar <= 5
-      ? (AR0_MS - AR_MS_STEP1 * (s->ar - 0))
-      : (AR5_MS - AR_MS_STEP2 * (s->ar - 5));
-
-    arms = al_min(AR0_MS, al_max(AR10_MS, arms));
-    arms /= s->speed;
-    s->ar = arms > AR5_MS
-      ? (0 + (AR0_MS - arms) / AR_MS_STEP1)
-      : (5 + (AR5_MS - arms) / AR_MS_STEP2);
-  }
-
-  /* cs */
-  if (flags & APPLY_CS) {
-    float cs_multiplier = 1;
-    if (mods & MODS_HR) {
-      cs_multiplier = 1.3f;
-    }
-    if (mods & MODS_EZ) {
-      cs_multiplier = 0.5f;
-    }
-    s->cs *= cs_multiplier;
-    s->cs = al_max(0.0f, al_min(10.0f, s->cs));
-  }
-
-  /* hp */
-  if (flags & APPLY_HP) {
-    s->hp = al_min(s->hp * od_ar_hp_multiplier, 10);
-  }
-
-  return 0;
-}
-
-/* beatmap ------------------------------------------------------------- */
+/* --------------------------------------------------------------------- */
 
 #define OBJ_CIRCLE (1<<0)
 #define OBJ_SLIDER (1<<1)
@@ -715,7 +594,7 @@ struct ezpp {
   char* creator;
   char* version;
   int ncircles, nsliders, nspinners, nobjects;
-  float ar, od, cs, hp, odms, sv, tick_rate;
+  float ar, od, cs, hp, odms, sv, tick_rate, speed_mul;
   float stars, aim_stars, speed_stars;
   float pp, aim_pp, speed_pp, acc_pp;
 
@@ -729,6 +608,81 @@ struct ezpp {
   /* TEMPORARY TEMPORARY TEMPORARY */
   diff_calc_t stars_;
 };
+
+/* mods ---------------------------------------------------------------- */
+
+float od10_ms[] = { 20, 20 }; /* std, taiko */
+float od0_ms[] = { 80, 50 };
+#define AR0_MS 1800.0f
+#define AR5_MS 1200.0f
+#define AR10_MS 450.0f
+
+float od_ms_step[] = { 6.0f, 3.0f };
+#define AR_MS_STEP1 120.f /* ar0-5 */
+#define AR_MS_STEP2 150.f /* ar5-10 */
+
+/*
+ * stats must be capped to 0-10 before HT/DT which brings them to a range
+ * of -4.42f to 11.08f for OD and -5 to 11 for AR
+ */
+
+int mods_apply(ezpp_t ez) {
+  float od_ar_hp_multiplier, cs_multiplier, arms;
+
+  switch (ez->mode) {
+  case MODE_STD:
+  case MODE_TAIKO:
+    break;
+  default:
+    info("this gamemode is not yet supported for mods calc\n");
+    return ERR_NOTIMPLEMENTED;
+  }
+
+  ez->speed_mul = 1;
+
+  if (!(ez->mods & MODS_MAP_CHANGING)) {
+    ez->odms = od0_ms[ez->mode] - (float)ceil(od_ms_step[ez->mode] * ez->od);
+    return 0;
+  }
+
+  if (ez->mods & (MODS_DT | MODS_NC)) {
+    ez->speed_mul *= 1.5f;
+  }
+  if (ez->mods & MODS_HT) {
+    ez->speed_mul *= 0.75f;
+  }
+
+  /* global multipliers */
+  od_ar_hp_multiplier = 1;
+  if (ez->mods & MODS_HR) od_ar_hp_multiplier *= 1.4f;
+  if (ez->mods & MODS_EZ) od_ar_hp_multiplier *= 0.5f;
+
+  ez->od *= od_ar_hp_multiplier;
+  ez->odms = od0_ms[ez->mode] - (float)ceil(od_ms_step[ez->mode] * ez->od);
+  ez->odms = al_min(od0_ms[ez->mode], al_max(od10_ms[ez->mode], ez->odms));
+  ez->odms /= ez->speed_mul;
+  ez->od = (od0_ms[ez->mode] - ez->odms) / od_ms_step[ez->mode];
+
+  ez->ar *= od_ar_hp_multiplier;
+  arms = ez->ar <= 5
+    ? (AR0_MS - AR_MS_STEP1 * (ez->ar - 0))
+    : (AR5_MS - AR_MS_STEP2 * (ez->ar - 5));
+  arms = al_min(AR0_MS, al_max(AR10_MS, arms));
+  arms /= ez->speed_mul;
+  ez->ar = arms > AR5_MS
+    ? (0 + (AR0_MS - arms) / AR_MS_STEP1)
+    : (5 + (AR5_MS - arms) / AR_MS_STEP2);
+
+  cs_multiplier = 1;
+  if (ez->mods & MODS_HR) cs_multiplier = 1.3f;
+  if (ez->mods & MODS_EZ) cs_multiplier = 0.5f;
+  ez->cs *= cs_multiplier;
+  ez->cs = al_max(0.0f, al_min(10.0f, ez->cs));
+
+  ez->hp = al_min(ez->hp * od_ar_hp_multiplier, 10);
+
+  return 0;
+}
 
 /* beatmap parser ------------------------------------------------------ */
 
@@ -1686,16 +1640,12 @@ int d_std(diff_calc_t* d, int mods) {
   int res;
   float radius;
   float scaling_factor;
-  beatmap_stats_t mapstats;
 
-  /* apply mods and calculate circle radius at this CS */
-  mapstats.cs = ez->cs;
-  mods_apply(MODE_STD, mods, &mapstats, APPLY_CS);
-  d->speed_mul = mapstats.speed;
+  d->speed_mul = ez->speed_mul;
 
   radius = (
     (PLAYFIELD_WIDTH / 16.0f) *
-    (1.0f - 0.7f * ((float)mapstats.cs - 5.0f) / 5.0f)
+    (1.0f - 0.7f * ((float)ez->cs - 5.0f) / 5.0f)
   );
 
   /*
@@ -1770,7 +1720,7 @@ int d_std(diff_calc_t* d, int mods) {
     if (o->type & (OBJ_CIRCLE | OBJ_SLIDER)) {
       object_t* prev = &ez->objects.data[i - 1];
       float interval = o->time - prev->time;
-      interval /= mapstats.speed;
+      interval /= ez->speed_mul;
       if (interval >= d->singletap_threshold) {
         ++d->nsingles_threshold;
       }
@@ -1888,7 +1838,6 @@ int d_taiko(diff_calc_t* d, int mods) {
   float infinity = get_inf();
   ezpp_t ez = d->ez;
   int i;
-  beatmap_stats_t mapstats;
 
   /* this way we can swap cur and prev without copying */
   taiko_object_t curprev[2];
@@ -1902,12 +1851,10 @@ int d_taiko(diff_calc_t* d, int mods) {
     return ERR_FORMAT;
   }
 
-  mods_apply(MODE_TAIKO, mods, &mapstats, 0);
-
   d->highest_strains.len = 0;
   d->max_strain = 0.0f;
-  d->interval_end = STRAIN_STEP * mapstats.speed;
-  d->speed_mul = mapstats.speed;
+  d->interval_end = STRAIN_STEP * ez->speed_mul;
+  d->speed_mul = ez->speed_mul;
 
   /*
    * TODO: separate taiko conversion into its own function
@@ -1921,7 +1868,7 @@ int d_taiko(diff_calc_t* d, int mods) {
     cur->time = o->time;
 
     if (i > 0) {
-      cur->time_elapsed = (cur->time - prev->time) / mapstats.speed;
+      cur->time_elapsed = (cur->time - prev->time) / ez->speed_mul;
     } else {
       cur->time_elapsed = infinity;
     }
@@ -1958,7 +1905,7 @@ int d_taiko(diff_calc_t* d, int mods) {
         cur->hit = 1;
         cur->time = j;
 
-        cur->time_elapsed = (cur->time - prev->time) / mapstats.speed;
+        cur->time_elapsed = (cur->time - prev->time) / ez->speed_mul;
         cur->strain = 1;
         cur->same_since = 1;
         cur->last_switch_even = -1;
@@ -2111,7 +2058,6 @@ float base_pp(float stars) {
 
 int ezpp_std_ppcalc(ezpp_t ez) {
   int ncircles = ez->ncircles;
-  beatmap_stats_t mapstats;
   float nobjects_over_2k = ez->nobjects / 2000.0f;
   float length_bonus = (
     0.95f +
@@ -2161,22 +2107,17 @@ int ezpp_std_ppcalc(ezpp_t ez) {
       return ERR_NOTIMPLEMENTED;
   }
 
-  /* calculate stats with mods */
-  mapstats.ar = ez->base_ar;
-  mapstats.od = ez->base_od;
-  mods_apply(MODE_STD, ez->mods, &mapstats, APPLY_AR | APPLY_OD);
-
   /* ar bonus -------------------------------------------------------- */
   ar_bonus = 1.0f;
 
   /* high ar bonus */
-  if (mapstats.ar > 10.33f) {
-    ar_bonus += 0.3f * (mapstats.ar - 10.33f);
+  if (ez->ar > 10.33f) {
+    ar_bonus += 0.3f * (ez->ar - 10.33f);
   }
 
   /* low ar bonus */
-  else if (mapstats.ar < 8.0f) {
-    ar_bonus += 0.01f * (8.0f - mapstats.ar);
+  else if (ez->ar < 8.0f) {
+    ar_bonus += 0.01f * (8.0f - ez->ar);
   }
 
   /* aim pp ---------------------------------------------------------- */
@@ -2189,7 +2130,7 @@ int ezpp_std_ppcalc(ezpp_t ez) {
   /* hidden */
   hd_bonus = 1.0f;
   if (ez->mods & MODS_HD) {
-    hd_bonus += 0.04f * (12.0f - mapstats.ar);
+    hd_bonus += 0.04f * (12.0f - ez->ar);
   }
 
   ez->aim_pp *= hd_bonus;
@@ -2210,7 +2151,7 @@ int ezpp_std_ppcalc(ezpp_t ez) {
   acc_bonus = 0.5f + accuracy / 2.0f;
 
   /* od bonus (high od requires better aim timing to acc) */
-  od_squared = (float)pow(mapstats.od, 2);
+  od_squared = (float)pow(ez->od, 2);
   od_bonus = 0.98f + od_squared / 2500.0f;
 
   ez->aim_pp *= acc_bonus;
@@ -2221,7 +2162,7 @@ int ezpp_std_ppcalc(ezpp_t ez) {
   ez->speed_pp *= length_bonus;
   ez->speed_pp *= miss_penality;
   ez->speed_pp *= combo_break;
-  if (mapstats.ar > 10.33f) {
+  if (ez->ar > 10.33f) {
     ez->speed_pp *= ar_bonus;
   }
   ez->speed_pp *= hd_bonus;
@@ -2234,7 +2175,7 @@ int ezpp_std_ppcalc(ezpp_t ez) {
 
   /* acc pp ---------------------------------------------------------- */
   /* arbitrary values tom crafted out of trial and error */
-  ez->acc_pp = (float)pow(1.52163f, mapstats.od) *
+  ez->acc_pp = (float)pow(1.52163f, ez->od) *
     (float)pow(real_acc, 24.0f) * 2.83f;
 
   /* length bonus (not the same as speed/aim length bonus) */
@@ -2265,25 +2206,15 @@ int ezpp_std_ppcalc(ezpp_t ez) {
 /* taiko pp calc ------------------------------------------------------- */
 
 int ezpp_taiko_ppcalc(ezpp_t ez) {
-  beatmap_stats_t mapstats;
-  int result;
   float length_bonus;
   float final_multiplier;
   float accuracy;
 
   ez->n300 = al_max(0, ez->max_combo - ez->n100 - ez->nmiss);
-
-  /* calculate stats with mods */
-  mapstats.od = ez->base_od;
-  result = mods_apply(MODE_TAIKO, ez->mods, &mapstats, APPLY_OD);
-  if (result < 0) {
-    return result;
-  }
-
   accuracy = taiko_acc_calc(ez->n300, ez->n100, ez->nmiss);
 
   /* base acc pp */
-  ez->acc_pp = (float)pow(150.0f / mapstats.odms, 1.1f);
+  ez->acc_pp = (float)pow(150.0f / ez->odms, 1.1f);
   ez->acc_pp *= (float)pow(accuracy, 15.0f) * 22.0f;
 
   /* length bonus */
@@ -2379,6 +2310,7 @@ int ezpp_from_map(ezpp_t ez, char* mapfile) {
   if (ez->base_ar) ez->ar = ez->base_ar;
   if (ez->base_od) ez->od = ez->base_od;
   if (ez->base_cs) ez->cs = ez->base_cs;
+  mods_apply(ez);
 
   if (ez->max_combo < 0) {
     res = ez->max_combo;
@@ -2431,13 +2363,14 @@ void ezpp_free(ezpp_t ez) {
 OPPAIAPI
 int ezpp(ezpp_t ez, char* mapfile) {
   int res;
-  beatmap_stats_t stats;
 
   if (mapfile) {
     res = ezpp_from_map(ez, mapfile);
     if (res < 0) {
       return res;
     }
+  } else {
+    mods_apply(ez);
   }
 
   if (ez->mode == MODE_TAIKO) {
@@ -2476,25 +2409,6 @@ int ezpp(ezpp_t ez, char* mapfile) {
   if (res < 0) {
     return res;
   }
-
-  stats.ar = ez->base_ar;
-  stats.cs = ez->base_cs;
-  stats.od = ez->base_od;
-  stats.hp = ez->base_hp;
-  mods_apply(ez->mode, ez->mods, &stats, APPLY_ALL);
-  ez->ar = stats.ar;
-  ez->od = stats.od;
-  ez->cs = stats.cs;
-  ez->hp = stats.hp;
-
-#define s(x) if (!ez->x) ez->x = "(null)"
-  s(artist);
-  s(artist_unicode);
-  s(title);
-  s(title_unicode);
-  s(creator);
-  s(version);
-#undef s
 
   return 0;
 }
