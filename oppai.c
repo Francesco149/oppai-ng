@@ -558,24 +558,6 @@ typedef struct object {
   int slider_is_drum_roll;
 } object_t;
 
-typedef struct diff_calc {
-  float speed_mul;
-  float interval_end;
-  float max_strain;
-  array_t(float) highest_strains;
-  ezpp_t ez;
-  float singletap_threshold;
-  float total;
-  float aim;
-  float aim_difficulty;
-  float aim_length_bonus; /* unused for now */
-  float speed;
-  float speed_difficulty;
-  float speed_length_bonus; /* unused for now */
-  int nsingles;
-  int nsingles_threshold;
-} diff_calc_t;
-
 struct ezpp {
   int data_size;
   int format_version;
@@ -595,9 +577,12 @@ struct ezpp {
   char* version;
   int ncircles, nsliders, nspinners, nobjects;
   float ar, od, cs, hp, odms, sv, tick_rate, speed_mul;
-  float stars, aim_stars, speed_stars;
+  float stars;
+  float aim_stars, aim_difficulty, aim_length_bonus;
+  float speed_stars, speed_difficulty, speed_length_bonus;
   float pp, aim_pp, speed_pp, acc_pp;
 
+  /* parser */
   char section[64];
   char buf[0xFFFF];
   int parse_flags;
@@ -605,8 +590,10 @@ struct ezpp {
   array_t(object_t) objects;
   array_t(timing_t) timing_points;
 
-  /* TEMPORARY TEMPORARY TEMPORARY */
-  diff_calc_t stars_;
+  /* diffcalc */
+  float interval_end;
+  float max_strain;
+  array_t(float) highest_strains;
 };
 
 /* mods ---------------------------------------------------------------- */
@@ -1407,19 +1394,6 @@ float playfield_center[] = {
   PLAYFIELD_WIDTH / 2.0f, PLAYFIELD_HEIGHT / 2.0f
 };
 
-int d_init(diff_calc_t* d) {
-  memset(d, 0, sizeof(diff_calc_t));
-  if (!array_reserve(&d->highest_strains, sizeof(float) * 600)) {
-    return ERR_OOM;
-  }
-  d->singletap_threshold = 125; /* 240 bpm 1/2 */
-  return 0;
-}
-
-void d_free(diff_calc_t* d) {
-  array_free(&d->highest_strains);
-}
-
 /*
  * TODO: unbloat these params
  * this function has become a mess with the latest changes, I should split
@@ -1513,40 +1487,36 @@ void d_calc_strain(int type, object_t* o, object_t* prev, float speedmul) {
 int dbl_desc(void const* a, void const* b) {
   float x = *(float const*)a;
   float y = *(float const*)b;
-  if (x < y) {
-    return 1;
-  }
-  if (x == y) {
-    return 0;
-  }
+  if (x < y) return 1;
+  if (x == y) return 0;
   return -1;
 }
 
-int d_update_max_strains(diff_calc_t* d, float decay_factor,
+int d_update_max_strains(ezpp_t ez, float decay_factor,
   float cur_time, float prev_time, float cur_strain, float prev_strain,
   int first_obj)
 {
   /* make previous peak strain decay until the current obj */
-  while (cur_time > d->interval_end) {
-    if (!array_append(&d->highest_strains, d->max_strain)) {
+  while (cur_time > ez->interval_end) {
+    if (!array_append(&ez->highest_strains, ez->max_strain)) {
       return ERR_OOM;
     }
     if (first_obj) {
-      d->max_strain = 0;
+      ez->max_strain = 0;
     } else {
       float decay;
       decay = (float)pow(decay_factor,
-        (d->interval_end - prev_time) / 1000.0f);
-      d->max_strain = prev_strain * decay;
+        (ez->interval_end - prev_time) / 1000.0f);
+      ez->max_strain = prev_strain * decay;
     }
-    d->interval_end += STRAIN_STEP * d->speed_mul;
+    ez->interval_end += STRAIN_STEP * ez->speed_mul;
   }
 
-  d->max_strain = al_max(d->max_strain, cur_strain);
+  ez->max_strain = al_max(ez->max_strain, cur_strain);
   return 0;
 }
 
-void d_weigh_strains2(diff_calc_t* d, float* pdiff, float* ptotal) {
+void d_weigh_strains(ezpp_t ez, float* pdiff, float* ptotal) {
   int i;
   int nstrains = 0;
   float* strains;
@@ -1554,8 +1524,8 @@ void d_weigh_strains2(diff_calc_t* d, float* pdiff, float* ptotal) {
   float difficulty = 0;
   float weight = 1.0f;
 
-  strains = (float*)d->highest_strains.data;
-  nstrains = d->highest_strains.len;
+  strains = (float*)ez->highest_strains.data;
+  nstrains = ez->highest_strains.len;
 
   /* sort strains from highest to lowest */
   qsort(strains, nstrains, sizeof(float), dbl_desc);
@@ -1572,26 +1542,19 @@ void d_weigh_strains2(diff_calc_t* d, float* pdiff, float* ptotal) {
   }
 }
 
-float d_weigh_strains(diff_calc_t* d) {
-  float diff;
-  d_weigh_strains2(d, &diff, 0);
-  return diff;
-}
-
-int d_calc_individual(int type, diff_calc_t* d) {
+int d_calc_individual(ezpp_t ez, int type) {
   int i;
-  ezpp_t ez = d->ez;
 
-  /* 
+  /*
    * the first object doesn't generate a strain,
    * so we begin with an incremented interval end
    */
-  d->max_strain = 0.0f;
-  d->interval_end = (
-    ceil(ez->objects.data[0].time / (STRAIN_STEP * d->speed_mul))
-    * STRAIN_STEP * d->speed_mul
+  ez->max_strain = 0.0f;
+  ez->interval_end = (
+    ceil(ez->objects.data[0].time / (STRAIN_STEP * ez->speed_mul))
+    * STRAIN_STEP * ez->speed_mul
   );
-  d->highest_strains.len = 0;
+  ez->highest_strains.len = 0;
 
   for (i = 0; i < ez->objects.len; ++i) {
     int err;
@@ -1600,31 +1563,31 @@ int d_calc_individual(int type, diff_calc_t* d) {
     float prev_time = 0, prev_strain = 0;
     if (i > 0) {
       prev = &ez->objects.data[i - 1];
-      d_calc_strain(type, o, prev, d->speed_mul);
+      d_calc_strain(type, o, prev, ez->speed_mul);
       prev_time = prev->time;
       prev_strain = prev->strains[type];
     }
-    err = d_update_max_strains(d, decay_base[type], o->time, prev_time,
+    err = d_update_max_strains(ez, decay_base[type], o->time, prev_time,
       o->strains[type], prev_strain, i == 0);
     if (err < 0) {
       return err;
     }
   }
 
-  /* 
+  /*
    * the peak strain will not be saved for
    * the last section in the above loop
    */
-  if (!array_append(&d->highest_strains, d->max_strain)) {
+  if (!array_append(&ez->highest_strains, ez->max_strain)) {
     return ERR_OOM;
   }
 
   switch (type) {
     case DIFF_SPEED:
-      d_weigh_strains2(d, &d->speed, &d->speed_difficulty);
+      d_weigh_strains(ez, &ez->speed_stars, &ez->speed_difficulty);
       break;
     case DIFF_AIM:
-      d_weigh_strains2(d, &d->aim, &d->aim_difficulty);
+      d_weigh_strains(ez, &ez->aim_stars, &ez->aim_difficulty);
       break;
   }
   return 0;
@@ -1634,14 +1597,9 @@ float d_length_bonus(float stars, float difficulty) {
   return 0.32f + 0.5f * (log10f(difficulty + stars) - log10f(stars));
 }
 
-int d_std(diff_calc_t* d, int mods) {
-  ezpp_t ez = d->ez;
-  int i;
-  int res;
-  float radius;
-  float scaling_factor;
-
-  d->speed_mul = ez->speed_mul;
+int d_std(ezpp_t ez) {
+  int i, res;
+  float radius, scaling_factor;
 
   radius = (
     (PLAYFIELD_WIDTH / 16.0f) *
@@ -1688,42 +1646,36 @@ int d_std(diff_calc_t* d, int mods) {
   }
 
   /* calculate speed and aim stars */
-  res = d_calc_individual(DIFF_SPEED, d);
+  res = d_calc_individual(ez, DIFF_SPEED);
   if (res < 0) {
     return res;
   }
 
-  res = d_calc_individual(DIFF_AIM, d);
+  res = d_calc_individual(ez, DIFF_AIM);
   if (res < 0) {
     return res;
   }
 
-  d->aim_length_bonus = d_length_bonus(d->aim, d->aim_difficulty);
-  d->speed_length_bonus = d_length_bonus(d->speed, d->speed_difficulty);
-  d->aim = (float)sqrt(d->aim) * STAR_SCALING_FACTOR;
-  d->speed = (float)sqrt(d->speed) * STAR_SCALING_FACTOR;
+  ez->aim_length_bonus = d_length_bonus(ez->aim_stars, ez->aim_difficulty);
+  ez->speed_length_bonus = d_length_bonus(ez->speed_stars, ez->speed_difficulty);
+  ez->aim_stars = (float)sqrt(ez->aim_stars) * STAR_SCALING_FACTOR;
+  ez->speed_stars = (float)sqrt(ez->speed_stars) * STAR_SCALING_FACTOR;
 
-  if (mods & MODS_TOUCH_DEVICE) {
-    d->aim = (float)pow(d->aim, 0.8f);
+  if (ez->mods & MODS_TOUCH_DEVICE) {
+    ez->aim_stars = (float)pow(ez->aim_stars, 0.8f);
   }
 
   /* calculate total star rating */
-  d->total = d->aim + d->speed +
-    (float)fabs(d->speed - d->aim) * EXTREME_SCALING_FACTOR;
+  ez->stars = ez->aim_stars + ez->speed_stars +
+    (float)fabs(ez->speed_stars - ez->aim_stars) * EXTREME_SCALING_FACTOR;
 
   /* singletap stats */
   for (i = 1; i < ez->objects.len; ++i) {
     object_t* o = &ez->objects.data[i];
-    if (o->is_single) {
-      ++d->nsingles;
-    }
     if (o->type & (OBJ_CIRCLE | OBJ_SLIDER)) {
       object_t* prev = &ez->objects.data[i - 1];
       float interval = o->time - prev->time;
       interval /= ez->speed_mul;
-      if (interval >= d->singletap_threshold) {
-        ++d->nsingles_threshold;
-      }
     }
   }
 
@@ -1834,27 +1786,18 @@ void swap_ptrs(void** a, void** b) {
   *b = tmp;
 }
 
-int d_taiko(diff_calc_t* d, int mods) {
+int d_taiko(ezpp_t ez) {
+  int i, result;
   float infinity = get_inf();
-  ezpp_t ez = d->ez;
-  int i;
 
   /* this way we can swap cur and prev without copying */
   taiko_object_t curprev[2];
   taiko_object_t* cur = &curprev[0];
   taiko_object_t* prev = &curprev[1];
 
-  int result;
-
-  if (!ez->timing_points.data) {
-    info("beatmap has no timing points\n");
-    return ERR_FORMAT;
-  }
-
-  d->highest_strains.len = 0;
-  d->max_strain = 0.0f;
-  d->interval_end = STRAIN_STEP * ez->speed_mul;
-  d->speed_mul = ez->speed_mul;
+  ez->highest_strains.len = 0;
+  ez->max_strain = 0.0f;
+  ez->interval_end = STRAIN_STEP * ez->speed_mul;
 
   /*
    * TODO: separate taiko conversion into its own function
@@ -1915,7 +1858,7 @@ int d_taiko(diff_calc_t* d, int mods) {
           taiko_strain(cur, prev);
         }
 
-        result = d_update_max_strains(d, decay_base[0], cur->time,
+        result = d_update_max_strains(ez, decay_base[0], cur->time,
           prev->time, cur->strain, prev->strain, i == 0 && j == o->time);
         /* warning: j check might fail, floatcheck this */
 
@@ -1944,7 +1887,7 @@ continue_loop:
       taiko_strain(cur, prev);
     }
 
-    result = d_update_max_strains(d, decay_base[0], cur->time, prev->time,
+    result = d_update_max_strains(ez, decay_base[0], cur->time, prev->time,
       cur->strain, prev->strain, i == 0);
 
     if (result < 0) {
@@ -1954,19 +1897,17 @@ continue_loop:
     swap_ptrs((void**)&prev, (void**)&cur);
   }
 
-  d->total =
-  d->speed = d_weigh_strains(d) * TAIKO_STAR_SCALING_FACTOR;
+  d_weigh_strains(ez, &ez->speed_pp, 0);
+  ez->speed_pp *= TAIKO_STAR_SCALING_FACTOR;
+  ez->stars = ez->speed_pp;
 
   return 0;
 }
 
-int d_calc(diff_calc_t* d, ezpp_t ez, int mods) {
-  d->ez = ez;
+int d_calc(ezpp_t ez) {
   switch (ez->mode) {
-  case MODE_STD:
-    return d_std(d, mods);
-  case MODE_TAIKO:
-    return d_taiko(d, mods);
+    case MODE_STD: return d_std(ez);
+    case MODE_TAIKO: return d_taiko(ez);
   }
   info("this gamemode is not yet supported\n");
   return ERR_NOTIMPLEMENTED;
@@ -2312,27 +2253,14 @@ int ezpp_from_map(ezpp_t ez, char* mapfile) {
   if (ez->base_cs) ez->cs = ez->base_cs;
   mods_apply(ez);
 
-  if (ez->max_combo < 0) {
-    res = ez->max_combo;
-    goto cleanup;
-  }
-
   if (!ez->aim_stars && !ez->speed_stars) {
-    res = d_init(&ez->stars_);
+    res = d_calc(ez);
     if (res < 0) {
       goto cleanup;
     }
-    res = d_calc(&ez->stars_, ez, ez->mods);
-    if (res < 0) {
-      goto cleanup;
-    }
-    ez->stars = ez->stars_.total;
-    ez->aim_stars = ez->stars_.aim;
-    ez->speed_stars = ez->stars_.speed;
   }
 
 cleanup:
-  d_free(&ez->stars_);
   return res;
 }
 
@@ -2348,6 +2276,9 @@ ezpp_t ezpp_new() {
     ez->n300 = -1;
     ez->n100 = ez->n50 = ez->nmiss = 0;
     ez->score_version = 1;
+    array_reserve(&ez->objects, 600);
+    array_reserve(&ez->timing_points, 16);
+    array_reserve(&ez->highest_strains, 600);
   }
   return ez;
 }
@@ -2357,6 +2288,7 @@ void ezpp_free(ezpp_t ez) {
   arena_free(&ez->arena);
   array_free(&ez->objects);
   array_free(&ez->timing_points);
+  array_free(&ez->highest_strains);
   free(ez);
 }
 
