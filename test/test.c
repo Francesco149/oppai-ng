@@ -53,7 +53,7 @@ int main(int argc, char* argv[]) {
     sprintf(fname, "%u.osu", s->id);
     ez = ezpp_new();
     ezpp_set_mods(ez, s->mods);
-    ezpp_set_accuracy(ez, s->n300, s->n100, s->n50);
+    ezpp_set_accuracy(ez, s->n100, s->n50);
     ezpp_set_nmiss(ez, s->nmiss);
     ezpp_set_combo(ez, s->max_combo);
     err = ezpp(ez, fname_buf);
