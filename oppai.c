@@ -97,10 +97,10 @@ OPPAIAPI float ezpp_strain_at(ezpp_t ez, int i, int difficulty_type);
 
 OPPAIAPI void ezpp_set_aim_stars(ezpp_t ez, float aim_stars);
 OPPAIAPI void ezpp_set_speed_stars(ezpp_t ez, float speed_stars);
-OPPAIAPI void ezpp_set_base_ar(ezpp_t ez, float ar_override);
-OPPAIAPI void ezpp_set_base_od(ezpp_t ez, float od_override);
-OPPAIAPI void ezpp_set_base_cs(ezpp_t ez, float cs_override);
-OPPAIAPI void ezpp_set_base_hp(ezpp_t ez, float hp_override);
+OPPAIAPI void ezpp_set_base_ar(ezpp_t ez, float ar);
+OPPAIAPI void ezpp_set_base_od(ezpp_t ez, float od);
+OPPAIAPI void ezpp_set_base_cs(ezpp_t ez, float cs);
+OPPAIAPI void ezpp_set_base_hp(ezpp_t ez, float hp);
 OPPAIAPI void ezpp_set_mode_override(ezpp_t ez, int mode_override);
 OPPAIAPI void ezpp_set_mode(ezpp_t ez, int mode);
 OPPAIAPI void ezpp_set_mods(ezpp_t ez, int mods);
