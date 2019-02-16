@@ -7,11 +7,48 @@
  * command line interface for oppai
  */
 
-#define OPPAI_IMPLEMENTATION
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdarg.h>
+#include <string.h>
+#include <math.h>
+#include <ctype.h>
+#undef OPPAI_IMPLEMENTATION
 #include "oppai.c"
 
-#define ARRAY_LEN(x) (sizeof(x) / sizeof((x)[0]))
 char* me = "oppai";
+
+#define al_round(x) (float)floor((x) + 0.5f)
+#define al_min(a, b) ((a) < (b) ? (a) : (b))
+#define al_max(a, b) ((a) > (b) ? (a) : (b))
+#define twodec(x) (al_round((x) * 100.0f) / 100.0f)
+#define array_len(x) (sizeof(x) / sizeof((x)[0]))
+
+static
+float get_inf() {
+  static unsigned raw = 0x7F800000;
+  float* p = (float*)&raw;
+  return *p;
+}
+
+static
+int is_nan(float b) {
+  int* p = (int*)&b;
+  return (
+    (*p > 0x7F800000 && *p < 0x80000000) ||
+    (*p > 0x7FBFFFFF && *p <= 0xFFFFFFFF)
+  );
+}
+
+static
+int info(char* fmt, ...) {
+  int res;
+  va_list va;
+  va_start(va, fmt);
+  res = vfprintf(stderr, fmt, va);
+  va_end(va);
+  return res;
+}
 
 void usage() {
   /* logo by flesnuk https://github.com/Francesco149/oppai-ng/issues/10 */
@@ -153,19 +190,14 @@ void usage() {
   );
 }
 
-#define output_sig(name) \
-void name(int result, beatmap_t* map, beatmap_stats_t* mapstats, \
-  char* mods_str, diff_calc_t* stars, pp_params_t* params, pp_calc_t* pp)
+#define output_sig(name) void name(int result, ezpp_t ez, char* mods_str)
 
 typedef output_sig(fnoutput);
 
 /* null output --------------------------------------------------------- */
 
 /* stdout must be left alone, outputting to stderr is fine tho */
-output_sig(output_null) {
-  (void)result; (void)map; (void)mapstats; (void)mods_str;
-  (void)stars; (void)params; (void)pp;
-}
+output_sig(output_null) { (void)result; (void)ez; (void)mods_str; }
 
 /* text output --------------------------------------------------------- */
 
@@ -187,7 +219,7 @@ void asciiplt(float (* getvalue)(void* data, int i), int n, void* data) {
 #endif
   };
 
-  static int charsetsize = ARRAY_LEN(charset);
+  static int charsetsize = array_len(charset);
 
   float values[ASCIIPLT_W];
   float minval = (float)get_inf();
@@ -195,27 +227,27 @@ void asciiplt(float (* getvalue)(void* data, int i), int n, void* data) {
   float range;
   int i;
   int chunksize;
-  int w = mymin(ASCIIPLT_W, n);
+  int w = al_min(ASCIIPLT_W, n);
 
   memset(values, 0, sizeof(values));
   chunksize = (int)ceil((float)n / w);
 
   for (i = 0; i < n; ++i) {
     int chunki = i / chunksize;
-    values[chunki] = mymax(values[chunki], getvalue(data, i));
+    values[chunki] = al_max(values[chunki], getvalue(data, i));
   }
 
   for (i = 0; i < n; ++i) {
     int chunki = i / chunksize;
-    maxval = mymax(maxval, values[chunki]);
-    minval = mymin(minval, values[chunki]);
+    maxval = al_max(maxval, values[chunki]);
+    minval = al_min(minval, values[chunki]);
   }
 
-  range = mymax(0.00001f, maxval - minval);
+  range = al_max(0.00001f, maxval - minval);
 
   for (i = 0; i < w; ++i) {
     int chari = (int)(((values[i] - minval) / range) * charsetsize);
-    chari = mymax(0, mymin(chari, charsetsize - 1));
+    chari = al_max(0, al_min(chari, charsetsize - 1));
     printf("%s", charset[chari]);
   }
 
@@ -223,79 +255,68 @@ void asciiplt(float (* getvalue)(void* data, int i), int n, void* data) {
 }
 
 float getaim(void* data, int i) {
-  beatmap_t* b = data;
-  return b->objects[i].strains[DIFF_AIM];
+  ezpp_t ez = data;
+  return ezpp_strain_at(ez, i, DIFF_AIM);
 }
 
 float getspeed(void* data, int i) {
-  beatmap_t* b = data;
-  return b->objects[i].strains[DIFF_SPEED];
+  ezpp_t ez = data;
+  return ezpp_strain_at(ez, i, DIFF_SPEED);
 }
 
-#define twodec(x) (round_oppai((x) * 100.0f) / 100.0f)
-
 output_sig(output_text) {
-  int total_objs;
+  float ar, od, cs, hp, stars, aim_stars, speed_stars, accuracy_percent;
+  float pp, aim_pp, speed_pp, acc_pp;
 
   if (result < 0) {
     puts(errstr(result));
     return;
   }
 
-  printf("%s - %s ", map->artist, map->title);
+  printf("%s - %s ", ezpp_artist(ez), ezpp_title(ez));
 
-  if (strcmp(map->artist, map->artist_unicode) ||
-    strcmp(map->title, map->title_unicode))
+  if (strcmp(ezpp_artist(ez), ezpp_artist_unicode(ez)) ||
+    strcmp(ezpp_title(ez), ezpp_title_unicode(ez)))
   {
-    printf("(%s - %s) ", map->artist_unicode, map->title_unicode);
+    printf("(%s - %s) ", ezpp_artist_unicode(ez), ezpp_title_unicode(ez));
   }
 
-  printf("[%s] mapped by %s ", map->version, map->creator);
+  printf("[%s] mapped by %s ", ezpp_version(ez), ezpp_creator(ez));
   puts("\n");
 
-  mapstats->ar = twodec(mapstats->ar);
-  mapstats->od = twodec(mapstats->od);
-  mapstats->cs = twodec(mapstats->cs);
-  mapstats->hp = twodec(mapstats->hp);
-  stars->total = twodec(stars->total);
-  stars->aim = twodec(stars->aim);
-  stars->speed = twodec(stars->speed);
+  ar = twodec(ezpp_ar(ez));
+  od = twodec(ezpp_od(ez));
+  cs = twodec(ezpp_cs(ez));
+  hp = twodec(ezpp_hp(ez));
+  stars = twodec(ezpp_stars(ez));
+  aim_stars = twodec(ezpp_aim_stars(ez));
+  speed_stars = twodec(ezpp_speed_stars(ez));
+  accuracy_percent = twodec(ezpp_accuracy_percent(ez));
+  pp = twodec(ezpp_pp(ez));
+  aim_pp = twodec(ezpp_aim_pp(ez));
+  speed_pp = twodec(ezpp_speed_pp(ez));
+  acc_pp = twodec(ezpp_acc_pp(ez));
 
-  printf("AR%g OD%g ", mapstats->ar, mapstats->od);
+  printf("AR%g OD%g ", ar, od);
 
-  if (map->mode == MODE_STD) {
-    printf("CS%g ", mapstats->cs);
+  if (ezpp_mode(ez) == MODE_STD) {
+    printf("CS%g ", cs);
   }
 
-  printf("HP%g\n", mapstats->hp);
-  printf("300 hitwindow: %g ms\n", mapstats->odms);
+  printf("HP%g\n", hp);
+  printf("300 hitwindow: %g ms\n", ezpp_odms(ez));
 
   printf("%d circles, %d sliders, %d spinners\n",
-    map->ncircles, map->nsliders, map->nspinners);
+    ezpp_ncircles(ez), ezpp_nsliders(ez), ezpp_nspinners(ez));
 
-  /* -1 because first object can't be evaluated */
-  total_objs = map->ncircles + map->nsliders - 1;
-
-  if (map->mode == MODE_STD) {
-    printf("%d spacing singletaps (%g%%)\n", stars->nsingles,
-      stars->nsingles / (float)total_objs * 100.0);
-
-    printf("%d notes within singletap bpm threshold (%g%%)\n",
-      stars->nsingles_threshold,
-      stars->nsingles_threshold/(float)total_objs * 100.0);
-
-    puts("");
-
-    printf("%g stars (%g aim, %g speed)\n", stars->total,
-      stars->aim, stars->speed);
-
+  if (ezpp_mode(ez) == MODE_STD) {
+    printf("%g stars (%g aim, %g speed)\n", stars, aim_stars, speed_stars);
     printf("\nspeed strain: ");
-    asciiplt(getspeed, map->nobjects, map);
-
+    asciiplt(getspeed, ezpp_nobjects(ez), ez);
     printf("  aim strain: ");
-    asciiplt(getaim, map->nobjects, map);
+    asciiplt(getaim, ezpp_nobjects(ez), ez);
   } else {
-    printf("%g stars\n", stars->total);
+    printf("%g stars\n", ezpp_stars(ez));
   }
 
   printf("\n");
@@ -304,17 +325,16 @@ output_sig(output_text) {
     printf("+%s ", mods_str);
   }
 
-  printf("%d/%dx ", params->combo, params->max_combo);
-  printf("%g%%\n", twodec(pp->accuracy * 100));
+  printf("%d/%dx ", ezpp_combo(ez), ezpp_max_combo(ez));
+  printf("%g%%\n", accuracy_percent);
+  printf("%g pp (", pp);
 
-  printf("%g pp (", twodec(pp->total));
-
-  if (map->mode == MODE_STD) {
-    printf("%g aim, ", twodec(pp->aim));
+  if (ezpp_mode(ez) == MODE_STD) {
+    printf("%g aim, ", aim_pp);
   }
 
-  printf("%g speed, ", twodec(pp->speed));
-  printf("%g acc)\n\n", twodec(pp->acc));
+  printf("%g speed, ", speed_pp);
+  printf("%g acc)\n\n", acc_pp);
 }
 
 /* json output --------------------------------------------------------- */
@@ -362,6 +382,7 @@ void fix_json_flt(float* v) {
 }
 
 output_sig(output_json) {
+  float pp, aim_pp, speed_pp, acc_pp, stars, aim_stars, speed_stars;
   printf("{\"oppai_version\":\"%s\",", oppai_version_str());
 
   if (result < 0) {
@@ -372,37 +393,44 @@ output_sig(output_json) {
     return;
   }
 
-  fix_json_flt(&pp->total);
-  fix_json_flt(&pp->aim);
-  fix_json_flt(&pp->speed);
-  fix_json_flt(&pp->accuracy);
-  fix_json_flt(&stars->total);
-  fix_json_flt(&stars->aim);
-  fix_json_flt(&stars->speed);
+  pp = ezpp_pp(ez);
+  aim_pp = ezpp_aim_pp(ez);
+  speed_pp = ezpp_speed_pp(ez);
+  acc_pp = ezpp_acc_pp(ez);
+  stars = ezpp_stars(ez);
+  aim_stars = ezpp_aim_stars(ez);
+  speed_stars = ezpp_speed_stars(ez);
+  fix_json_flt(&pp);
+  fix_json_flt(&aim_pp);
+  fix_json_flt(&speed_pp);
+  fix_json_flt(&acc_pp);
+  fix_json_flt(&stars);
+  fix_json_flt(&aim_stars);
+  fix_json_flt(&speed_stars);
 
   printf("\"code\":200,\"errstr\":\"no error\",");
 
   printf("\"artist\":");
-  print_escaped_json_string(map->artist);
+  print_escaped_json_string(ezpp_artist(ez));
 
-  if (strcmp(map->artist, map->artist_unicode)) {
+  if (strcmp(ezpp_artist(ez), ezpp_artist_unicode(ez))) {
     printf(",\"artist_unicode\":");
-    print_escaped_json_string(map->artist_unicode);
+    print_escaped_json_string(ezpp_artist_unicode(ez));
   }
 
   printf(",\"title\":");
-  print_escaped_json_string(map->title);
+  print_escaped_json_string(ezpp_title(ez));
 
-  if (strcmp(map->title, map->title_unicode)) {
+  if (strcmp(ezpp_title(ez), ezpp_title_unicode(ez))) {
     printf(",\"title_unicode\":");
-    print_escaped_json_string(map->title_unicode);
+    print_escaped_json_string(ezpp_title_unicode(ez));
   }
 
   printf(",\"creator\":");
-  print_escaped_json_string(map->creator);
+  print_escaped_json_string(ezpp_creator(ez));
 
   printf(",\"version\":");
-  print_escaped_json_string(map->version);
+  print_escaped_json_string(ezpp_version(ez));
 
   printf(",");
 
@@ -418,16 +446,14 @@ output_sig(output_json) {
     "\"num_spinners\":%d,\"misses\":%d,"
     "\"score_version\":%d,\"stars\":%.17g,"
     "\"speed_stars\":%.17g,\"aim_stars\":%.17g,"
-    "\"nsingles\":%d,\"nsingles_threshold\":%d,"
     "\"aim_pp\":%.17g,\"speed_pp\":%.17g,\"acc_pp\":%.17g,"
     "\"pp\":%.17g}",
-    mods_str, params->mods, mapstats->od, mapstats->ar,
-    mapstats->cs, mapstats->hp, params->combo,
-    params->max_combo, map->ncircles, map->nsliders,
-    map->nspinners, params->nmiss, params->score_version,
-    stars->total, stars->speed, stars->aim, stars->nsingles,
-    stars->nsingles_threshold, pp->aim, pp->speed, pp->acc,
-    pp->total
+    mods_str, ezpp_mods(ez), ezpp_od(ez), ezpp_ar(ez),
+    ezpp_cs(ez), ezpp_hp(ez), ezpp_combo(ez),
+    ezpp_max_combo(ez), ezpp_ncircles(ez), ezpp_nsliders(ez),
+    ezpp_nspinners(ez), ezpp_nmiss(ez), ezpp_score_version(ez),
+    ezpp_stars(ez), ezpp_speed_stars(ez), ezpp_aim_stars(ez),
+    ezpp_aim_pp(ez), ezpp_speed_pp(ez), ezpp_acc_pp(ez), ezpp_pp(ez)
   );
 }
 
@@ -459,31 +485,31 @@ output_sig(output_csv) {
   printf("code;200\nerrstr;no error\n");
 
   printf("artist;");
-  print_escaped_csv_string(map->artist);
+  print_escaped_csv_string(ezpp_artist(ez));
   puts("");
 
-  if (strcmp(map->artist, map->artist_unicode)) {
+  if (strcmp(ezpp_artist(ez), ezpp_artist_unicode(ez))) {
     printf("artist_unicode;");
-    print_escaped_csv_string(map->artist_unicode);
+    print_escaped_csv_string(ezpp_artist_unicode(ez));
     puts("");
   }
 
   printf("title;");
-  print_escaped_csv_string(map->title);
+  print_escaped_csv_string(ezpp_title(ez));
   puts("");
 
-  if (strcmp(map->title, map->title_unicode)) {
+  if (strcmp(ezpp_title(ez), ezpp_title_unicode(ez))) {
     printf("title_unicode;");
-    print_escaped_csv_string(map->title_unicode);
+    print_escaped_csv_string(ezpp_title_unicode(ez));
     puts("");
   }
 
   printf("version;");
-  print_escaped_csv_string(map->version);
+  print_escaped_csv_string(ezpp_version(ez));
   puts("");
 
   printf("creator;");
-  print_escaped_csv_string(map->creator);
+  print_escaped_csv_string(ezpp_creator(ez));
   puts("");
 
   if (!mods_str) {
@@ -495,15 +521,13 @@ output_sig(output_csv) {
     "combo;%d\nmax_combo;%d\nnum_circles;%d\n"
     "num_sliders;%d\nnum_spinners;%d\nmisses;%d\n"
     "score_version;%d\nstars;%.17g\nspeed_stars;%.17g\n"
-    "aim_stars;%.17g\nnsingles;%d\nnsingles_threshold;%d\n"
-    "aim_pp;%.17g\nspeed_pp;%.17g\nacc_pp;%.17g\npp;%.17g",
-    mods_str, params->mods, mapstats->od, mapstats->ar,
-    mapstats->cs, mapstats->hp, params->combo,
-    params->max_combo, map->ncircles, map->nsliders,
-    map->nspinners, params->nmiss, params->score_version,
-    stars->total, stars->speed, stars->aim, stars->nsingles,
-    stars->nsingles_threshold, pp->aim, pp->speed, pp->acc,
-    pp->total
+    "aim_stars;%.17g\naim_pp;%.17g\nspeed_pp;%.17g\nacc_pp;%.17g\npp;%.17g",
+    mods_str, ezpp_mods(ez), ezpp_od(ez), ezpp_ar(ez),
+    ezpp_cs(ez), ezpp_hp(ez), ezpp_combo(ez),
+    ezpp_max_combo(ez), ezpp_ncircles(ez), ezpp_nsliders(ez),
+    ezpp_nspinners(ez), ezpp_nmiss(ez), ezpp_score_version(ez),
+    ezpp_stars(ez), ezpp_speed_stars(ez), ezpp_aim_stars(ez),
+    ezpp_aim_pp(ez), ezpp_speed_pp(ez), ezpp_acc_pp(ez), ezpp_pp(ez)
   );
 }
 
@@ -536,7 +560,7 @@ void write_flt(float f) {
 }
 
 void write_str(char* str) {
-  int len = mymin(0xFFFF, (int)strlen(str));
+  int len = al_min(0xFFFF, (int)strlen(str));
   write2(len);
   printf("%s", str);
   write1(0);
@@ -563,74 +587,72 @@ output_sig(output_binary) {
   }
 
   /* TODO: use varargs to group calls of the same func */
-  write_str(map->artist);
-  write_str(map->artist_unicode);
-  write_str(map->title);
-  write_str(map->title_unicode);
-  write_str(map->version);
-  write_str(map->creator);
-  write4(params->mods);
-  write_flt(mapstats->od);
-  write_flt(mapstats->ar);
-  write_flt(mapstats->cs);
-  write_flt(mapstats->hp);
-  write4(params->combo);
-  write4(params->max_combo);
-  write2(map->ncircles);
-  write2(map->nsliders);
-  write2(map->nspinners);
-  write4(params->score_version);
-  write_flt(stars->total);
-  write_flt(stars->speed);
-  write_flt(stars->aim);
-  write2(stars->nsingles);
-  write2(stars->nsingles_threshold);
-  write_flt(pp->aim);
-  write_flt(pp->speed);
-  write_flt(pp->acc);
-  write_flt(pp->total);
+  write_str(ezpp_artist(ez));
+  write_str(ezpp_artist_unicode(ez));
+  write_str(ezpp_title(ez));
+  write_str(ezpp_title_unicode(ez));
+  write_str(ezpp_version(ez));
+  write_str(ezpp_creator(ez));
+  write4(ezpp_mods(ez));
+  write_flt(ezpp_od(ez));
+  write_flt(ezpp_ar(ez));
+  write_flt(ezpp_cs(ez));
+  write_flt(ezpp_hp(ez));
+  write4(ezpp_combo(ez));
+  write4(ezpp_max_combo(ez));
+  write2(ezpp_ncircles(ez));
+  write2(ezpp_nsliders(ez));
+  write2(ezpp_nspinners(ez));
+  write4(ezpp_score_version(ez));
+  write_flt(ezpp_stars(ez));
+  write_flt(ezpp_speed_stars(ez));
+  write_flt(ezpp_aim_stars(ez));
+  write2(0); /* legacy (nsingles) */
+  write2(0); /* legacy (nsigles_threshold) */
+  write_flt(ezpp_aim_pp(ez));
+  write_flt(ezpp_speed_pp(ez));
+  write_flt(ezpp_acc_pp(ez));
+  write_flt(ezpp_pp(ez));
 }
 
 /* gnuplot output ------------------------------------------------------ */
 
 #define gnuplot_string(x) print_escaped_json_string_ex(x, 0)
 
-void gnuplot_strains(beatmap_t* map, int type) {
+void gnuplot_strains(ezpp_t ez, int type) {
   int i;
-  for (i = 0; i < map->nobjects; ++i) {
-    object_t* o = &map->objects[i];
-    printf("%.17g %.17g\n", o->time, o->strains[type]);
+  for (i = 0; i < ezpp_nobjects(ez); ++i) {
+    printf("%.17g %.17g\n", ezpp_time_at(ez, i),
+      ezpp_strain_at(ez, i, type));
   }
 }
 
 output_sig(output_gnuplot) {
-  (void)pp; (void)params; (void)stars; (void)mapstats; (void)result;
-
-  if (map->mode != MODE_STD) {
+  if (result < 0 || ezpp_mode(ez) != MODE_STD) {
     return;
   }
 
   puts("set encoding utf8;");
 
   printf("set title \"");
-  gnuplot_string(map->artist);
+  gnuplot_string(ezpp_artist(ez));
   printf(" - ");
-  gnuplot_string(map->title);
+  gnuplot_string(ezpp_title(ez));
 
-  if (strcmp(map->artist, map->artist_unicode) ||
-    strcmp(map->title, map->title_unicode))
+  if (strcmp(ezpp_artist(ez), ezpp_artist_unicode(ez)) ||
+    strcmp(ezpp_title(ez), ezpp_title_unicode(ez)))
   {
     printf("(");
-    gnuplot_string(map->artist_unicode);
+    gnuplot_string(ezpp_artist_unicode(ez));
     printf(" - ");
-    gnuplot_string(map->title_unicode);
+    gnuplot_string(ezpp_title_unicode(ez));
     printf(")");
   }
 
   printf(" [");
-  gnuplot_string(map->version);
+  gnuplot_string(ezpp_version(ez));
   printf("] mapped by ");
-  gnuplot_string(map->creator);
+  gnuplot_string(ezpp_creator(ez));
   if (mods_str) printf(" +%s", mods_str);
   puts("\";");
 
@@ -640,72 +662,12 @@ output_sig(output_gnuplot) {
     "set multiplot layout 2,1 rowsfirst;"
     "plot '-' with lines lc 1 title 'speed'"
   );
-  gnuplot_strains(map, DIFF_SPEED);
+  gnuplot_strains(ez, DIFF_SPEED);
   puts("e");
   puts("unset title;");
   puts("plot '-' with lines lc 2 title 'aim'");
-  gnuplot_strains(map, DIFF_AIM);
+  gnuplot_strains(ez, DIFF_AIM);
 }
-
-#ifdef OPPAI_DEBUG
-/* debug output -------------------------------------------------------- */
-
-output_sig(output_debug) {
-  int i;
-
-  (void)mods_str;
-  (void)stars;
-  (void)params;
-
-  if (result < 0) {
-    puts(errstr(result));
-    return;
-  }
-
-  for (i = 0; i < map->ntiming_points; ++i) {
-    timing_t* t = &map->timing_points[i];
-    printf("timing %gms %g %d\n", t->time, t->ms_per_beat, t->change);
-  }
-
-  for (i = 0; i < map->nobjects; ++i) {
-    object_t* o = &map->objects[i];
-    printf("%gs [%g %g] ", o->time / 1000.0, o->strains[0], o->strains[1]);
-
-    if (o->type & OBJ_CIRCLE) {
-      printf("circle (%g, %g) (%g, %g)\n", o->pos[0], o->pos[1],
-        o->normpos[0], o->normpos[1]);
-    }
-    else if (o->type & OBJ_SPINNER) {
-      puts("spinner");
-    }
-    else if (o->type & OBJ_SLIDER) {
-      printf("slider (%g, %g) (%g, %g)\n", o->pos[0], o->pos[1],
-        o->normpos[0], o->normpos[1]);
-    }
-    else {
-      printf("invalid hitobject %08X\n", o->type);
-      break;
-    }
-  }
-
-  printf("AR%g OD%g CS%g HP%g\n", mapstats->ar, mapstats->od,
-    mapstats->cs, mapstats->hp);
-
-  printf("%d circles, %d sliders, %d spinners\n",
-    map->ncircles, map->nsliders, map->nspinners);
-
-  printf("%d/%dx\n", params->combo, params->max_combo);
-
-  printf("%g stars (%g aim, %g speed)\n", stars->total,
-    stars->aim, stars->speed);
-
-  printf("%g%%\n", pp->accuracy * 100);
-  printf("%g aim pp\n", pp->aim);
-  printf("%g speed pp\n", pp->speed);
-  printf("%g acc pp\n\n", pp->acc);
-  printf("%g pp\n", pp->total);
-}
-#endif /* OPPAI_DEBUG */
 
 /* ------------------------------------------------------------- */
 
@@ -765,14 +727,11 @@ output_module_t modules[] = {
     0 }
   },
   { "gnuplot", output_gnuplot, { "gnuplot .gp script", 0 } },
-#ifdef OPPAI_DEBUG
-  { "debug", output_debug, { "debug output", 0 } },
-#endif
 };
 
 output_module_t* output_by_name(char* name) {
   int i;
-  for (i = 0; i < ARRAY_LEN(modules); ++i) {
+  for (i = 0; i < array_len(modules); ++i) {
     if (!strcmp(modules[i].name, name)) {
       return &modules[i];
     }
@@ -780,35 +739,8 @@ output_module_t* output_by_name(char* name) {
   return 0;
 }
 
-#ifdef OPPAI_DEBUG
-void print_memory_usage(parser_t* pa, diff_calc_t* dc) {
-  int arena = 0, timing = 0, objects = 0, strain = 0;
-  if (pa) {
-    arena = pa->arena.blocks.len * ARENA_BLOCK_SIZE;
-    timing = pa->timing_points.len * sizeof(pa->timing_points.data[0]);
-    objects = pa->objects.len * sizeof(pa->objects.data[0]);
-  }
-  if (dc) {
-    strain = dc->highest_strains.len * sizeof(dc->highest_strains.data[0]);
-  }
-  info(
-    "-------------------------\n"
-    "arena: %db\n"
-    "timing: %db\n"
-    "objects: %db\n"
-    "strains: %db\n"
-    "total: %db\n"
-    "-------------------------\n",
-    arena, timing, objects, strain,
-    arena + timing + objects + strain
-  );
-}
-#else
-#define print_memory_usage(x, y)
-#endif /* OPPAI_DEBUG */
-
 int cmpsuffix(char* str, char* suffix) {
-  int sufflen = (int)mymin(strlen(str), strlen(suffix));
+  int sufflen = (int)al_min(strlen(str), strlen(suffix));
   return strcmp(str + strlen(str) - sufflen, suffix);
 }
 
@@ -845,39 +777,15 @@ int strcmp_nc(char* a, char* b) {
 
 /* TODO: split main into smaller funcs for readability? */
 int main(int argc, char* argv[]) {
-  FILE* f = 0;
   int i;
   int result;
-
-  parser_t* pstate = 0;
-  diff_calc_t stars;
-  beatmap_t map;
-  beatmap_stats_t mapstats;
-  pp_params_t params;
-  pp_calc_t pp;
+  ezpp_t ez = ezpp_new();
   output_module_t* m;
-
   char* output_name = "text";
   char* mods_str = 0;
   int mods = MODS_NOMOD;
-  float acc_percent = 100.0f;
-  int use_percent = 0;
-
-  int overrides = 0;
-
-#define OVERRIDE_AR (1<<0)
-#define OVERRIDE_OD (1<<1)
-#define OVERRIDE_CS (1<<2)
-#define OVERRIDE_SINGLETAP_THRESHOLD (1<<3)
-#define OVERRIDE_MODE (1<<4)
-#define OVERRIDE_SPEED (1<<5)
-#define OVERRIDE_AIM (1<<6)
-
-  float ar_override = 0, od_override = 0, cs_override = 0;
-  float singletap_threshold = 125.0f;
-  int mode_override = MODE_STD;
-  float speed_override = 0, aim_override = 0;
-  int end = 0;
+  float tmpf;
+  int tmpi, n100, n50;
 
   /* parse arguments ------------------------------------------------- */
   me = argv[0];
@@ -895,15 +803,13 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  pp_init(&params);
-
   for (i = 2; i < argc; ++i) {
     char* a = argv[i];
     char* p;
     int iswhite = 1;
 
     for (p = a; *p; ++p) {
-      if (!whitespace(*p)) {
+      if (!isspace(*p)) {
         iswhite = 0;
         break;
       }
@@ -937,80 +843,75 @@ int main(int argc, char* argv[]) {
       continue;
     }
 
-    if (strlen(a) >= 3 && !memcmp(a, "-st", 3) &&
-      sscanf(a + 3, "%f", &singletap_threshold) == 1)
-    {
-      singletap_threshold = (60000.0f / singletap_threshold) / 2.0f;
-      overrides |= OVERRIDE_SINGLETAP_THRESHOLD;
+    if (!cmpsuffix(a, "%") && sscanf(a, "%f", &tmpf) == 1) {
+      ezpp_set_accuracy_percent(ez, tmpf);
       continue;
     }
 
-    if (!cmpsuffix(a, "%") && sscanf(a, "%f", &acc_percent) == 1) {
-      use_percent = 1;
+    if (!cmpsuffix(a, "x100") && sscanf(a, "%d", &n100) == 1) {
       continue;
     }
 
-    if (!cmpsuffix(a, "x100") && sscanf(a, "%d", &params.n100) == 1) {
+    if (!cmpsuffix(a, "x50") && sscanf(a, "%d", &n50) == 1) {
       continue;
     }
 
-    if (!cmpsuffix(a, "x50") && sscanf(a, "%d", &params.n50) == 1) {
+    if (!cmpsuffix(a, "speed") && sscanf(a, "%f", &tmpf) == 1) {
+      ezpp_set_speed_stars(ez, tmpf);
       continue;
     }
 
-    if (!cmpsuffix(a, "speed") && sscanf(a, "%f", &speed_override) == 1) {
-      overrides |= OVERRIDE_SPEED;
-      continue;
-    }
-
-    if (!cmpsuffix(a, "aim") && sscanf(a, "%f", &aim_override) == 1) {
-      overrides |= OVERRIDE_AIM;
+    if (!cmpsuffix(a, "aim") && sscanf(a, "%f", &tmpf) == 1) {
+      ezpp_set_aim_stars(ez, tmpf);
       continue;
     }
 
     if (!cmpsuffix(a, "xm") || !cmpsuffix(a, "xmiss") ||
       !cmpsuffix(a, "m"))
     {
-      if (sscanf(a, "%d", &params.nmiss) == 1) {
+      if (sscanf(a, "%d", &tmpi) == 1) {
+        ezpp_set_nmiss(ez, tmpi);
         continue;
       }
     }
 
-    if (!cmpsuffix(a, "x") && sscanf(a, "%d", &params.combo) == 1) {
+    if (!cmpsuffix(a, "x") && sscanf(a, "%d", &tmpi) == 1) {
+      ezpp_set_combo(ez, tmpi);
       continue;
     }
 
-    if (sscanf(a, "scorev%d", &params.score_version)) {
+    if (sscanf(a, "scorev%d", &tmpi)) {
+      ezpp_set_score_version(ez, tmpi);
       continue;
     }
 
-    if (sscanf(a, "ar%f", &ar_override)) {
-      overrides |= OVERRIDE_AR;
+    if (sscanf(a, "ar%f", &tmpf)) {
+      ezpp_set_base_ar(ez, tmpf);
       continue;
     }
 
-    if (sscanf(a, "od%f", &od_override)) {
-      overrides |= OVERRIDE_OD;
+    if (sscanf(a, "od%f", &tmpf)) {
+      ezpp_set_base_od(ez, tmpf);
       continue;
     }
 
-    if (sscanf(a, "cs%f", &cs_override)) {
-      overrides |= OVERRIDE_CS;
+    if (sscanf(a, "cs%f", &tmpf)) {
+      ezpp_set_base_cs(ez, tmpf);
       continue;
     }
 
-    if (sscanf(a, "-m%d", &mode_override) == 1) {
-      overrides |= OVERRIDE_MODE;
+    if (sscanf(a, "-m%d", &tmpi) == 1) {
+      ezpp_set_mode_override(ez, tmpi);
       continue;
     }
 
-    if (sscanf(a, "-end%d", &end) == 1) {
+    if (sscanf(a, "-end%d", &tmpi) == 1) {
+      ezpp_set_end(ez, tmpi);
       continue;
     }
 
     if (!strcmp(a, "-taiko")) {
-      overrides |= OVERRIDE_MODE;
-      mode_override = MODE_TAIKO;
+      ezpp_set_mode_override(ez, MODE_TAIKO);
       continue;
     }
 
@@ -1048,125 +949,10 @@ int main(int argc, char* argv[]) {
     goto output;
   }
 
-  /* parse beatmap --------------------------------------------------- */
-  if (!strcmp(argv[1], "-")) {
-    f = stdin;
-  } else {
-    f = fopen(argv[1], "rb");
-    if (!f) {
-      perror("fopen");
-      result = ERR_IO;
-      goto output;
-    }
-  }
+  ezpp_set_mods(ez, mods);
+  result = ezpp(ez, argv[1]);
 
-  pstate = malloc(sizeof(parser_t));
-  if (!pstate) {
-    result = ERR_OOM;
-    goto output;
-  }
-
-  result = p_init(pstate);
-  if (result < 0) {
-    goto output;
-  }
-
-  if (overrides & OVERRIDE_MODE) {
-    pstate->mode_override = mode_override;
-    pstate->flags = PARSER_OVERRIDE_MODE;
-  }
-
-  result = p_map(pstate, &map, f);
-  if (result < 0) {
-    info("last parser line: ");
-    slice_write(&pstate->lastline, stderr);
-    info("\n");
-    info("last parser position: ");
-    slice_write(&pstate->lastpos, stderr);
-    info("\n");
-    goto output;
-  }
-
-  if (overrides & OVERRIDE_AR) {
-    map.ar = ar_override;
-  }
-
-  if (overrides & OVERRIDE_OD) {
-    map.od = od_override;
-  }
-
-  if (overrides & OVERRIDE_CS) {
-    map.cs = cs_override;
-  }
-
-  if (end > 0 && end < map.nobjects) {
-    map.nobjects = end;
-  }
-
-  /* diff calc --------------------------------------------------------- */
-  result = d_init(&stars);
-  if (result < 0) {
-    goto output;
-  }
-
-  if (overrides & OVERRIDE_SINGLETAP_THRESHOLD) {
-    stars.singletap_threshold = singletap_threshold;
-  }
-
-  result = d_calc(&stars, &map, mods);
-  if (result < 0) {
-    goto output;
-  }
-
-  if (overrides & OVERRIDE_AIM) {
-    stars.aim = aim_override;
-  }
-
-  if (overrides & OVERRIDE_SPEED) {
-    stars.speed = speed_override;
-    if (map.mode == MODE_TAIKO) {
-      stars.total = stars.speed;
-    }
-  }
-
-  /* pp calc ------------------------------------------------- */
-  mapstats.ar = map.ar;
-  mapstats.cs = map.cs;
-  mapstats.od = map.od;
-  mapstats.hp = map.hp;
-
-  mods_apply_m(map.mode, mods, &mapstats, APPLY_ALL);
-
-  params.aim = stars.aim;
-  params.speed = stars.speed;
-  params.mods = mods;
-
-  if (use_percent) {
-    switch (map.mode) {
-      case MODE_STD:
-        acc_round(acc_percent, map.nobjects, params.nmiss, &params.n300,
-          &params.n100, &params.n50);
-        break;
-      case MODE_TAIKO: {
-        int taiko_max_combo = b_max_combo(&map);
-        if (taiko_max_combo < 0) {
-          result = taiko_max_combo;
-          goto output;
-        }
-        params.max_combo = (int)taiko_max_combo;
-        taiko_acc_round(acc_percent, (int)taiko_max_combo,
-          params.nmiss, &params.n300, &params.n100);
-        break;
-      }
-    }
-  }
-
-  result = b_ppv2p(&map, &pp, &params);
-
-  /* output ---------------------------------------------------------- */
 output:
-  print_memory_usage(pstate, &stars);
-
   m = output_by_name(output_name);
   if (!m) {
     info("output module '%s' does not exist. check 'oppai - -o?'\n",
@@ -1174,16 +960,8 @@ output:
     return 1;
   }
 
-  m->func(result, &map, &mapstats, mods_str, &stars, &params, &pp);
-
-  /* this cleanup is only here so that valgrind stops crying */
-  p_free(pstate);
-  d_free(&stars);
-  free(pstate);
-  if (f && f != stdin) {
-    fclose(f);
-  }
-
+  m->func(result, ez, mods_str);
+  ezpp_free(ez); /* just so valgrind stops crying */
   return result < 0;
 }
 

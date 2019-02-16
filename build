@@ -2,5 +2,5 @@
 
 dir="$(dirname "$0")"
 . "$dir"/cflags
-$cc $cflags "$@" main.c $ldflags -o oppai
+$cc $cflags "$@" -DOPPAI_IMPLEMENTATION main.c oppai.c $ldflags -o oppai
 

@@ -4,7 +4,7 @@ dir=$(dirname $0)
 dir=$(readlink -f $dir)
 prevdir=$(pwd)
 cd $dir
-git pull origin master || exit $?
+#git pull origin master || exit $?
 for prefix in i386/ ""; do
   container="${prefix}oppai-ng:ubuntu"
   docker build -t "$container" \
