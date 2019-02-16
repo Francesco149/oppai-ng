@@ -730,82 +730,6 @@ struct ezpp {
   diff_calc_t stars_;
 };
 
-/*
- * sliders get 2 + ticks combo (head, tail and ticks) each repetition adds
- * an extra combo and an extra set of ticks
- *
- * calculate the number of slider ticks for one repetition
- * ---
- * example: a 3.75f beats slider at 1x tick rate will go:
- * beat0 (head), beat1 (tick), beat2(tick), beat3(tick),
- * beat3.75f(tail)
- * so all we have to do is ceil the number of beats and subtract 1 to take
- * out the tail
- * ---
- * the -0.1f is there to prevent ceil from ceiling whole values like 1.0f to
- * 2.0f randomly
- */
-
-int b_max_combo(ezpp_t ez) {
-  int res = ez->nobjects;
-  int i;
-
-  if (!ez->timing_points.len) {
-    info("beatmap has no timing points\n");
-    return ERR_FORMAT;
-  }
-
-  /* spinners don't give combo in taiko */
-  if (ez->mode == MODE_TAIKO) {
-    res -= ez->nspinners + ez->nsliders;
-  }
-
-  /* slider ticks */
-  for (i = 0; i < ez->nobjects; ++i) {
-    object_t* o = &ez->objects.data[i];
-    timing_t* t = &ez->timing_points.data[o->timing_point];
-    int ticks;
-    float num_beats;
-
-    if (!(o->type & OBJ_SLIDER)) {
-      continue;
-    }
-
-    switch (ez->mode) {
-      case MODE_TAIKO: {
-        if (!o->slider_is_drum_roll) {
-          res += (int)(
-            ceil((o->duration + o->tick_spacing / 8) / o->tick_spacing)
-          );
-        }
-        break;
-      }
-      case MODE_STD:
-        /* std slider ticks */
-        num_beats = (o->distance * o->repetitions) / t->px_per_beat;
-
-        ticks = (int)ceil(
-          (num_beats - 0.1f) / o->repetitions * ez->tick_rate
-        );
-        --ticks;
-
-        ticks *= o->repetitions;     /* account for repetitions */
-        ticks += o->repetitions + 1; /* add heads and tails */
-
-        /*
-         * actually doesn't include first head because we already
-         * added it by setting res = nobjects
-         */
-        res += al_max(0, ticks - 1);
-        break;
-      default:
-        return ERR_NOTIMPLEMENTED;
-    }
-  }
-
-  return res;
-}
-
 /* beatmap parser ------------------------------------------------------ */
 
 /*
@@ -1283,10 +1207,37 @@ void p_end(ezpp_t ez) {
     t->velocity = 100.0f * ez->sv / t->beat_len;
   }
 
+  /*
+   * sliders get 2 + ticks combo (head, tail and ticks) each repetition adds
+   * an extra combo and an extra set of ticks
+   *
+   * calculate the number of slider ticks for one repetition
+   * ---
+   * example: a 3.75f beats slider at 1x tick rate will go:
+   * beat0 (head), beat1 (tick), beat2(tick), beat3(tick),
+   * beat3.75f(tail)
+   * so all we have to do is ceil the number of beats and subtract 1 to take
+   * out the tail
+   * ---
+   * the -0.1f is there to prevent ceil from ceiling whole values like 1.0f to
+   * 2.0f randomly
+   */
+
+  ez->nobjects = ez->objects.len;
+  ez->max_combo = ez->nobjects;
+
+  /* spinners don't give combo in taiko */
+  if (ez->mode == MODE_TAIKO) {
+    ez->max_combo -= ez->nspinners + ez->nsliders;
+  }
+
   /* TODO: merge this with normpos & angle calc */
   for (i = 0; i < ez->objects.len; ++i) {
     object_t* o = &ez->objects.data[i];
     timing_t* t;
+    int ticks;
+    float num_beats;
+
     /* keep track of the current timing point */
     while (o->time >= tnext) {
       ++tindex;
@@ -1304,15 +1255,45 @@ void p_end(ezpp_t ez) {
     o->slider_is_drum_roll = (
       o->tick_spacing <= 0 || o->duration >= 2 * t->beat_len
     );
+
+    if (!(o->type & OBJ_SLIDER)) {
+      continue;
+    }
+
+    /* slider ticks for max_combo */
+    switch (ez->mode) {
+      case MODE_TAIKO: {
+        if (!o->slider_is_drum_roll) {
+          ez->max_combo += (int)(
+            ceil((o->duration + o->tick_spacing / 8) / o->tick_spacing)
+          );
+        }
+        break;
+      }
+      case MODE_STD:
+        /* std slider ticks */
+        num_beats = (o->distance * o->repetitions) / t->px_per_beat;
+
+        ticks = (int)ceil(
+          (num_beats - 0.1f) / o->repetitions * ez->tick_rate
+        );
+        --ticks;
+
+        ticks *= o->repetitions;     /* account for repetitions */
+        ticks += o->repetitions + 1; /* add heads and tails */
+
+        /*
+         * actually doesn't include first head because we already
+         * added it by setting res = nobjects
+         */
+        ez->max_combo += al_max(0, ticks - 1);
+        break;
+    }
   }
 
-  ez->nobjects = ez->objects.len;
   if (!ez->base_ar) ez->base_ar = ez->ar;
   if (!ez->base_cs) ez->base_cs = ez->cs;
   if (!ez->base_od) ez->base_od = ez->od;
-
-  /* TODO: merge with above loop */
-  ez->max_combo = b_max_combo(ez);
 }
 
 /* TODO: try shrinking these functions */
