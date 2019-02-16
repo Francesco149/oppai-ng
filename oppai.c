@@ -689,6 +689,14 @@ int mods_apply(ezpp_t ez) {
 #define PARSER_OVERRIDE_MODE (1<<0) /* mode_override */
 #define PARSER_FOUND_AR (1<<1)
 
+#define CIRCLESIZE_BUFF_TRESHOLD 30.0f /* non-normalized diameter */
+#define PLAYFIELD_WIDTH 512.0f /* in osu!pixels */
+#define PLAYFIELD_HEIGHT 384.0f
+
+float playfield_center[] = {
+  PLAYFIELD_WIDTH / 2.0f, PLAYFIELD_HEIGHT / 2.0f
+};
+
 void print_line(slice_t* line) {
   info("in line: ");
   slice_write(line, stderr);
@@ -1105,6 +1113,7 @@ void p_end(ezpp_t ez) {
   float tnext = -infinity;
   int tindex = -1;
   float ms_per_beat = infinity;
+  float radius, scaling_factor;
 
   if (!(ez->parse_flags & PARSER_FOUND_AR)) {
     /* in old maps ar = od */
@@ -1127,6 +1136,8 @@ void p_end(ezpp_t ez) {
   s(creator);
   s(version);
   #undef s
+
+  mods_apply(ez);
 
   for (i = 0; i < ez->timing_points.len; ++i) {
     timing_t* t = &ez->timing_points.data[i];
@@ -1171,12 +1182,55 @@ void p_end(ezpp_t ez) {
     ez->max_combo -= ez->nspinners + ez->nsliders;
   }
 
-  /* TODO: merge this with normpos & angle calc */
+  /*
+   * positions are normalized on circle radius so that we
+   * can calc as if everything was the same circlesize
+   * this should really be in diffcalc functions but putting it here
+   * makes it so that i only traverse the hitobjects twice in total
+   */
+  radius = (
+    (PLAYFIELD_WIDTH / 16.0f) *
+    (1.0f - 0.7f * ((float)ez->cs - 5.0f) / 5.0f)
+  );
+
+  scaling_factor = 52.0f / radius;
+
+  /* cs buff (originally from osuElements) */
+  if (radius < CIRCLESIZE_BUFF_TRESHOLD) {
+    scaling_factor *=
+      1.0f + al_min((CIRCLESIZE_BUFF_TRESHOLD - radius), 5.0f) / 50.0f;
+  }
+
   for (i = 0; i < ez->objects.len; ++i) {
     object_t* o = &ez->objects.data[i];
     timing_t* t;
     int ticks;
     float num_beats;
+    float* pos;
+    float dot, det;
+
+    if (o->type & OBJ_SPINNER) {
+      pos = playfield_center;
+    } else {
+      /* sliders also begin with pos so it's fine */
+      pos = o->pos;
+    }
+    o->normpos[0] = pos[0] * scaling_factor;
+    o->normpos[1] = pos[1] * scaling_factor;
+
+    /* angle data */
+    if (i >= 2) {
+      object_t* prev1 = &ez->objects.data[i - 1];
+      object_t* prev2 = &ez->objects.data[i - 2];
+      float v1[2], v2[2];
+      v2f_sub(v1, prev2->normpos, prev1->normpos);
+      v2f_sub(v2, o->normpos, prev1->normpos);
+      dot = v2f_dot(v1, v2);
+      det = v1[0] * v2[1] - v1[1] * v2[0];
+      o->angle = (float)fabs(atan2(det, dot));
+    } else {
+      o->angle = get_nan();
+    }
 
     /* keep track of the current timing point */
     while (o->time >= tnext) {
@@ -1374,11 +1428,8 @@ int p_map_mem(ezpp_t ez, char* data, int data_size) {
 /* based on tom94's osu!tp aimod and osuElements */
 
 #define SINGLE_SPACING 125.0f
-#define CIRCLESIZE_BUFF_TRESHOLD 30.0f /* non-normalized diameter */
 #define STAR_SCALING_FACTOR 0.0675f /* star rating multiplier */
 #define EXTREME_SCALING_FACTOR 0.5f /* used to mix aim/speed stars */
-#define PLAYFIELD_WIDTH 512.0f /* in osu!pixels */
-#define PLAYFIELD_HEIGHT 384.0f
 #define STRAIN_STEP 400.0f /* diffcalc uses peak strains of 400ms chunks */
 #define DECAY_WEIGHT 0.9f /* peak strains are added in a weighed sum */
 #define MAX_SPEED_BONUS 45.0f /* ~330BPM 1/4 streams */
@@ -1389,9 +1440,6 @@ int p_map_mem(ezpp_t ez, char* data, int data_size) {
 #define AIM_ANGLE_BONUS_BEGIN (M_PI / 3)
 float decay_base[] = { 0.3f, 0.15f }; /* strains decay per interval */
 float weight_scaling[] = { 1400.0f, 26.25f }; /* balances aim/speed */
-float playfield_center[] = {
-  PLAYFIELD_WIDTH / 2.0f, PLAYFIELD_HEIGHT / 2.0f
-};
 
 /*
  * TODO: unbloat these params
@@ -1598,53 +1646,7 @@ float d_length_bonus(float stars, float difficulty) {
 
 int d_std(ezpp_t ez) {
   int i, res;
-  float radius, scaling_factor;
 
-  radius = (
-    (PLAYFIELD_WIDTH / 16.0f) *
-    (1.0f - 0.7f * ((float)ez->cs - 5.0f) / 5.0f)
-  );
-
-  /*
-   * positions are normalized on circle radius so that we
-   * can calc as if everything was the same circlesize
-   */
-  scaling_factor = 52.0f / radius;
-
-  /* cs buff (originally from osuElements) */
-  if (radius < CIRCLESIZE_BUFF_TRESHOLD) {
-    scaling_factor *=
-      1.0f + al_min((CIRCLESIZE_BUFF_TRESHOLD - radius), 5.0f) / 50.0f;
-  }
-
-  /* calculate normalized positions */
-  for (i = 0; i < ez->objects.len; ++i) {
-    object_t* o = &ez->objects.data[i];
-    float* pos;
-    float dot, det;
-    if (o->type & OBJ_SPINNER) {
-      pos = playfield_center;
-    } else {
-      /* sliders also begin with pos so it's fine */
-      pos = o->pos;
-    }
-    o->normpos[0] = pos[0] * scaling_factor;
-    o->normpos[1] = pos[1] * scaling_factor;
-    if (i >= 2) {
-      object_t* prev1 = &ez->objects.data[i - 1];
-      object_t* prev2 = &ez->objects.data[i - 2];
-      float v1[2], v2[2];
-      v2f_sub(v1, prev2->normpos, prev1->normpos);
-      v2f_sub(v2, o->normpos, prev1->normpos);
-      dot = v2f_dot(v1, v2);
-      det = v1[0] * v2[1] - v1[1] * v2[0];
-      o->angle = (float)fabs(atan2(det, dot));
-    } else {
-      o->angle = get_nan();
-    }
-  }
-
-  /* calculate speed and aim stars */
   res = d_calc_individual(ez, DIFF_SPEED);
   if (res < 0) {
     return res;
@@ -2239,11 +2241,6 @@ int ezpp_from_map(ezpp_t ez, char* mapfile) {
     ez->nobjects = ez->end;
   }
 
-  if (ez->base_ar) ez->ar = ez->base_ar;
-  if (ez->base_od) ez->od = ez->base_od;
-  if (ez->base_cs) ez->cs = ez->base_cs;
-  mods_apply(ez);
-
   if (!ez->aim_stars && !ez->speed_stars) {
     res = d_calc(ez);
     if (res < 0) {
@@ -2291,6 +2288,9 @@ int ezpp(ezpp_t ez, char* mapfile) {
       return res;
     }
   } else {
+    if (ez->base_ar) ez->ar = ez->base_ar;
+    if (ez->base_od) ez->od = ez->base_od;
+    if (ez->base_cs) ez->cs = ez->base_cs;
     mods_apply(ez);
   }
 
