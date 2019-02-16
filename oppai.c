@@ -217,6 +217,7 @@ char* oppai_version_str() {
   return OPPAI_VERSION_STRING;
 }
 
+#define log10f (float)log10
 #define al_round(x) (float)floor((x) + 0.5f)
 #define al_min(a, b) ((a) < (b) ? (a) : (b))
 #define al_max(a, b) ((a) > (b) ? (a) : (b))
@@ -655,7 +656,7 @@ typedef struct object {
   float time; /* milliseconds */
   int type;
 
-  /* only parsed for taiko maps */
+  /* only for taiko maps */
   int nsound_types;
   int* sound_types;
 
@@ -678,27 +679,56 @@ typedef struct object {
   int slider_is_drum_roll;
 } object_t;
 
-typedef struct beatmap {
-  int format_version;
-  int mode;
-  int original_mode; /* the mode the beatmap was meant for */
+typedef struct diff_calc {
+  float speed_mul;
+  float interval_end;
+  float max_strain;
+  array_t(float) highest_strains;
+  ezpp_t ez;
+  float singletap_threshold;
+  float total;
+  float aim;
+  float aim_difficulty;
+  float aim_length_bonus; /* unused for now */
+  float speed;
+  float speed_difficulty;
+  float speed_length_bonus; /* unused for now */
+  int nsingles;
+  int nsingles_threshold;
+} diff_calc_t;
 
+struct ezpp {
+  int data_size;
+  int format_version;
+  int mode, mode_override, original_mode;
+  int score_version;
+  int mods, combo;
+  float accuracy_percent;
+  int n300, n100, n50, nmiss;
+  int end;
+  float base_ar, base_cs, base_od, base_hp;
+  int max_combo;
   char* title;
   char* title_unicode;
   char* artist;
   char* artist_unicode;
   char* creator;
   char* version;
+  int ncircles, nsliders, nspinners, nobjects;
+  float ar, od, cs, hp, odms, sv, tick_rate;
+  float stars, aim_stars, speed_stars;
+  float pp, aim_pp, speed_pp, acc_pp;
 
-  int nobjects;
-  object_t* objects;
-  int ntiming_points;
-  timing_t* timing_points;
+  char section[64];
+  char buf[0xFFFF];
+  int parse_flags;
+  arena_t arena;
+  array_t(object_t) objects;
+  array_t(timing_t) timing_points;
 
-  int ncircles, nsliders, nspinners;
-  float hp, cs, od, ar, sv;
-  float tick_rate;
-} beatmap_t;
+  /* TEMPORARY TEMPORARY TEMPORARY */
+  diff_calc_t stars_;
+};
 
 /*
  * sliders get 2 + ticks combo (head, tail and ticks) each repetition adds
@@ -716,24 +746,24 @@ typedef struct beatmap {
  * 2.0f randomly
  */
 
-int b_max_combo(beatmap_t* b) {
-  int res = b->nobjects;
+int b_max_combo(ezpp_t ez) {
+  int res = ez->nobjects;
   int i;
 
-  if (!b->ntiming_points) {
+  if (!ez->timing_points.len) {
     info("beatmap has no timing points\n");
     return ERR_FORMAT;
   }
 
   /* spinners don't give combo in taiko */
-  if (b->mode == MODE_TAIKO) {
-    res -= b->nspinners + b->nsliders;
+  if (ez->mode == MODE_TAIKO) {
+    res -= ez->nspinners + ez->nsliders;
   }
 
   /* slider ticks */
-  for (i = 0; i < b->nobjects; ++i) {
-    object_t* o = &b->objects[i];
-    timing_t* t = &b->timing_points[o->timing_point];
+  for (i = 0; i < ez->nobjects; ++i) {
+    object_t* o = &ez->objects.data[i];
+    timing_t* t = &ez->timing_points.data[o->timing_point];
     int ticks;
     float num_beats;
 
@@ -741,7 +771,7 @@ int b_max_combo(beatmap_t* b) {
       continue;
     }
 
-    switch (b->mode) {
+    switch (ez->mode) {
       case MODE_TAIKO: {
         if (!o->slider_is_drum_roll) {
           res += (int)(
@@ -755,7 +785,7 @@ int b_max_combo(beatmap_t* b) {
         num_beats = (o->distance * o->repetitions) / t->px_per_beat;
 
         ticks = (int)ceil(
-          (num_beats - 0.1f) / o->repetitions * b->tick_rate
+          (num_beats - 0.1f) / o->repetitions * ez->tick_rate
         );
         --ticks;
 
@@ -778,74 +808,33 @@ int b_max_combo(beatmap_t* b) {
 
 /* beatmap parser ------------------------------------------------------ */
 
+/*
+ * comments in beatmaps can only be an entire line because
+ * some properties such as author can contain //
+ *
+ * all parse_* functions expect s to be a single line and trimmed
+ * on errors, parse_* functions return < 0 error codes otherwise they
+ * return n bytes consumed
+ */
+
 #define PARSER_OVERRIDE_MODE (1<<0) /* mode_override */
 #define PARSER_FOUND_AR (1<<1)
 
-/* beatmap parser's state */
-typedef struct parser {
-  int flags;
-  int mode_override;
-  slice_t lastpos;
-  slice_t lastline;
-  char buf[65536];  /* used to buffer data from the beatmap file */
-  char section[64]; /* current section */
-  arena_t arena;
-  array_t(object_t) objects;
-  array_t(timing_t) timing_points;
-  beatmap_t* b;
-} parser_t;
+void print_line(slice_t* line) {
+  info("in line: ");
+  slice_write(line, stderr);
+  info("\n");
+}
 
-/* sets up parser for reuse. must have already been inited with p_init */
-int p_reset(parser_t* pa, beatmap_t* b) {
-  memset(&pa->lastpos, 0, sizeof(pa->lastpos));
-  memset(&pa->lastline, 0, sizeof(pa->lastline));
-  memset(pa->buf, 0, sizeof(pa->buf));
-  memset(pa->section, 0, sizeof(pa->section));
-  pa->objects.len = 0;
-  pa->timing_points.len = 0;
-
-  /* TODO: reuse arena mem */
-  arena_free(&pa->arena);
-
-  pa->b = b;
-
-  if (b) {
-    memset(b, 0, sizeof(beatmap_t));
-    b->ar = b->cs = b->hp = b->od = 5.0f;
-    b->sv = b->tick_rate = 1.0f;
-  }
+int parse_warn(char* e, slice_t* line) {
+  info(e);
+  info("\n");
+  print_line(line);
   return 0;
 }
 
-int p_init(parser_t* pa) {
-  return p_reset(pa, 0);
-}
-
-void p_free(parser_t* pa) {
-  arena_free(&pa->arena);
-  array_free(&pa->objects);
-  array_free(&pa->timing_points);
-}
-
-/*
- * NOTE: comments in beatmaps can only be an entire line because
- *   some properties such as author can contain //
- */
-
-/* evil hack to set lastpos in one statement */
-#define parse_err(e, lastpos_) \
-  pa->lastpos = (lastpos_), \
-  ERR_##e
-
-int nop(int x) { return x; }
-
-#define parse_warn(e, line) \
-  info(e), info("\n"), print_line(line), nop(0)
-
 /* consume until any of the characters in separators is found */
-int consume_until(parser_t* pa, slice_t* s, char* separators,
-  slice_t* dst)
-{
+int p_consume_til(slice_t* s, char* separators, slice_t* dst) {
   char* p = s->start;
   for (; p < s->end; ++p) {
     char* sep;
@@ -857,46 +846,55 @@ int consume_until(parser_t* pa, slice_t* s, char* separators,
       }
     }
   }
-  return parse_err(MORE, *s);
+  return ERR_MORE;
 }
 
-/*
- * all parse_* functions expect s to be a single line and trimmed
- *
- * if the return type is int, they return n bytes consumed
- * if the return type is int, they will return zero on success
- *
- * on errors, parse_* functions return < 0 error codes
- */
-
-#define print_line(line) \
-  info("in line: "), \
-  slice_write((line), stderr), \
-  info("\n")
+float p_float(slice_t* value) {
+  float res;
+  char* p = value->start;
+  if (*p == '-') {
+    res = -1;
+    ++p;
+  } else {
+    res = 1;
+  }
+  /* infinity symbol */
+  if (!strncmp(p, "\xe2\x88\x9e", 3)) {
+    res *= get_inf();
+  } else {
+    if (sscanf(value->start, "%f", &res) != 1) {
+      info("W: failed to parse float ");
+      slice_write(value, stderr);
+      info("\n");
+      res = 0;
+    }
+  }
+  return res;
+}
 
 /* [name] */
-int p_section_name(parser_t* pa, slice_t* s, slice_t* name) {
+int p_section_name(ezpp_t ez, slice_t* s, slice_t* name) {
   int n;
   slice_t p = *s;
   if (*p.start++ != '[') {
-    return parse_err(SYNTAX, p);
+    return ERR_SYNTAX;
   }
-  n = consume_until(pa, &p, "]", name);
+  n = p_consume_til(&p, "]", name);
   if (n < 0) {
     return n;
   }
   p.start += n;
   if (p.start != p.end - 1) { /* must end in ] */
-    return parse_err(SYNTAX, p);
+    return ERR_SYNTAX;
   }
   return (int)(p.start - s->start);
 }
 
 /* name: value (results are trimmed) */
-int p_property(parser_t* pa, slice_t* s, slice_t* name, slice_t* value) {
+int p_property(ezpp_t ez, slice_t* s, slice_t* name, slice_t* value) {
   int n;
   char* p = s->start;
-  n = consume_until(pa, s, ":", name);
+  n = p_consume_til(s, ":", name);
   if (n < 0) {
     return n;
   }
@@ -909,57 +907,54 @@ int p_property(parser_t* pa, slice_t* s, slice_t* name, slice_t* value) {
   return (int)(s->end - s->start);
 }
 
-char* p_slicedup(parser_t* pa, slice_t* s) {
-  return arena_strndup(&pa->arena, s->start, slice_len(s));
+char* p_slicedup(ezpp_t ez, slice_t* s) {
+  return arena_strndup(&ez->arena, s->start, slice_len(s));
 }
 
-int p_metadata(parser_t* pa, slice_t* line) {
+int p_metadata(ezpp_t ez, slice_t* line) {
   slice_t name, value;
-  beatmap_t* b = pa->b;
-  int n = p_property(pa, line, &name, &value);
+  int n = p_property(ez, line, &name, &value);
   if (n < 0) {
     return parse_warn("W: malformed metadata line", line);
   }
   if (!slice_cmp(&name, "Title")) {
-    b->title = p_slicedup(pa, &value);
+    ez->title = p_slicedup(ez, &value);
   }
   else if (!slice_cmp(&name, "TitleUnicode")) {
-    b->title_unicode = p_slicedup(pa, &value);
+    ez->title_unicode = p_slicedup(ez, &value);
   }
   else if (!slice_cmp(&name, "Artist")) {
-    b->artist = p_slicedup(pa, &value);
+    ez->artist = p_slicedup(ez, &value);
   }
   else if (!slice_cmp(&name, "ArtistUnicode")) {
-    b->artist_unicode = p_slicedup(pa, &value);
+    ez->artist_unicode = p_slicedup(ez, &value);
   }
   else if (!slice_cmp(&name, "Creator")) {
-    b->creator = p_slicedup(pa, &value);
+    ez->creator = p_slicedup(ez, &value);
   }
   else if (!slice_cmp(&name, "Version")) {
-    b->version = p_slicedup(pa, &value);
+    ez->version = p_slicedup(ez, &value);
   }
   return n;
 }
 
-int p_general(parser_t* pa, slice_t* line) {
-  beatmap_t* b = pa->b;
+int p_general(ezpp_t ez, slice_t* line) {
   slice_t name, value;
   int n;
-  n = p_property(pa, line, &name, &value);
+  n = p_property(ez, line, &name, &value);
   if (n < 0) {
     return parse_warn("W: malformed general line", line);
   }
-
   if (!slice_cmp(&name, "Mode")) {
-    if (sscanf(value.start, "%d", &b->original_mode) != 1){
-      return parse_err(SYNTAX, value);
+    if (sscanf(value.start, "%d", &ez->original_mode) != 1){
+      return ERR_SYNTAX;
     }
-    if (pa->flags & PARSER_OVERRIDE_MODE) {
-      b->mode = pa->mode_override;
+    if (ez->parse_flags & PARSER_OVERRIDE_MODE) {
+      ez->mode = ez->mode_override;
     } else {
-      b->mode = b->original_mode;
+      ez->mode = ez->original_mode;
     }
-    switch (b->mode) {
+    switch (ez->mode) {
     case MODE_STD:
     case MODE_TAIKO:
       break;
@@ -967,68 +962,31 @@ int p_general(parser_t* pa, slice_t* line) {
       return ERR_NOTIMPLEMENTED;
     }
   }
-
   return n;
 }
 
-float p_float(slice_t* value, int* success) {
-  float res;
-  char* p = value->start;
-  if (*p == '-') {
-    res = -1;
-    ++p;
-  } else {
-    res = 1;
-  }
-
-  /* infinity symbol */
-  if (!strncmp(p, "\xe2\x88\x9e", 3)) {
-    res *= get_inf();
-    *success = 1;
-  } else {
-    *success = sscanf(value->start, "%f", &res) == 1;
-  }
-
-  /* if it fails we can just use default values */
-  return res;
-}
-
-int p_difficulty(parser_t* pa, slice_t* line) {
-  float* dst = 0;
+int p_difficulty(ezpp_t ez, slice_t* line) {
   slice_t name, value;
-  int n = p_property(pa, line, &name, &value);
+  int n = p_property(ez, line, &name, &value);
   if (n < 0) {
     return parse_warn("W: malformed difficulty line", line);
   }
-
   if (!slice_cmp(&name, "CircleSize")) {
-    dst = &pa->b->cs;
+    ez->cs = p_float(&value);
+  } else if (!slice_cmp(&name, "OverallDifficulty")) {
+    ez->od = p_float(&value);
+  } else if (!slice_cmp(&name, "ApproachRate")) {
+    ez->ar = p_float(&value);
+    ez->parse_flags |= PARSER_FOUND_AR;
+  } else if (!slice_cmp(&name, "HPDrainRate")) {
+    ez->hp = p_float(&value);
+  } else if (!slice_cmp(&name, "SliderMultiplier")) {
+    ez->sv = p_float(&value);
+  } else if (!slice_cmp(&name, "SliderTickRate")) {
+    ez->tick_rate = p_float(&value);
   }
-  else if (!slice_cmp(&name, "OverallDifficulty")) {
-    dst = &pa->b->od;
-  }
-  else if (!slice_cmp(&name, "ApproachRate")) {
-    dst = &pa->b->ar;
-    pa->flags |= PARSER_FOUND_AR;
-  }
-  else if (!slice_cmp(&name, "HPDrainRate")) {
-    dst = &pa->b->hp;
-  }
-  else if (!slice_cmp(&name, "SliderMultiplier")) {
-    dst = &pa->b->sv;
-  }
-  else if (!slice_cmp(&name, "SliderTickRate")) {
-    dst = &pa->b->tick_rate;
-  }
-
-  if (dst) {
-    int success;
-    *dst = p_float(&value, &success);
-  }
-
   return n;
 }
-
 
 /*
  * time, ms_per_beat, time_signature_id, sample_set_id,
@@ -1036,13 +994,12 @@ int p_difficulty(parser_t* pa, slice_t* line) {
  *
  * everything after ms_per_beat is optional
  */
-int p_timing(parser_t* pa, slice_t* line) {
+int p_timing(ezpp_t ez, slice_t* line) {
   int res = 0;
   int n, i;
   int err = 0;
   slice_t split[8];
-  timing_t* t = array_alloc(&pa->timing_points);
-  int success;
+  timing_t* t = array_alloc(&ez->timing_points);
 
   if (!t) {
     return ERR_OOM;
@@ -1069,16 +1026,8 @@ int p_timing(parser_t* pa, slice_t* line) {
     slice_trim(&split[i]);
   }
 
-  t->time = p_float(&split[0], &success);
-  if (!success) {
-    return parse_warn("W: malformed timing point time", line);
-  }
-
-  t->ms_per_beat = p_float(&split[1], &success);
-  if (!success) {
-    return parse_warn("W: malformed timing point ms_per_beat",
-      line);
-  }
+  t->time = p_float(&split[0]);
+  t->ms_per_beat = p_float(&split[1]);
 
   if (n >= 7) {
     if (slice_len(&split[6]) < 1) {
@@ -1091,13 +1040,11 @@ int p_timing(parser_t* pa, slice_t* line) {
   return res;
 }
 
-int p_objects(parser_t* pa, slice_t* line) {
-  beatmap_t* b = pa->b;
-  object_t* o = array_alloc(&pa->objects);
+int p_objects(ezpp_t ez, slice_t* line) {
+  object_t* o = array_alloc(&ez->objects);
   int err = 0;
   int ne;
   slice_t e[11];
-  int success;
 
   if (o) {
     memset(o, 0, sizeof(*o));
@@ -1119,18 +1066,15 @@ int p_objects(parser_t* pa, slice_t* line) {
     return parse_warn("W: malformed hitobject", line);
   }
 
-  o->time = p_float(&e[2], &success);
-  if (!success) {
-    return parse_warn("W: malformed hitobject time", line);
-  }
+  o->time = p_float(&e[2]);
 
   if (sscanf(e[3].start, "%d", &o->type) != 1) {
     parse_warn("W: malformed hitobject type", line);
     o->type = OBJ_CIRCLE;
   }
 
-  if (b->mode == MODE_TAIKO) {
-    int* sound_type = arena_alloc(&pa->arena, sizeof(int));
+  if (ez->mode == MODE_TAIKO) {
+    int* sound_type = arena_alloc(&ez->arena, sizeof(int));
     if (!sound_type) {
       return ERR_OOM;
     }
@@ -1144,20 +1088,14 @@ int p_objects(parser_t* pa, slice_t* line) {
   }
 
   if (o->type & OBJ_CIRCLE) {
-    ++b->ncircles;
-    o->pos[0] = p_float(&e[0], &success);
-    if (!success) {
-      return parse_warn("W: malformed circle position", line);
-    }
-    o->pos[1] = p_float(&e[1], &success);
-    if (!success) {
-      return parse_warn("W: malformed circle position", line);
-    }
+    ++ez->ncircles;
+    o->pos[0] = p_float(&e[0]);
+    o->pos[1] = p_float(&e[1]);
   }
 
   /* ?,?,?,?,?,end_time,custom_sample_banks */
   else if (o->type & OBJ_SPINNER) {
-    ++b->nspinners;
+    ++ez->nspinners;
   }
 
   /*
@@ -1165,20 +1103,13 @@ int p_objects(parser_t* pa, slice_t* line) {
    * per_node_sounds,per_node_samples,custom_sample_banks
    */
   else if (o->type & OBJ_SLIDER) {
-    ++b->nsliders;
+    ++ez->nsliders;
     if (ne < 7) {
       return parse_warn("W: malformed slider", line);
     }
 
-    o->pos[0] = p_float(&e[0], &success);
-    if (!success) {
-      return parse_warn("W: malformed slider position", line);
-    }
-
-    o->pos[1] = p_float(&e[1], &success);
-    if (!success) {
-      return parse_warn("W: malformed slider position", line);
-    }
+    o->pos[0] = p_float(&e[0]);
+    o->pos[1] = p_float(&e[1]);
 
     if (sscanf(e[6].start, "%d", &o->repetitions) != 1) {
       o->repetitions = 1;
@@ -1186,15 +1117,11 @@ int p_objects(parser_t* pa, slice_t* line) {
     }
 
     if (ne > 7) {
-      o->distance = p_float(&e[7], &success);
-      if (!success) {
-        parse_warn("W: malformed slider distance", line);
-        o->distance = 0;
-      }
+      o->distance = p_float(&e[7]);
     }
 
     /* per-node sound types */
-    if (b->mode == MODE_TAIKO && ne > 8 && slice_len(&e[8]) > 0) {
+    if (ez->mode == MODE_TAIKO && ne > 8 && slice_len(&e[8]) > 0) {
       slice_t p = e[8];
       int i, nodes;
 
@@ -1207,7 +1134,7 @@ int p_objects(parser_t* pa, slice_t* line) {
 
       /* repeats + head and tail. no repeats is 1 repetition, so -1 */
       nodes = al_max(0, o->repetitions - 1) + 2;
-      o->sound_types = arena_alloc(&pa->arena, sizeof(int) * nodes);
+      o->sound_types = arena_alloc(&ez->arena, sizeof(int) * nodes);
       if (!o->sound_types) {
         return ERR_OOM;
       }
@@ -1217,9 +1144,8 @@ int p_objects(parser_t* pa, slice_t* line) {
         int n;
         int type;
         node.start = node.end = 0;
-        n = consume_until(pa, &p, "|", &node);
+        n = p_consume_til(&p, "|", &node);
         if (n < 0 && n != ERR_MORE) {
-          pa->lastpos = p;
           return n;
         }
         if (node.start >= node.end || !node.start || p.start >= p.end) {
@@ -1240,7 +1166,7 @@ int p_objects(parser_t* pa, slice_t* line) {
   return (int)(e[ne - 1].end - line->start);
 }
 
-int p_line(parser_t* pa, slice_t* line) {
+int p_line(ezpp_t ez, slice_t* line) {
   int n = 0;
 
   if (line->start >= line->end) {
@@ -1261,7 +1187,6 @@ int p_line(parser_t* pa, slice_t* line) {
 
   /* from here on we don't care about leading or trailing whitespace */
   slice_trim(line);
-  pa->lastline = *line;
 
   /* C++ style comments */
   if (!strncmp(line->start, "//", 2)) {
@@ -1272,40 +1197,36 @@ int p_line(parser_t* pa, slice_t* line) {
   if (*line->start == '[') {
     slice_t section;
     int len;
-    n = p_section_name(pa, line, &section);
+    n = p_section_name(ez, line, &section);
     if (n < 0) {
       return n;
     }
-    if (section.end - section.start >= sizeof(pa->section)) {
+    if (section.end - section.start >= sizeof(ez->section)) {
       parse_warn("W: truncated long section name", line);
     }
-    len = (int)al_min(sizeof(pa->section) - 1, section.end - section.start);
-    memcpy(pa->section, section.start, len);
-    pa->section[len] = 0;
+    len = (int)al_min(sizeof(ez->section) - 1, section.end - section.start);
+    memcpy(ez->section, section.start, len);
+    ez->section[len] = 0;
     return n;
   }
 
-  if (!strcmp(pa->section, "Metadata")) {
-    n = p_metadata(pa, line);
-  }
-  else if (!strcmp(pa->section, "General")) {
-    n = p_general(pa, line);
-  }
-  else if (!strcmp(pa->section, "Difficulty")) {
-    n = p_difficulty(pa, line);
-  }
-  else if (!strcmp(pa->section, "TimingPoints")) {
-    n = p_timing(pa, line);
-  }
-  else if (!strcmp(pa->section, "HitObjects")) {
-    n = p_objects(pa, line);
+  if (!strcmp(ez->section, "Metadata")) {
+    n = p_metadata(ez, line);
+  } else if (!strcmp(ez->section, "General")) {
+    n = p_general(ez, line);
+  } else if (!strcmp(ez->section, "Difficulty")) {
+    n = p_difficulty(ez, line);
+  } else if (!strcmp(ez->section, "TimingPoints")) {
+    n = p_timing(ez, line);
+  } else if (!strcmp(ez->section, "HitObjects")) {
+    n = p_objects(ez, line);
   } else {
     char* p = line->start;
     char* fmt_str = "file format v";
     for (; p < line->end && strncmp(p, fmt_str, 13); ++p);
     p += 13;
     if (p < line->end) {
-      if (sscanf(p, "%d", &pa->b->format_version) == 1) {
+      if (sscanf(p, "%d", &ez->format_version) == 1) {
         return (int)(line->end - line->start);
       }
     }
@@ -1314,37 +1235,27 @@ int p_line(parser_t* pa, slice_t* line) {
   return n;
 }
 
-void p_begin(parser_t* pa, beatmap_t* b) {
-  b->sv = b->tick_rate = 1;
-  p_reset(pa, b);
-}
-
-void p_end(parser_t* pa, beatmap_t* b) {
+void p_end(ezpp_t ez) {
   int i;
   float infinity = get_inf();
   float tnext = -infinity;
   int tindex = -1;
   float ms_per_beat = infinity;
 
-  if (!(pa->flags & PARSER_FOUND_AR)) {
+  if (!(ez->parse_flags & PARSER_FOUND_AR)) {
     /* in old maps ar = od */
-    b->ar = b->od;
+    ez->ar = ez->od;
   }
 
-  b->objects = pa->objects.data;
-  b->nobjects = pa->objects.len;
-  b->timing_points = pa->timing_points.data;
-  b->ntiming_points = pa->timing_points.len;
-
-  if (!b->title_unicode) {
-    b->title_unicode = b->title;
+  if (!ez->title_unicode) {
+    ez->title_unicode = ez->title;
   }
 
-  if (!b->artist_unicode) {
-    b->artist_unicode = b->artist;
+  if (!ez->artist_unicode) {
+    ez->artist_unicode = ez->artist;
   }
 
-  #define s(x) b->x = b->x ? b->x : "(null)"
+  #define s(x) ez->x = ez->x ? ez->x : "(null)"
   s(title);
   s(title_unicode);
   s(artist);
@@ -1353,8 +1264,8 @@ void p_end(parser_t* pa, beatmap_t* b) {
   s(version);
   #undef s
 
-  for (i = 0; i < b->ntiming_points; ++i) {
-    timing_t* t = &b->timing_points[i];
+  for (i = 0; i < ez->timing_points.len; ++i) {
+    timing_t* t = &ez->timing_points.data[i];
     float sv_multiplier = 1.0f;
     if (t->change) {
       ms_per_beat = t->ms_per_beat;
@@ -1363,54 +1274,61 @@ void p_end(parser_t* pa, beatmap_t* b) {
       sv_multiplier = -100.0f / t->ms_per_beat;
     }
     t->beat_len = ms_per_beat;
-    t->px_per_beat = b->sv * 100.0f;
-    if (b->format_version < 8) {
+    t->px_per_beat = ez->sv * 100.0f;
+    if (ez->format_version < 8) {
       t->beat_len *= sv_multiplier;
     } else {
       t->px_per_beat *= sv_multiplier;
     }
-    t->velocity = 100.0f * b->sv / t->beat_len;
+    t->velocity = 100.0f * ez->sv / t->beat_len;
   }
 
   /* TODO: merge this with normpos & angle calc */
-  for (i = 0; i < b->nobjects; ++i) {
-    object_t* o = &b->objects[i];
+  for (i = 0; i < ez->objects.len; ++i) {
+    object_t* o = &ez->objects.data[i];
     timing_t* t;
     /* keep track of the current timing point */
     while (o->time >= tnext) {
       ++tindex;
-      if (tindex + 1 < b->ntiming_points) {
-        tnext = b->timing_points[tindex + 1].time;
+      if (tindex + 1 < ez->timing_points.len) {
+        tnext = ez->timing_points.data[tindex + 1].time;
       } else {
         tnext = infinity;
       }
     }
     o->timing_point = tindex;
-    t = &b->timing_points[tindex];
+    t = &ez->timing_points.data[tindex];
     o->duration = o->distance * o->repetitions / t->velocity;
-    o->tick_spacing = al_min(t->beat_len / b->tick_rate,
+    o->tick_spacing = al_min(t->beat_len / ez->tick_rate,
         o->duration / o->repetitions);
     o->slider_is_drum_roll = (
       o->tick_spacing <= 0 || o->duration >= 2 * t->beat_len
     );
   }
+
+  ez->nobjects = ez->objects.len;
+  if (!ez->base_ar) ez->base_ar = ez->ar;
+  if (!ez->base_cs) ez->base_cs = ez->cs;
+  if (!ez->base_od) ez->base_od = ez->od;
+
+  /* TODO: merge with above loop */
+  ez->max_combo = b_max_combo(ez);
 }
 
-int p_map(parser_t* pa, beatmap_t* b, FILE* f) {
+/* TODO: try shrinking these functions */
+int p_map(ezpp_t ez, FILE* f) {
   int res = 0;
   char* pbuf;
   int bufsize;
   int n;
   int nread;
 
-  p_begin(pa, b);
-
   if (!f) {
     return ERR_IO;
   }
 
   /* points to free space in the buffer */
-  pbuf = pa->buf;
+  pbuf = ez->buf;
 
   /* reading loop */
   for (;;) {
@@ -1418,7 +1336,7 @@ int p_map(parser_t* pa, beatmap_t* b, FILE* f) {
     slice_t s;      /* points to the remaining data in buf */
     int more_data;
 
-    bufsize = (int)sizeof(pa->buf) - (int)(pbuf - pa->buf);
+    bufsize = (int)sizeof(ez->buf) - (int)(pbuf - ez->buf);
     nread = (int)fread(pbuf, 1, bufsize, f);
     if (!nread) {
       /* eof */
@@ -1426,13 +1344,13 @@ int p_map(parser_t* pa, beatmap_t* b, FILE* f) {
     }
 
     more_data = !feof(f);
-    s.start = pa->buf;
+    s.start = ez->buf;
     s.end = pbuf + nread;
 
     /* parsing loop */
     for (; s.start < s.end; ) {
       slice_t line;
-      n = consume_until(pa, &s, "\n", &line);
+      n = p_consume_til(&s, "\n", &line);
 
       if (n < 0) {
         if (n != ERR_MORE) {
@@ -1440,7 +1358,7 @@ int p_map(parser_t* pa, beatmap_t* b, FILE* f) {
         }
         if (!nlines) {
           /* line doesn't fit the entire buffer */
-          return parse_err(TRUNCATED, s);
+          return ERR_TRUNCATED;
         }
         if (more_data) {
           /* we will finish reading this line later */
@@ -1457,7 +1375,7 @@ int p_map(parser_t* pa, beatmap_t* b, FILE* f) {
       s.start += n;
       ++nlines;
 
-      n = p_line(pa, &line);
+      n = p_line(ez, &line);
       if (n < 0) {
         return n;
       }
@@ -1468,26 +1386,23 @@ int p_map(parser_t* pa, beatmap_t* b, FILE* f) {
     /* done parsing what we read, prepare to read some more */
 
     /* move remaining data to the beginning of buf */
-    memmove(pa->buf, s.start, s.end - s.start);
+    memmove(ez->buf, s.start, s.end - s.start);
 
     /* adjust pbuf to point to free space */
-    pbuf = pa->buf + (s.end - s.start);
+    pbuf = ez->buf + (s.end - s.start);
   }
 
-  p_end(pa, b);
+  p_end(ez);
+  ez->nobjects = ez->objects.len;
 
   return res;
 }
 
-int p_map_mem(parser_t* pa, beatmap_t* b, char* data,
-  int data_size)
-{
+int p_map_mem(ezpp_t ez, char* data, int data_size) {
   int res = 0;
   int n;
   int nlines = 0; /* complete lines in the current chunk */
   slice_t s; /* points to the remaining data in buf */
-
-  p_begin(pa, b);
 
   if (!data || data_size == 0) {
     return ERR_IO;
@@ -1499,7 +1414,7 @@ int p_map_mem(parser_t* pa, beatmap_t* b, char* data,
   /* parsing loop */
   for (; s.start < s.end; ) {
     slice_t line;
-    n = consume_until(pa, &s, "\n", &line);
+    n = p_consume_til(&s, "\n", &line);
 
     if (n < 0) {
       if (n != ERR_MORE) {
@@ -1507,7 +1422,7 @@ int p_map_mem(parser_t* pa, beatmap_t* b, char* data,
       }
       if (!nlines) {
         /* line doesn't fit the entire buffer */
-        return parse_err(TRUNCATED, s);
+        return ERR_TRUNCATED;
       }
       /* EOF, so we must process the remaining data as a line */
       line = s;
@@ -1520,7 +1435,7 @@ int p_map_mem(parser_t* pa, beatmap_t* b, char* data,
     s.start += n;
     ++nlines;
 
-    n = p_line(pa, &line);
+    n = p_line(ez, &line);
     if (n < 0) {
       return n;
     }
@@ -1528,7 +1443,7 @@ int p_map_mem(parser_t* pa, beatmap_t* b, char* data,
     res += n;
   }
 
-  p_end(pa, b);
+  p_end(ez);
 
   return res;
 }
@@ -1556,24 +1471,6 @@ float weight_scaling[] = { 1400.0f, 26.25f }; /* balances aim/speed */
 float playfield_center[] = {
   PLAYFIELD_WIDTH / 2.0f, PLAYFIELD_HEIGHT / 2.0f
 };
-
-typedef struct diff_calc {
-  float speed_mul;
-  float interval_end;
-  float max_strain;
-  array_t(float) highest_strains;
-  beatmap_t* b;
-  float singletap_threshold;
-  float total;
-  float aim;
-  float aim_difficulty;
-  float aim_length_bonus; /* unused for now */
-  float speed;
-  float speed_difficulty;
-  float speed_length_bonus; /* unused for now */
-  int nsingles;
-  int nsingles_threshold;
-} diff_calc_t;
 
 int d_init(diff_calc_t* d) {
   memset(d, 0, sizeof(diff_calc_t));
@@ -1748,24 +1645,26 @@ float d_weigh_strains(diff_calc_t* d) {
 
 int d_calc_individual(int type, diff_calc_t* d) {
   int i;
-  beatmap_t* b = d->b;
+  ezpp_t ez = d->ez;
 
   /* 
    * the first object doesn't generate a strain,
    * so we begin with an incremented interval end
    */
   d->max_strain = 0.0f;
-  d->interval_end = ceil(b->objects[0].time / (STRAIN_STEP * d->speed_mul))
-    * (STRAIN_STEP * d->speed_mul);
+  d->interval_end = (
+    ceil(ez->objects.data[0].time / (STRAIN_STEP * d->speed_mul))
+    * STRAIN_STEP * d->speed_mul
+  );
   d->highest_strains.len = 0;
 
-  for (i = 0; i < b->nobjects; ++i) {
+  for (i = 0; i < ez->objects.len; ++i) {
     int err;
-    object_t* o = &b->objects[i];
+    object_t* o = &ez->objects.data[i];
     object_t* prev = 0;
     float prev_time = 0, prev_strain = 0;
     if (i > 0) {
-      prev = &b->objects[i - 1];
+      prev = &ez->objects.data[i - 1];
       d_calc_strain(type, o, prev, d->speed_mul);
       prev_time = prev->time;
       prev_strain = prev->strains[type];
@@ -1796,14 +1695,12 @@ int d_calc_individual(int type, diff_calc_t* d) {
   return 0;
 }
 
-#define log10f (float)log10
-
 float d_length_bonus(float stars, float difficulty) {
   return 0.32f + 0.5f * (log10f(difficulty + stars) - log10f(stars));
 }
 
 int d_std(diff_calc_t* d, int mods) {
-  beatmap_t* b = d->b;
+  ezpp_t ez = d->ez;
   int i;
   int res;
   float radius;
@@ -1811,7 +1708,7 @@ int d_std(diff_calc_t* d, int mods) {
   beatmap_stats_t mapstats;
 
   /* apply mods and calculate circle radius at this CS */
-  mapstats.cs = b->cs;
+  mapstats.cs = ez->cs;
   mods_apply(MODE_STD, mods, &mapstats, APPLY_CS);
   d->speed_mul = mapstats.speed;
 
@@ -1833,8 +1730,8 @@ int d_std(diff_calc_t* d, int mods) {
   }
 
   /* calculate normalized positions */
-  for (i = 0; i < b->nobjects; ++i) {
-    object_t* o = &b->objects[i];
+  for (i = 0; i < ez->objects.len; ++i) {
+    object_t* o = &ez->objects.data[i];
     float* pos;
     float dot, det;
     if (o->type & OBJ_SPINNER) {
@@ -1846,8 +1743,8 @@ int d_std(diff_calc_t* d, int mods) {
     o->normpos[0] = pos[0] * scaling_factor;
     o->normpos[1] = pos[1] * scaling_factor;
     if (i >= 2) {
-      object_t* prev1 = &b->objects[i - 1];
-      object_t* prev2 = &b->objects[i - 2];
+      object_t* prev1 = &ez->objects.data[i - 1];
+      object_t* prev2 = &ez->objects.data[i - 2];
       float v1[2], v2[2];
       v2f_sub(v1, prev2->normpos, prev1->normpos);
       v2f_sub(v2, o->normpos, prev1->normpos);
@@ -1884,13 +1781,13 @@ int d_std(diff_calc_t* d, int mods) {
     (float)fabs(d->speed - d->aim) * EXTREME_SCALING_FACTOR;
 
   /* singletap stats */
-  for (i = 1; i < b->nobjects; ++i) {
-    object_t* o = &b->objects[i];
+  for (i = 1; i < ez->objects.len; ++i) {
+    object_t* o = &ez->objects.data[i];
     if (o->is_single) {
       ++d->nsingles;
     }
     if (o->type & (OBJ_CIRCLE | OBJ_SLIDER)) {
-      object_t* prev = &b->objects[i - 1];
+      object_t* prev = &ez->objects.data[i - 1];
       float interval = o->time - prev->time;
       interval /= mapstats.speed;
       if (interval >= d->singletap_threshold) {
@@ -2008,7 +1905,7 @@ void swap_ptrs(void** a, void** b) {
 
 int d_taiko(diff_calc_t* d, int mods) {
   float infinity = get_inf();
-  beatmap_t* b = d->b;
+  ezpp_t ez = d->ez;
   int i;
   beatmap_stats_t mapstats;
 
@@ -2019,7 +1916,7 @@ int d_taiko(diff_calc_t* d, int mods) {
 
   int result;
 
-  if (!b->ntiming_points) {
+  if (!ez->timing_points.data) {
     info("beatmap has no timing points\n");
     return ERR_FORMAT;
   }
@@ -2036,8 +1933,8 @@ int d_taiko(diff_calc_t* d, int mods) {
    * so that it can be reused? probably slower, but cleaner,
    * more modular and more readable
    */
-  for (i = 0; i < b->nobjects; ++i) {
-    object_t* o = &b->objects[i];
+  for (i = 0; i < ez->nobjects; ++i) {
+    object_t* o = &ez->objects.data[i];
 
     cur->hit = (o->type & OBJ_CIRCLE) != 0;
     cur->time = o->time;
@@ -2053,7 +1950,7 @@ int d_taiko(diff_calc_t* d, int mods) {
     cur->last_switch_even = -1;
     cur->rim = (o->sound_types[0] & (SOUND_CLAP|SOUND_WHISTLE)) != 0;
 
-    if (b->original_mode == MODE_TAIKO) {
+    if (ez->original_mode == MODE_TAIKO) {
       goto continue_loop;
     }
 
@@ -2135,9 +2032,9 @@ continue_loop:
   return 0;
 }
 
-int d_calc(diff_calc_t* d, beatmap_t* b, int mods) {
-  d->b = b;
-  switch (b->mode) {
+int d_calc(diff_calc_t* d, ezpp_t ez, int mods) {
+  d->ez = ez;
+  switch (ez->mode) {
   case MODE_STD:
     return d_std(d, mods);
   case MODE_TAIKO:
@@ -2221,32 +2118,7 @@ void taiko_acc_round(float acc_percent, int nobjects, int nmisses,
  * alignment etc
  */
 
-struct ezpp {
-  int data_size;
-  int mode, mode_override;
-  int score_version;
-  int mods, combo;
-  float accuracy_percent;
-  int n300, n100, n50, nmiss;
-  int end;
-  float base_ar, base_cs, base_od, base_hp;
-  int max_combo;
-  char* title;
-  char* title_unicode;
-  char* artist;
-  char* artist_unicode;
-  char* creator;
-  char* version;
-  int ncircles, nsliders, nspinners, nobjects;
-  float ar, od, cs, hp, odms;
-  float stars, aim_stars, speed_stars;
-  float pp, aim_pp, speed_pp, acc_pp;
 
-  /* TEMPORARY TEMPORARY TEMPORARY */
-  parser_t parser;
-  beatmap_t map;
-  diff_calc_t stars_;
-};
 
 /* std pp calc --------------------------------------------------------- */
 
@@ -2450,7 +2322,7 @@ int ezpp_taiko_ppcalc(ezpp_t ez) {
 
 #if 0
   /* combo scaling (removed?) */
-  if (b->max_combo > 0) {
+  if (ez->max_combo > 0) {
     ez->speed_pp *= (
       al_min(pow(ez->max_combo - ez->nmiss, 0.5f)
       / pow(ez->max_combo, 0.5f), 1.0f)
@@ -2493,27 +2365,24 @@ int ezpp_taiko_ppcalc(ezpp_t ez) {
 int ezpp_from_map(ezpp_t ez, char* mapfile) {
   int res;
 
-  res = p_reset(&ez->parser, 0);
-  if (res < 0) {
-    goto cleanup;
-  }
+  ez->ar = ez->cs = ez->hp = ez->od = 5.0f;
+  ez->sv = ez->tick_rate = 1.0f;
 
   if (ez->mode_override) {
-    ez->parser.flags = PARSER_OVERRIDE_MODE;
-    ez->parser.mode_override = ez->mode_override;
+    ez->parse_flags = PARSER_OVERRIDE_MODE;
   }
 
   if (ez->data_size) {
-    res = p_map_mem(&ez->parser, &ez->map, mapfile, ez->data_size);
+    res = p_map_mem(ez, mapfile, ez->data_size);
   } else if (!strcmp(mapfile, "-")) {
-    res = p_map(&ez->parser, &ez->map, stdin);
+    res = p_map(ez, stdin);
   } else {
     FILE* f = fopen(mapfile, "rb");
     if (!f) {
       perror("fopen");
       res = ERR_IO;
     } else {
-      res = p_map(&ez->parser, &ez->map, f);
+      res = p_map(ez, f);
       fclose(f);
     }
   }
@@ -2522,32 +2391,14 @@ int ezpp_from_map(ezpp_t ez, char* mapfile) {
     goto cleanup;
   }
 
-  if (ez->end > 0 && ez->end < ez->map.nobjects) {
-    ez->map.nobjects = ez->end;
+  if (ez->end > 0 && ez->end < ez->nobjects) {
+    ez->nobjects = ez->end;
   }
 
-  if (ez->base_ar) ez->map.ar = ez->base_ar;
-  if (ez->base_od) ez->map.od = ez->base_od;
-  if (ez->base_cs) ez->map.cs = ez->base_cs;
+  if (ez->base_ar) ez->ar = ez->base_ar;
+  if (ez->base_od) ez->od = ez->base_od;
+  if (ez->base_cs) ez->cs = ez->base_cs;
 
-  ez->nobjects = ez->map.nobjects;
-  ez->ncircles = ez->map.ncircles;
-  ez->nsliders = ez->map.nsliders;
-  ez->mode = ez->map.mode;
-  ez->max_combo = b_max_combo(&ez->map);
-  ez->base_ar = ez->map.ar;
-  ez->base_od = ez->map.od;
-  ez->base_cs = ez->map.cs;
-  ez->base_hp = ez->map.hp;
-  ez->title = ez->map.title;
-  ez->title_unicode = ez->map.title_unicode;
-  ez->artist = ez->map.artist;
-  ez->artist_unicode = ez->map.artist_unicode;
-  ez->creator = ez->map.creator;
-  ez->version = ez->map.version;
-  ez->ncircles = ez->map.ncircles;
-  ez->nsliders = ez->map.nsliders;
-  ez->nspinners = ez->map.nspinners;
   if (ez->max_combo < 0) {
     res = ez->max_combo;
     goto cleanup;
@@ -2558,7 +2409,7 @@ int ezpp_from_map(ezpp_t ez, char* mapfile) {
     if (res < 0) {
       goto cleanup;
     }
-    res = d_calc(&ez->stars_, &ez->map, ez->mods);
+    res = d_calc(&ez->stars_, ez, ez->mods);
     if (res < 0) {
       goto cleanup;
     }
@@ -2590,6 +2441,9 @@ ezpp_t ezpp_new() {
 
 OPPAIAPI
 void ezpp_free(ezpp_t ez) {
+  arena_free(&ez->arena);
+  array_free(&ez->objects);
+  array_free(&ez->timing_points);
   free(ez);
 }
 
@@ -2704,13 +2558,11 @@ OPPAIAPI float ezpp_hp(ezpp_t ez) { return ez->hp; }
 OPPAIAPI float ezpp_odms(ezpp_t ez) { return ez->odms; }
 
 OPPAIAPI float ezpp_time_at(ezpp_t ez, int i) {
-  /* TEMPORARY */
-  return ez->map.objects ? ez->map.objects[i].time : 0;
+  return ez->objects.len ? ez->objects.data[i].time : 0;
 }
 
 OPPAIAPI float ezpp_strain_at(ezpp_t ez, int i, int difficulty_type) {
-  /* TEMPORARY */
-  return ez->map.objects ? ez->map.objects[i].strains[difficulty_type] : 0;
+  return ez->objects.len ? ez->objects.data[i].strains[difficulty_type] : 0;
 }
 
 #define setter(t, x) \
