@@ -217,11 +217,6 @@ char* oppai_version_str() {
   return OPPAI_VERSION_STRING;
 }
 
-#define log10f (float)log10
-#define al_round(x) (float)floor((x) + 0.5f)
-#define al_min(a, b) ((a) < (b) ? (a) : (b))
-#define al_max(a, b) ((a) > (b) ? (a) : (b))
-
 /* error utils --------------------------------------------------------- */
 
 int info(char* fmt, ...) {
@@ -251,6 +246,11 @@ char* errstr(int err) {
 }
 
 /* math ---------------------------------------------------------------- */
+
+#define log10f (float)log10
+#define al_round(x) (float)floor((x) + 0.5f)
+#define al_min(a, b) ((a) < (b) ? (a) : (b))
+#define al_max(a, b) ((a) > (b) ? (a) : (b))
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -491,6 +491,12 @@ typedef struct object {
   float tick_spacing;
   int slider_is_drum_roll;
 } object_t;
+
+/*
+ * exposing the struct would cut down lines of code but makes it harder
+ * to use from langs that aren't c/c++ or don't have the same memory
+ * alignment etc
+ */
 
 struct ezpp {
   int data_size;
@@ -782,20 +788,15 @@ int p_metadata(ezpp_t ez, slice_t* line) {
   }
   if (!slice_cmp(&name, "Title")) {
     ez->title = p_slicedup(ez, &value);
-  }
-  else if (!slice_cmp(&name, "TitleUnicode")) {
+  } else if (!slice_cmp(&name, "TitleUnicode")) {
     ez->title_unicode = p_slicedup(ez, &value);
-  }
-  else if (!slice_cmp(&name, "Artist")) {
+  } else if (!slice_cmp(&name, "Artist")) {
     ez->artist = p_slicedup(ez, &value);
-  }
-  else if (!slice_cmp(&name, "ArtistUnicode")) {
+  } else if (!slice_cmp(&name, "ArtistUnicode")) {
     ez->artist_unicode = p_slicedup(ez, &value);
-  }
-  else if (!slice_cmp(&name, "Creator")) {
+  } else if (!slice_cmp(&name, "Creator")) {
     ez->creator = p_slicedup(ez, &value);
-  }
-  else if (!slice_cmp(&name, "Version")) {
+  } else if (!slice_cmp(&name, "Version")) {
     ez->version = p_slicedup(ez, &value);
   }
   return n;
@@ -1979,14 +1980,6 @@ void taiko_acc_round(float acc_percent, int nobjects, int nmisses,
   *n300 = nobjects - *n150 - nmisses;
 }
 
-/*
- * exposing the struct would cut down lines of code but makes it harder
- * to use from langs that aren't c/c++ or don't have the same memory
- * alignment etc
- */
-
-
-
 /* std pp calc --------------------------------------------------------- */
 
 /* some kind of formula to get a base pp value from stars */
@@ -2211,7 +2204,7 @@ int ezpp_taiko_ppcalc(ezpp_t ez) {
   return 0;
 }
 
-/* map parser ---------------------------------------------------------- */
+/* main interface ------------------------------------------------------ */
 
 int ezpp_from_map(ezpp_t ez, char* mapfile) {
   int res;
@@ -2261,8 +2254,6 @@ int ezpp_from_map(ezpp_t ez, char* mapfile) {
 cleanup:
   return res;
 }
-
-/* main interface ------------------------------------------------------ */
 
 OPPAIAPI
 ezpp_t ezpp_new() {
