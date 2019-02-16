@@ -148,12 +148,6 @@ void usage() {
     "  default: map's base circle size\n"
     "  example: CS6.5\n"
     "\n"
-    "-st[n]\n"
-    "  the maximum 1/2 bpm that is considered "
-    "singletappable for the singletap stats.\n"
-    "  default: 240\n"
-    "  example: -st260\n"
-    "\n"
   );
 
   info(
