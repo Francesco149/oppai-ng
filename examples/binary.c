@@ -34,7 +34,7 @@ float read_flt(char** p) {
 char* read_str(char** p, int* len) {
   char* res;
   *len = read2(p);
-  res = (char*)p + 2;
+  res = *p;
   *p += *len + 1;
   return res;
 }
@@ -120,8 +120,8 @@ int main() {
   printf("%g stars ", read_flt(&p));
   printf("(%g speed, ", read_flt(&p));
   printf("%g aim)\n", read_flt(&p));
-  printf("%d spacing singletaps, ", read2(&p));
-  printf("%d notes within singletap threshold\n", read2(&p));
+  read2(&p); /* legacy */
+  read2(&p); /* legacy */
   puts("");
   printf("%g aim pp\n", read_flt(&p));
   printf("%g speed pp\n", read_flt(&p));

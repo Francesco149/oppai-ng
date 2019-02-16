@@ -7,11 +7,10 @@
 #include "../oppai.c"
 
 int main() {
-  ezpp_t ez;
-  ezpp_init(&ez);
-  ez.mods = MODS_HD | MODS_DT;
-  ezpp(&ez, "-");
-  printf("%gpp\n", ez.pp);
+  ezpp_t ez = ezpp_new();
+  ezpp_set_mods(ez, MODS_HD | MODS_DT);
+  ezpp(ez, "-");
+  printf("%gpp\n", ezpp_pp(ez));
   return 0;
 }
 
