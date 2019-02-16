@@ -779,7 +779,7 @@ int main(int argc, char* argv[]) {
   char* mods_str = 0;
   int mods = MODS_NOMOD;
   float tmpf;
-  int tmpi, n100, n50;
+  int tmpi, n100 = 0, n50 = 0;
 
   /* parse arguments ------------------------------------------------- */
   me = argv[0];
