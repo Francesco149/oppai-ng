@@ -1846,7 +1846,7 @@ int d_taiko(ezpp_t ez) {
       float j;
 
       /* drum roll, ignore */
-      if (o->slider_is_drum_roll) {
+      if (o->slider_is_drum_roll || i == 0) {
         goto continue_loop;
       }
 
