@@ -1303,14 +1303,12 @@ void p_end(ezpp_t ez) {
   }
 }
 
-/* TODO: try shrinking these functions */
 int p_map(ezpp_t ez, FILE* f) {
-  int res = 0;
-  char* pbuf;
-  int bufsize;
+  char* p;
+  char* bufend;
+  char c;
   int n;
-  int nread;
-
+  slice_t line;
   if (!f) {
     return ERR_IO;
   }
@@ -1321,77 +1319,35 @@ int p_map(ezpp_t ez, FILE* f) {
   ezpp_free_arena(ez);
   memset(ez->section, 0, sizeof(ez->section));
 
-  /* points to free space in the buffer */
-  pbuf = ez->buf;
-
   /* reading loop */
-  for (;;) {
-    int nlines = 0; /* complete lines in the current chunk */
-    slice_t s;      /* points to the remaining data in buf */
-    int more_data;
-
-    bufsize = (int)sizeof(ez->buf) - (int)(pbuf - ez->buf);
-    nread = (int)fread(pbuf, 1, bufsize, f);
-    if (!nread) {
-      /* eof */
-      break;
-    }
-
-    more_data = !feof(f);
-    s.start = ez->buf;
-    s.end = pbuf + nread;
-
-    /* parsing loop */
-    for (; s.start < s.end; ) {
-      slice_t line;
-      n = p_consume_til(&s, "\n", &line);
-
-      if (n < 0) {
-        if (n != ERR_MORE) {
-          return n;
-        }
-        if (!nlines) {
-          /* line doesn't fit the entire buffer */
-          return ERR_TRUNCATED;
-        }
-        if (more_data) {
-          /* we will finish reading this line later */
-          break;
-        }
-        /* EOF, so we must process the remaining data as a line */
-        line = s;
-        n = (int)(s.end - s.start);
-      } else {
-        ++n; /* also skip the \n */
+  bufend = ez->buf + sizeof(ez->buf);
+  do {
+    p = ez->buf;
+    for (;;) {
+      if (p >= bufend) {
+        return ERR_TRUNCATED;
       }
-
-      res += n;
-      s.start += n;
-      ++nlines;
-
-      n = p_line(ez, &line);
-      if (n < 0) {
-        return n;
+      c = fgetc(f);
+      if (c == '\n' || c == EOF) {
+        break;
       }
-
-      res += n;
+      *p++ = c;
     }
-
-    /* done parsing what we read, prepare to read some more */
-
-    /* move remaining data to the beginning of buf */
-    memmove(ez->buf, s.start, s.end - s.start);
-
-    /* adjust pbuf to point to free space */
-    pbuf = ez->buf + (s.end - s.start);
-  }
+    line.start = ez->buf;
+    line.end = p;
+    n = p_line(ez, &line);
+    if (n < 0) {
+      return n;
+    }
+  } while (c != EOF);
 
   p_end(ez);
   ez->nobjects = ez->objects.len;
 
-  return res;
+  return (int)(p - ez->buf);
 }
 
+/* TODO: see if i can shrink this function */
 int p_map_mem(ezpp_t ez, char* data, int data_size) {
   int res = 0;
   int n;
