@@ -1320,7 +1320,7 @@ int p_map(ezpp_t ez, FILE* f) {
   memset(ez->section, 0, sizeof(ez->section));
 
   /* reading loop */
-  bufend = ez->buf + sizeof(ez->buf);
+  bufend = ez->buf + sizeof(ez->buf) - 1;
   do {
     p = ez->buf;
     for (;;) {
@@ -1333,6 +1333,7 @@ int p_map(ezpp_t ez, FILE* f) {
       }
       *p++ = c;
     }
+    *p = 0;
     line.start = ez->buf;
     line.end = p;
     n = p_line(ez, &line);
