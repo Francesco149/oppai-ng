@@ -715,6 +715,7 @@ int parse_warn(char* e, slice_t* line) {
 /* consume until any of the characters in separators is found */
 int p_consume_til(slice_t* s, char* separators, slice_t* dst) {
   char* p = s->start;
+  dst->start = s->start;
   for (; p < s->end; ++p) {
     char* sep;
     for (sep = separators; *sep; ++sep) {
@@ -725,6 +726,7 @@ int p_consume_til(slice_t* s, char* separators, slice_t* dst) {
       }
     }
   }
+  dst->end = p;
   return ERR_MORE;
 }
 
@@ -1028,7 +1030,7 @@ int p_objects(ezpp_t ez, slice_t* line) {
         if (n < 0 && n != ERR_MORE) {
           return n;
         }
-        if (node.start >= node.end || !node.start || p.start >= p.end) {
+        if (node.start >= node.end || !node.start) {
           break;
         }
         p.start += n + 1;
@@ -1037,6 +1039,9 @@ int p_objects(ezpp_t ez, slice_t* line) {
           type = SOUND_NORMAL;
         }
         o->sound_types[i] = type;
+        if (p.start >= p.end) {
+          break;
+        }
       }
 
       o->nsound_types = i;
