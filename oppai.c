@@ -1645,16 +1645,6 @@ int d_std(ezpp_t ez) {
   ez->stars = ez->aim_stars + ez->speed_stars +
     (float)fabs(ez->speed_stars - ez->aim_stars) * EXTREME_SCALING_FACTOR;
 
-  /* singletap stats */
-  for (i = 1; i < ez->objects.len; ++i) {
-    object_t* o = &ez->objects.data[i];
-    if (o->type & (OBJ_CIRCLE | OBJ_SLIDER)) {
-      object_t* prev = &ez->objects.data[i - 1];
-      float interval = o->time - prev->time;
-      interval /= ez->speed_mul;
-    }
-  }
-
   return 0;
 }
 
