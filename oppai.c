@@ -2180,15 +2180,12 @@ int ezpp_taiko_ppcalc(ezpp_t ez) {
   /* miss penality */
   ez->speed_pp *= (float)pow(0.985f, ez->nmiss);
 
-#if 0
-  /* combo scaling (removed?) */
   if (ez->max_combo > 0) {
     ez->speed_pp *= (
-      al_min(pow(ez->max_combo - ez->nmiss, 0.5f)
+      al_min(pow(ez->combo - ez->nmiss, 0.5f)
       / pow(ez->max_combo, 0.5f), 1.0f)
     );
   }
-#endif
 
   /* speed mod bonuses */
   if (ez->mods & MODS_HD) {
