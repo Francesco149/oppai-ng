@@ -1620,7 +1620,7 @@ float d_length_bonus(float stars, float difficulty) {
 }
 
 int d_std(ezpp_t ez) {
-  int i, res;
+  int res;
 
   res = d_calc_individual(ez, DIFF_SPEED);
   if (res < 0) {
