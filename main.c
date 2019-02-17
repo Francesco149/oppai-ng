@@ -778,7 +778,7 @@ int main(int argc, char* argv[]) {
   char* output_name = "text";
   char* mods_str = 0;
   int mods = MODS_NOMOD;
-  float tmpf;
+  float tmpf, speed_stars = 0, aim_stars = 0;
   int tmpi, n100 = 0, n50 = 0;
 
   /* parse arguments ------------------------------------------------- */
@@ -850,13 +850,11 @@ int main(int argc, char* argv[]) {
       continue;
     }
 
-    if (!cmpsuffix(a, "speed") && sscanf(a, "%f", &tmpf) == 1) {
-      ezpp_set_speed_stars(ez, tmpf);
+    if (!cmpsuffix(a, "speed") && sscanf(a, "%f", &speed_stars) == 1) {
       continue;
     }
 
-    if (!cmpsuffix(a, "aim") && sscanf(a, "%f", &tmpf) == 1) {
-      ezpp_set_aim_stars(ez, tmpf);
+    if (!cmpsuffix(a, "aim") && sscanf(a, "%f", &aim_stars) == 1) {
       continue;
     }
 
@@ -945,6 +943,8 @@ int main(int argc, char* argv[]) {
 
   ezpp_set_accuracy(ez, n100, n50);
   ezpp_set_mods(ez, mods);
+  ezpp_set_speed_stars(ez, speed_stars);
+  ezpp_set_aim_stars(ez, aim_stars);
   result = ezpp(ez, argv[1]);
 
 output:

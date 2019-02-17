@@ -2292,7 +2292,7 @@ OPPAIAPI
 int ezpp(ezpp_t ez, char* mapfile) {
   int res;
 
-  if (!ez->speed_stars && !ez->aim_stars && mapfile) {
+  if (!ez->max_combo && mapfile) {
     res = ezpp_from_map(ez, mapfile);
     if (res < 0) {
       return res;
@@ -2410,6 +2410,7 @@ void ezpp_set_mods(ezpp_t ez, int mods) {
   if ((mods ^ ez->mods) & (MODS_MAP_CHANGING | MODS_SPEED_CHANGING)) {
     /* force map reparse */
     ez->aim_stars = ez->speed_stars = ez->stars = 0;
+    ez->max_combo = 0;
   }
   ez->mods = mods;
 }
@@ -2417,6 +2418,7 @@ void ezpp_set_mods(ezpp_t ez, int mods) {
 OPPAIAPI
 void ezpp_set_base_cs(ezpp_t ez, float base_cs) {
   ez->aim_stars = ez->speed_stars = ez->stars = 0;
+  ez->max_combo = 0;
   ez->base_cs = base_cs;
 }
 
@@ -2424,6 +2426,7 @@ OPPAIAPI
 void ezpp_set_end(ezpp_t ez, int end) {
   ez->accuracy_percent = 0;
   ez->aim_stars = ez->speed_stars = ez->stars = 0;
+  ez->max_combo = 0;
   ez->end = end;
 }
 
