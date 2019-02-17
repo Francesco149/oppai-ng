@@ -1724,17 +1724,13 @@ typedef struct taiko_object {
 float taiko_change_bonus(taiko_object_t* cur, taiko_object_t* prev) {
   if (prev->rim != cur->rim) {
     cur->last_switch_even = prev->same_since % 2 == 0;
-
-    if (prev->last_switch_even >= 0 &&
-      prev->last_switch_even != cur->last_switch_even)
-    {
+    if (prev->last_switch_even != cur->last_switch_even) {
       return TAIKO_TYPE_CHANGE_BONUS;
     }
   } else {
     cur->last_switch_even = prev->last_switch_even;
     cur->same_since = prev->same_since + 1;
   }
-
   return 0;
 }
 
