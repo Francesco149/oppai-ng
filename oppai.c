@@ -46,6 +46,8 @@ OPPAIAPI float ezpp_stars(ezpp_t ez);
  *   base_ar, base_od, max_combo, nsliders, ncircles
  * - if aim_stars or speed_stars are set difficulty calculation is also
  *   skipped but values are taken from map
+ * - setting mods or cs resets aim_stars and speed_stars, set those last
+ * = setting end resets accuracy_percent
  * - if mode_override is set, std maps are converted to other modes
  * - mode defaults to MODE_STD or the map's mode
  * - mods default to MODS_NOMOD
@@ -913,10 +915,16 @@ int p_timing(ezpp_t ez, slice_t* line) {
 }
 
 int p_objects(ezpp_t ez, slice_t* line) {
-  object_t* o = array_alloc(&ez->objects);
+  object_t* o;
   int err = 0;
   int ne;
   slice_t e[11];
+
+  if (ez->end > 0 && ez->objects.len >= ez->end) {
+    return 0;
+  }
+
+  o = array_alloc(&ez->objects);
 
   if (o) {
     memset(o, 0, sizeof(*o));
@@ -1137,6 +1145,10 @@ void p_end(ezpp_t ez) {
   s(version);
   #undef s
 
+  if (!ez->base_ar) ez->base_ar = ez->ar;
+  if (!ez->base_cs) ez->base_cs = ez->cs;
+  if (!ez->base_od) ez->base_od = ez->od;
+  if (!ez->base_hp) ez->base_hp = ez->hp;
   mods_apply(ez);
 
   for (i = 0; i < ez->timing_points.len; ++i) {
@@ -1284,10 +1296,6 @@ void p_end(ezpp_t ez) {
         break;
     }
   }
-
-  if (!ez->base_ar) ez->base_ar = ez->ar;
-  if (!ez->base_cs) ez->base_cs = ez->cs;
-  if (!ez->base_od) ez->base_od = ez->od;
 }
 
 /* TODO: try shrinking these functions */
@@ -1301,6 +1309,12 @@ int p_map(ezpp_t ez, FILE* f) {
   if (!f) {
     return ERR_IO;
   }
+
+  ez->ncircles = ez->nsliders = ez->nspinners = ez->nobjects = 0;
+  ez->objects.len = 0;
+  ez->timing_points.len = 0;
+  ezpp_free_arena(ez);
+  memset(ez->section, 0, sizeof(ez->section));
 
   /* points to free space in the buffer */
   pbuf = ez->buf;
@@ -2214,8 +2228,9 @@ int ezpp_from_map(ezpp_t ez, char* mapfile) {
   ez->ar = ez->cs = ez->hp = ez->od = 5.0f;
   ez->sv = ez->tick_rate = 1.0f;
 
+  ez->parse_flags = 0;
   if (ez->mode_override) {
-    ez->parse_flags = PARSER_OVERRIDE_MODE;
+    ez->parse_flags |= PARSER_OVERRIDE_MODE;
   }
 
   if (ez->data_size) {
@@ -2237,10 +2252,6 @@ int ezpp_from_map(ezpp_t ez, char* mapfile) {
     goto cleanup;
   }
 
-  if (ez->end > 0 && ez->end < ez->nobjects) {
-    ez->nobjects = ez->end;
-  }
-
   if (!ez->aim_stars && !ez->speed_stars) {
     res = d_calc(ez);
     if (res < 0) {
@@ -2259,7 +2270,6 @@ ezpp_t ezpp_new() {
     ez->mode = MODE_STD;
     ez->mods = MODS_NOMOD;
     ez->combo = -1;
-    ez->n300 = -1;
     ez->n100 = ez->n50 = ez->nmiss = 0;
     ez->score_version = 1;
     array_reserve(&ez->objects, 600);
@@ -2282,7 +2292,7 @@ OPPAIAPI
 int ezpp(ezpp_t ez, char* mapfile) {
   int res;
 
-  if (mapfile) {
+  if (!ez->speed_stars && !ez->aim_stars && mapfile) {
     res = ezpp_from_map(ez, mapfile);
     if (res < 0) {
       return res;
@@ -2291,6 +2301,7 @@ int ezpp(ezpp_t ez, char* mapfile) {
     if (ez->base_ar) ez->ar = ez->base_ar;
     if (ez->base_od) ez->od = ez->base_od;
     if (ez->base_cs) ez->cs = ez->base_cs;
+    if (ez->base_hp) ez->hp = ez->base_hp;
     mods_apply(ez);
   }
 
@@ -2298,7 +2309,7 @@ int ezpp(ezpp_t ez, char* mapfile) {
     ez->stars = ez->speed_stars;
   }
 
-  if (ez->accuracy_percent) {
+  if (ez->accuracy_percent && !ez->n100 && !ez->n50) {
     switch (ez->mode) {
       case MODE_STD:
         acc_round(ez->accuracy_percent, ez->nobjects, ez->nmiss,
@@ -2315,9 +2326,7 @@ int ezpp(ezpp_t ez, char* mapfile) {
     ez->combo = ez->max_combo - ez->nmiss;
   }
 
-  if (ez->n300 < 0) {
-    ez->n300 = ez->nobjects - ez->n100 - ez->n50 - ez->nmiss;
-  }
+  ez->n300 = ez->nobjects - ez->n100 - ez->n50 - ez->nmiss;
 
   switch (ez->mode) {
     case MODE_STD: res = ezpp_std_ppcalc(ez); break;
@@ -2387,20 +2396,40 @@ setter(float, aim_stars)
 setter(float, speed_stars)
 setter(float, base_ar)
 setter(float, base_od)
-setter(float, base_cs)
 setter(float, base_hp)
 setter(int, mode_override)
 setter(int, mode)
-setter(int, mods)
 setter(int, combo)
 setter(int, nmiss)
 setter(int, score_version)
 setter(float, accuracy_percent)
-setter(int, end)
 #undef setter
 
 OPPAIAPI
+void ezpp_set_mods(ezpp_t ez, int mods) {
+  if ((mods ^ ez->mods) & (MODS_MAP_CHANGING | MODS_SPEED_CHANGING)) {
+    /* force map reparse */
+    ez->aim_stars = ez->speed_stars = ez->stars = 0;
+  }
+  ez->mods = mods;
+}
+
+OPPAIAPI
+void ezpp_set_base_cs(ezpp_t ez, float base_cs) {
+  ez->aim_stars = ez->speed_stars = ez->stars = 0;
+  ez->base_cs = base_cs;
+}
+
+OPPAIAPI
+void ezpp_set_end(ezpp_t ez, int end) {
+  ez->accuracy_percent = 0;
+  ez->aim_stars = ez->speed_stars = ez->stars = 0;
+  ez->end = end;
+}
+
+OPPAIAPI
 void ezpp_set_accuracy(ezpp_t ez, int n100, int n50) {
+  ez->accuracy_percent = 0;
   ez->n100 = n100;
   ez->n50 = n50;
 }

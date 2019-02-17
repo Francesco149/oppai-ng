@@ -39,8 +39,9 @@ int main(int argc, char* argv[]) {
   float avg_err = 0;
   float error = 0;
   float error_percent = 0;
-  ezpp_t ez;
+  ezpp_t ez = ezpp_new();
   int err;
+  int last_id = 0;
 
   fname += sprintf(fname, "test_suite/");
 
@@ -50,8 +51,14 @@ int main(int argc, char* argv[]) {
     float pptotal;
 
     print_score(s);
-    sprintf(fname, "%u.osu", s->id);
-    ez = ezpp_new();
+    if (s->id != last_id) {
+      sprintf(fname, "%u.osu", s->id);
+      last_id = s->id;
+      ezpp_set_base_cs(ez, 0); /* force reparse */
+      ezpp_set_base_ar(ez, 0);
+      ezpp_set_base_od(ez, 0);
+      ezpp_set_base_hp(ez, 0);
+    }
     ezpp_set_mods(ez, s->mods);
     ezpp_set_accuracy(ez, s->n100, s->n50);
     ezpp_set_nmiss(ez, s->nmiss);
@@ -62,7 +69,6 @@ int main(int argc, char* argv[]) {
       exit(1);
     }
     pptotal = ezpp_pp(ez);
-    ezpp_free(ez);
 
     margin = s->pp * ERROR_MARGIN;
     if (s->pp < 100) {
@@ -90,6 +96,7 @@ int main(int argc, char* argv[]) {
   avg_err /= n;
   printf("avg err %f\n", avg_err);
   printf("max err %f on %d\n", max_err, max_err_map);
+  ezpp_free(ez);
 
   return 0;
 }
