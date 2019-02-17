@@ -1860,7 +1860,7 @@ int d_taiko(ezpp_t ez) {
            j += o->tick_spacing)
       {
         int sound_type = o->sound_types[isound];
-        cur->rim = (sound_type & (SOUND_CLAP | SOUND_WHISTLE));
+        cur->rim = (sound_type & (SOUND_CLAP | SOUND_WHISTLE)) != 0;
         cur->hit = 1;
         cur->time = j;
 
