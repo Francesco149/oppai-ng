@@ -1259,7 +1259,7 @@ void p_end(ezpp_t ez) {
     o->tick_spacing = al_min(t->beat_len / ez->tick_rate,
         o->duration / o->repetitions);
     o->slider_is_drum_roll = (
-      o->tick_spacing <= 0 || o->duration >= 2 * t->beat_len
+      o->tick_spacing > 0 || o->duration < 2 * t->beat_len
     );
 
     if (!(o->type & OBJ_SLIDER)) {
@@ -1269,7 +1269,7 @@ void p_end(ezpp_t ez) {
     /* slider ticks for max_combo */
     switch (ez->mode) {
       case MODE_TAIKO: {
-        if (!o->slider_is_drum_roll) {
+        if (o->slider_is_drum_roll) {
           ez->max_combo += (int)(
             ceil((o->duration + o->tick_spacing / 8) / o->tick_spacing)
           );
@@ -1846,7 +1846,7 @@ int d_taiko(ezpp_t ez) {
       float j;
 
       /* drum roll, ignore */
-      if (o->slider_is_drum_roll || i == 0) {
+      if (!o->slider_is_drum_roll || i == 0) {
         goto continue_loop;
       }
 
