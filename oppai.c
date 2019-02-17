@@ -2341,7 +2341,6 @@ setter(float, speed_stars)
 setter(float, base_ar)
 setter(float, base_od)
 setter(float, base_hp)
-setter(int, mode_override)
 setter(int, mode)
 setter(int, combo)
 setter(int, nmiss)
@@ -2359,12 +2358,16 @@ void ezpp_set_mods(ezpp_t ez, int mods) {
   ez->mods = mods;
 }
 
-OPPAIAPI
-void ezpp_set_base_cs(ezpp_t ez, float base_cs) {
-  ez->aim_stars = ez->speed_stars = ez->stars = 0;
-  ez->max_combo = 0;
-  ez->base_cs = base_cs;
+#define clobber_setter(t, x) \
+OPPAIAPI \
+void ezpp_set_##x(ezpp_t ez, t x) { \
+  ez->aim_stars = ez->speed_stars = ez->stars = 0; \
+  ez->max_combo = 0; \
+  ez->x = x; \
 }
+clobber_setter(float, base_cs)
+clobber_setter(int, mode_override)
+#undef clobber_setter
 
 OPPAIAPI
 void ezpp_set_end(ezpp_t ez, int end) {
