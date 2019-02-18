@@ -1752,7 +1752,6 @@ void swap_ptrs(void** a, void** b) {
 
 int d_taiko(ezpp_t ez) {
   int i, result;
-  float infinity = get_inf();
 
   /* this way we can swap cur and prev without copying */
   taiko_object_t curprev[2];
@@ -1777,7 +1776,7 @@ int d_taiko(ezpp_t ez) {
     if (i > 0) {
       cur->time_elapsed = (cur->time - prev->time) / ez->speed_mul;
     } else {
-      cur->time_elapsed = infinity;
+      cur->time_elapsed = 0;
     }
 
     cur->strain = 1;
