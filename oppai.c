@@ -1260,7 +1260,7 @@ void p_end(ezpp_t ez) {
     }
     o->timing_point = tindex;
     t = &ez->timing_points.data[tindex];
-    o->duration = o->distance * o->repetitions / t->velocity;
+    o->duration = o->distance * (o->repetitions + 1) / t->velocity;
     o->tick_spacing = al_min(t->beat_len / ez->tick_rate,
         o->duration / (o->repetitions + 1));
     o->slider_is_drum_roll = (
