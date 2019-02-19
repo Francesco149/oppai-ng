@@ -8,7 +8,7 @@
  * int main() {
  *   ezpp_t ez = ezpp_new();
  *   ezpp_set_mods(ez, MODS_HD | MODS_DT);
- *   ezpp(&ez, "-");
+ *   ezpp(ez, "-");
  *   printf("%gpp\n", ezpp_pp(ez));
  *   return 0;
  * }
