@@ -13,6 +13,7 @@
 #include <string.h>
 #include <math.h>
 #include <ctype.h>
+#undef OPPAI_EXPORT
 #undef OPPAI_IMPLEMENTATION
 #include "oppai.c"
 

@@ -20,6 +20,8 @@
 #if defined(_WIN32) && !defined(OPPAI_IMPLEMENTATION)
 #ifdef OPPAI_EXPORT
 #define OPPAIAPI __declspec(dllexport)
+#elif defined(OPPAI_STATIC_HEADER)
+#define OPPAIAPI
 #else
 #define OPPAIAPI __declspec(dllimport)
 #endif
