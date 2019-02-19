@@ -1166,9 +1166,13 @@ void p_end(ezpp_t ez) {
   #undef s
 
   if (!ez->base_ar) ez->base_ar = ez->ar;
+  else ez->ar = ez->base_ar;
   if (!ez->base_cs) ez->base_cs = ez->cs;
+  else ez->cs = ez->base_cs;
   if (!ez->base_od) ez->base_od = ez->od;
+  else ez->od = ez->base_od;
   if (!ez->base_hp) ez->base_hp = ez->hp;
+  else ez->hp = ez->base_hp;
   mods_apply(ez);
 
   if (ez->mode == MODE_TAIKO && ez->mode != ez->original_mode) {
