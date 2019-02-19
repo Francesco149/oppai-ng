@@ -25,7 +25,7 @@ void print_score(score_t* s) {
   m(HR) m(NC) m(HT) m(SO) m(NF) m(EZ) m(DT) m(FL) m(HD)
 #undef m
 
-  info("m=%d %u +%s %dx %hdx300 %hdx100 %hdx50 %hdxmiss %g pp\n",
+  printf("m=%d %u +%s %dx %hdx300 %hdx100 %hdx50 %hdxmiss %g pp\n",
     s->mode, s->id, mods_str_buf, s->max_combo, s->n300, s->n100,
     s->n50, s->nmiss, s->pp);
 }
@@ -67,7 +67,7 @@ int main() {
     ezpp_set_mode_override(ez, s->mode);
     err = ezpp(ez, fname_buf);
     if (err < 0) {
-      info("%s\n", errstr(err));
+      printf("%s\n", errstr(err));
       exit(1);
     }
     pptotal = ezpp_pp(ez);
@@ -91,7 +91,7 @@ int main() {
     }
 
     if (error >= margin) {
-      info("failed test: got %g pp, expected %g\n", pptotal, s->pp);
+      printf("failed test: got %g pp, expected %g\n", pptotal, s->pp);
       exit(1);
     }
   }
