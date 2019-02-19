@@ -1017,8 +1017,8 @@ int p_objects(ezpp_t ez, slice_t* line) {
        * sound type from the single sound_type field
        */
 
-      /* repeats + head and tail. no repeats is 1 repetition, so -1 */
-      nodes = al_max(0, o->repetitions - 1) + 2;
+      /* repeats + head and tail. no repeats is 0 repetition */
+      nodes = o->repetitions + 1;
       o->sound_types = ezpp_alloc(ez, sizeof(int) * nodes);
       if (!o->sound_types) {
         return ERR_OOM;
@@ -1051,8 +1051,6 @@ int p_objects(ezpp_t ez, slice_t* line) {
           break;
         }
       }
-
-      o->nsound_types = i;
     }
   }
 
