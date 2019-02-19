@@ -756,7 +756,7 @@ float p_float(slice_t* value) {
 }
 
 /* [name] */
-int p_section_name(ezpp_t ez, slice_t* s, slice_t* name) {
+int p_section_name(slice_t* s, slice_t* name) {
   int n;
   slice_t p = *s;
   if (*p.start++ != '[') {
@@ -774,7 +774,7 @@ int p_section_name(ezpp_t ez, slice_t* s, slice_t* name) {
 }
 
 /* name: value (results are trimmed) */
-int p_property(ezpp_t ez, slice_t* s, slice_t* name, slice_t* value) {
+int p_property(slice_t* s, slice_t* name, slice_t* value) {
   int n;
   char* p = s->start;
   n = p_consume_til(s, ":", name);
@@ -796,7 +796,7 @@ char* p_slicedup(ezpp_t ez, slice_t* s) {
 
 int p_metadata(ezpp_t ez, slice_t* line) {
   slice_t name, value;
-  int n = p_property(ez, line, &name, &value);
+  int n = p_property(line, &name, &value);
   if (n < 0) {
     return parse_warn("W: malformed metadata line", line);
   }
@@ -819,7 +819,7 @@ int p_metadata(ezpp_t ez, slice_t* line) {
 int p_general(ezpp_t ez, slice_t* line) {
   slice_t name, value;
   int n;
-  n = p_property(ez, line, &name, &value);
+  n = p_property(line, &name, &value);
   if (n < 0) {
     return parse_warn("W: malformed general line", line);
   }
@@ -845,7 +845,7 @@ int p_general(ezpp_t ez, slice_t* line) {
 
 int p_difficulty(ezpp_t ez, slice_t* line) {
   slice_t name, value;
-  int n = p_property(ez, line, &name, &value);
+  int n = p_property(line, &name, &value);
   if (n < 0) {
     return parse_warn("W: malformed difficulty line", line);
   }
@@ -1094,7 +1094,7 @@ int p_line(ezpp_t ez, slice_t* line) {
   if (*line->start == '[') {
     slice_t section;
     int len;
-    n = p_section_name(ez, line, &section);
+    n = p_section_name(line, &section);
     if (n < 0) {
       return n;
     }
