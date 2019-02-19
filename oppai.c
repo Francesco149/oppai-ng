@@ -112,6 +112,7 @@ OPPAIAPI void ezpp_set_score_version(ezpp_t ez, int score_version);
 OPPAIAPI void ezpp_set_accuracy_percent(ezpp_t ez, float accuracy_percent);
 OPPAIAPI void ezpp_set_accuracy(ezpp_t ez, int n100, int n50);
 OPPAIAPI void ezpp_set_end(ezpp_t ez, int end);
+OPPAIAPI void ezpp_set_end_time(ezpp_t ez, float end);
 
 /* errors -------------------------------------------------------------- */
 
@@ -509,6 +510,7 @@ struct ezpp {
   float accuracy_percent;
   int n300, n100, n50, nmiss;
   int end;
+  float end_time;
   float base_ar, base_cs, base_od, base_hp;
   int max_combo;
   char* title;
@@ -949,6 +951,10 @@ int p_objects(ezpp_t ez, slice_t* line) {
   }
 
   o->time = p_float(&e[2]);
+  if (ez->end_time > 0 && o->time >= ez->end_time) {
+    --ez->objects.len;
+    return 0;
+  }
 
   if (sscanf(e[3].start, "%d", &o->type) != 1) {
     parse_warn("W: malformed hitobject type", line);
@@ -2383,13 +2389,17 @@ clobber_setter(float, base_cs)
 clobber_setter(int, mode_override)
 #undef clobber_setter
 
-OPPAIAPI
-void ezpp_set_end(ezpp_t ez, int end) {
-  ez->accuracy_percent = 0;
-  ez->aim_stars = ez->speed_stars = ez->stars = 0;
-  ez->max_combo = 0;
-  ez->end = end;
+#define acc_clobber_setter(t, x) \
+OPPAIAPI \
+void ezpp_set_##x(ezpp_t ez, t x) { \
+  ez->accuracy_percent = 0; \
+  ez->aim_stars = ez->speed_stars = ez->stars = 0; \
+  ez->max_combo = 0; \
+  ez->x = x; \
 }
+
+acc_clobber_setter(int, end)
+acc_clobber_setter(float, end_time)
 
 OPPAIAPI
 void ezpp_set_accuracy(ezpp_t ez, int n100, int n50) {
