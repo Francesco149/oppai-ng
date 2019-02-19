@@ -1322,6 +1322,14 @@ void p_end(ezpp_t ez) {
   }
 }
 
+void p_reset(ezpp_t ez) {
+  ez->ncircles = ez->nsliders = ez->nspinners = ez->nobjects = 0;
+  ez->objects.len = 0;
+  ez->timing_points.len = 0;
+  ezpp_free_arena(ez);
+  memset(ez->section, 0, sizeof(ez->section));
+}
+
 int p_map(ezpp_t ez, FILE* f) {
   char* p;
   char* bufend;
@@ -1332,11 +1340,7 @@ int p_map(ezpp_t ez, FILE* f) {
     return ERR_IO;
   }
 
-  ez->ncircles = ez->nsliders = ez->nspinners = ez->nobjects = 0;
-  ez->objects.len = 0;
-  ez->timing_points.len = 0;
-  ezpp_free_arena(ez);
-  memset(ez->section, 0, sizeof(ez->section));
+  p_reset(ez);
 
   /* reading loop */
   bufend = ez->buf + sizeof(ez->buf) - 1;
@@ -1377,6 +1381,8 @@ int p_map_mem(ezpp_t ez, char* data, int data_size) {
   if (!data || data_size == 0) {
     return ERR_IO;
   }
+
+  p_reset(ez);
 
   s.start = data;
   s.end = data + data_size;
