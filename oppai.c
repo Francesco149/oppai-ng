@@ -1133,6 +1133,7 @@ void p_end(ezpp_t ez) {
   int tindex = -1;
   float ms_per_beat = infinity;
   float radius, scaling_factor;
+  float legacy_multiplier = 1;
 
   if (!(ez->parse_flags & PARSER_FOUND_AR)) {
     /* in old maps ar = od */
@@ -1161,6 +1162,11 @@ void p_end(ezpp_t ez) {
   if (!ez->base_od) ez->base_od = ez->od;
   if (!ez->base_hp) ez->base_hp = ez->hp;
   mods_apply(ez);
+
+  if (ez->mode == MODE_TAIKO && ez->mode != ez->original_mode) {
+    legacy_multiplier = 1.4f;
+    ez->sv *= legacy_multiplier;
+  }
 
   for (i = 0; i < ez->timing_points.len; ++i) {
     timing_t* t = &ez->timing_points.data[i];
@@ -1266,16 +1272,18 @@ void p_end(ezpp_t ez) {
     }
     o->timing_point = tindex;
     t = &ez->timing_points.data[tindex];
-    o->duration = o->distance * (o->repetitions + 1) / t->velocity;
-    o->tick_spacing = al_min(t->beat_len / ez->tick_rate,
-        o->duration / (o->repetitions + 1));
-    o->slider_is_drum_roll = (
-      o->tick_spacing > 0 || o->duration < 2 * t->beat_len
-    );
 
     if (!(o->type & OBJ_SLIDER)) {
       continue;
     }
+
+    o->duration = o->distance * o->repetitions / t->velocity;
+    o->duration *= legacy_multiplier;
+    o->tick_spacing = al_min(t->beat_len / ez->tick_rate,
+        o->duration / o->repetitions);
+    o->slider_is_drum_roll = (
+      o->tick_spacing > 0 && o->duration < 2 * t->beat_len
+    );
 
     /* slider ticks for max_combo */
     switch (ez->mode) {
