@@ -779,7 +779,7 @@ int main(int argc, char* argv[]) {
   char* output_name = "text";
   char* mods_str = 0;
   int mods = MODS_NOMOD;
-  float tmpf, speed_stars = 0, aim_stars = 0;
+  float tmpf, speed_stars = 0, aim_stars = 0, accuracy_percent = 0;
   int tmpi, n100 = 0, n50 = 0;
 
   /* parse arguments ------------------------------------------------- */
@@ -838,8 +838,8 @@ int main(int argc, char* argv[]) {
       continue;
     }
 
-    if (!cmpsuffix(a, "%") && sscanf(a, "%f", &tmpf) == 1) {
-      ezpp_set_accuracy_percent(ez, tmpf);
+    if (!cmpsuffix(a, "%") && sscanf(a, "%f", &accuracy_percent) == 1) {
+      if (!accuracy_percent) accuracy_percent = 0.0001f;
       continue;
     }
 
@@ -942,7 +942,11 @@ int main(int argc, char* argv[]) {
     goto output;
   }
 
-  ezpp_set_accuracy(ez, n100, n50);
+  if (accuracy_percent) {
+    ezpp_set_accuracy_percent(ez, accuracy_percent);
+  } else {
+    ezpp_set_accuracy(ez, n100, n50);
+  }
   ezpp_set_mods(ez, mods);
   ezpp_set_speed_stars(ez, speed_stars);
   ezpp_set_aim_stars(ez, aim_stars);
