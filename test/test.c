@@ -2,7 +2,7 @@
 #include "../oppai.c"
 #include "test_suite.c" /* defines suite */
 
-#define ERROR_MARGIN 0.02 /* pp can be off by +- 2% */
+#define ERROR_MARGIN 0.02f /* pp can be off by +- 2% */
 
 /*
  * margin is actually
@@ -30,7 +30,7 @@ void print_score(score_t* s) {
     s->n50, s->nmiss, s->pp);
 }
 
-int main(int argc, char* argv[]) {
+int main() {
   char fname_buf[4096];
   char* fname = fname_buf;
   int i, n = (int)(sizeof(suite) / sizeof(suite[0]));
@@ -48,7 +48,7 @@ int main(int argc, char* argv[]) {
 
   for (i = 0; i < n; ++i) {
     score_t* s = &suite[i];
-    double margin;
+    float margin;
     float pptotal;
 
     print_score(s);
@@ -73,17 +73,17 @@ int main(int argc, char* argv[]) {
     pptotal = ezpp_pp(ez);
     ++count[s->mode];
 
-    margin = s->pp * ERROR_MARGIN;
+    margin = (float)s->pp * ERROR_MARGIN;
     if (s->pp < 100) {
       margin *= 3;
     } else if (s->pp < 200) {
       margin *= 2;
     } else if (s->pp < 300) {
-      margin *= 1.5;
+      margin *= 1.5f;
     }
 
-    error = fabs(pptotal - s->pp);
-    error_percent = error / s->pp;
+    error = (float)fabs(pptotal - (float)s->pp);
+    error_percent = error / (float)s->pp;
     avg_err[s->mode] += error_percent;
     if (error_percent > max_err[s->mode]) {
       max_err[s->mode] = error_percent;

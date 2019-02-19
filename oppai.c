@@ -1350,7 +1350,7 @@ int p_map(ezpp_t ez, FILE* f) {
       if (p >= bufend) {
         return ERR_TRUNCATED;
       }
-      c = fgetc(f);
+      c = (char)fgetc(f);
       if (c == '\n' || c == EOF) {
         break;
       }
@@ -1599,7 +1599,7 @@ int d_calc_individual(ezpp_t ez, int type) {
    */
   ez->max_strain = 0.0f;
   ez->interval_end = (
-    ceil(ez->objects.data[0].time / (STRAIN_STEP * ez->speed_mul))
+    (float)ceil(ez->objects.data[0].time / (STRAIN_STEP * ez->speed_mul))
     * STRAIN_STEP * ez->speed_mul
   );
   ez->highest_strains.len = 0;
@@ -2155,8 +2155,8 @@ int ezpp_taiko_ppcalc(ezpp_t ez) {
 
   if (ez->max_combo > 0) {
     ez->speed_pp *= (
-      al_min(pow(ez->combo - ez->nmiss, 0.5f)
-      / pow(ez->max_combo, 0.5f), 1.0f)
+      al_min((float)pow(ez->combo - ez->nmiss, 0.5f)
+      / (float)pow(ez->max_combo, 0.5f), 1.0f)
     );
   }
 
