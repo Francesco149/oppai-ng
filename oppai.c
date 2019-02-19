@@ -1177,14 +1177,13 @@ void p_end(ezpp_t ez) {
     if (!t->change && t->ms_per_beat < 0) {
       sv_multiplier = -100.0f / t->ms_per_beat;
     }
-    t->beat_len = ms_per_beat * sv_multiplier;
+    t->beat_len = ms_per_beat / sv_multiplier;
     t->px_per_beat = ez->sv * 100.0f;
-    if (ez->format_version < 8) {
-      t->beat_len /= sv_multiplier;
-    } else {
+    t->velocity = 100.0f * ez->sv / t->beat_len;
+    if (ez->format_version >= 8) {
+      t->beat_len *= sv_multiplier;
       t->px_per_beat *= sv_multiplier;
     }
-    t->velocity = 100.0f * ez->sv / t->beat_len;
   }
 
   /*
