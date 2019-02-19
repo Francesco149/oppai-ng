@@ -1008,6 +1008,7 @@ int p_objects(ezpp_t ez, slice_t* line) {
     if (ez->mode == MODE_TAIKO && ne > 8 && slice_len(&e[8]) > 0) {
       slice_t p = e[8];
       int i, nodes;
+      int sound_type = o->sound_types[0];
 
       /*
        * TODO: there's probably something subtly wrong with this.
@@ -1021,6 +1022,11 @@ int p_objects(ezpp_t ez, slice_t* line) {
       o->sound_types = ezpp_alloc(ez, sizeof(int) * nodes);
       if (!o->sound_types) {
         return ERR_OOM;
+      }
+
+      o->nsound_types = nodes;
+      for (i = 0; i < nodes; ++i) {
+        o->sound_types[i] = sound_type;
       }
 
       for (i = 0; i < nodes; ++i) {
@@ -1038,7 +1044,7 @@ int p_objects(ezpp_t ez, slice_t* line) {
         p.start += n + 1;
         if (sscanf(node.start, "%d", &type) != 1) {
           parse_warn("W: malformed sound type", line);
-          type = SOUND_NORMAL;
+          break;
         }
         o->sound_types[i] = type;
         if (p.start >= p.end) {
