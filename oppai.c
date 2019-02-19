@@ -1000,6 +1000,8 @@ int p_objects(ezpp_t ez, slice_t* line) {
 
     if (ne > 7) {
       o->distance = p_float(&e[7]);
+    } else {
+      o->distance = 0;
     }
 
     /* per-node sound types */
