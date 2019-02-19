@@ -1287,7 +1287,7 @@ void p_end(ezpp_t ez) {
     /* slider ticks for max_combo */
     switch (ez->mode) {
       case MODE_TAIKO: {
-        if (o->slider_is_drum_roll) {
+        if (o->slider_is_drum_roll && ez->mode != ez->original_mode) {
           ez->max_combo += (int)(
             ceil((o->duration + o->tick_spacing / 8) / o->tick_spacing)
           );
