@@ -839,7 +839,6 @@ int main(int argc, char* argv[]) {
     }
 
     if (!cmpsuffix(a, "%") && sscanf(a, "%f", &accuracy_percent) == 1) {
-      if (!accuracy_percent) accuracy_percent = 0.0001f;
       continue;
     }
 

@@ -55,10 +55,11 @@ int main() {
     if (s->id != last_id) {
       sprintf(fname, "%u.osu", s->id);
       last_id = s->id;
-      ezpp_set_base_cs(ez, 0); /* force reparse */
-      ezpp_set_base_ar(ez, 0);
-      ezpp_set_base_od(ez, 0);
-      ezpp_set_base_hp(ez, 0);
+      /* force reparse and don't reuse prev map ar/cs/od/hp */
+      ezpp_set_base_cs(ez, -1);
+      ezpp_set_base_ar(ez, -1);
+      ezpp_set_base_od(ez, -1);
+      ezpp_set_base_hp(ez, -1);
     }
     ezpp_set_mods(ez, s->mods);
     ezpp_set_accuracy(ez, s->n100, s->n50);

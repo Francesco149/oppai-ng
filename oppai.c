@@ -66,6 +66,9 @@ OPPAIAPI float ezpp_stars(ezpp_t ez);
  * - if none of the above are set, SS (100%) is assumed
  * - if end is set, the map will be cut to this object index
  * - if base_ar/od/cs are set, they will override the map's values
+ * - when you change map and you're reusing the handle, you should reset
+ *   ar/od/cs/hp to -1 otherwise it will override them with the previous
+ *   map's values
  */
 
 OPPAIAPI void ezpp_set_autocalc(ezpp_t ez, int autocalc);
@@ -1172,13 +1175,13 @@ void p_end(ezpp_t ez) {
   s(version);
   #undef s
 
-  if (!ez->base_ar) ez->base_ar = ez->ar;
+  if (ez->base_ar < 0) ez->base_ar = ez->ar;
   else ez->ar = ez->base_ar;
-  if (!ez->base_cs) ez->base_cs = ez->cs;
+  if (ez->base_cs < 0) ez->base_cs = ez->cs;
   else ez->cs = ez->base_cs;
-  if (!ez->base_od) ez->base_od = ez->od;
+  if (ez->base_od < 0) ez->base_od = ez->od;
   else ez->od = ez->base_od;
-  if (!ez->base_hp) ez->base_hp = ez->hp;
+  if (ez->base_hp < 0) ez->base_hp = ez->hp;
   else ez->hp = ez->base_hp;
   mods_apply(ez);
 
@@ -2260,6 +2263,8 @@ ezpp_t ezpp_new() {
     ez->mods = MODS_NOMOD;
     ez->combo = -1;
     ez->score_version = 1;
+    ez->accuracy_percent = -1;
+    ez->base_ar = ez->base_od = ez->base_cs = ez->base_hp -1;
     array_reserve(&ez->objects, 600);
     array_reserve(&ez->timing_points, 16);
     array_reserve(&ez->highest_strains, 600);
@@ -2288,10 +2293,10 @@ int ezpp(ezpp_t ez, char* mapfile) {
       return res;
     }
   } else {
-    if (ez->base_ar) ez->ar = ez->base_ar;
-    if (ez->base_od) ez->od = ez->base_od;
-    if (ez->base_cs) ez->cs = ez->base_cs;
-    if (ez->base_hp) ez->hp = ez->base_hp;
+    if (ez->base_ar >= 0) ez->ar = ez->base_ar;
+    if (ez->base_od >= 0) ez->od = ez->base_od;
+    if (ez->base_cs >= 0) ez->cs = ez->base_cs;
+    if (ez->base_hp >= 0) ez->hp = ez->base_hp;
     mods_apply(ez);
   }
 
@@ -2299,7 +2304,7 @@ int ezpp(ezpp_t ez, char* mapfile) {
     ez->stars = ez->speed_stars;
   }
 
-  if (ez->accuracy_percent && !ez->n100 && !ez->n50) {
+  if (ez->accuracy_percent >= 0 && !ez->n100 && !ez->n50) {
     switch (ez->mode) {
       case MODE_STD:
         acc_round(ez->accuracy_percent, ez->nobjects, ez->nmiss,
@@ -2433,7 +2438,7 @@ clobber_setter(int, mode_override)
 #define acc_clobber_setter(t, x) \
 OPPAIAPI \
 void ezpp_set_##x(ezpp_t ez, t x) { \
-  ez->accuracy_percent = 0; \
+  ez->accuracy_percent = -1; \
   ez->aim_stars = ez->speed_stars = ez->stars = 0; \
   ez->max_combo = 0; \
   ez->x = x; \
@@ -2448,7 +2453,7 @@ acc_clobber_setter(float, end_time)
 
 OPPAIAPI
 void ezpp_set_accuracy(ezpp_t ez, int n100, int n50) {
-  ez->accuracy_percent = 0;
+  ez->accuracy_percent = -1;
   ez->n100 = n100;
   ez->n50 = n50;
   if (ez->autocalc) {
