@@ -1538,7 +1538,7 @@ void d_calc_strain(int type, object_t* o, object_t* prev, float speedmul) {
   o->strains[type] = prev->strains[type] * decay + res;
 }
 
-int dbl_desc(void const* a, void const* b) {
+int __cdecl dbl_desc(void const* a, void const* b) {
   float x = *(float const*)a;
   float y = *(float const*)b;
   if (x < y) return 1;
