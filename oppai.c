@@ -2259,7 +2259,6 @@ ezpp_t ezpp_new() {
     ez->mode = MODE_STD;
     ez->mods = MODS_NOMOD;
     ez->combo = -1;
-    ez->n100 = ez->n50 = ez->nmiss = 0;
     ez->score_version = 1;
     array_reserve(&ez->objects, 600);
     array_reserve(&ez->timing_points, 16);
