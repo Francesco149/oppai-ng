@@ -43,6 +43,9 @@ OPPAIAPI float ezpp_stars(ezpp_t ez);
  *
  * - if map is "-" the map is read from standard input
  * - you can use ezpp_data if you already have raw beatmap data in memory
+ * - if autocalc is set to 1, the results will be automatically refreshed
+ *   when you change parameters. if reparsing is required, the last passed
+ *   map or map data will be used
  * - if map is 0 (NULL), difficulty calculation and map parsing are skipped
  *   and you must set at least mode, aim_stars, speed_stars, nobjects,
  *   base_ar, base_od, max_combo, nsliders, ncircles
@@ -65,6 +68,8 @@ OPPAIAPI float ezpp_stars(ezpp_t ez);
  * - if base_ar/od/cs are set, they will override the map's values
  */
 
+OPPAIAPI void ezpp_set_autocalc(ezpp_t ez, int autocalc);
+OPPAIAPI int ezpp_autocalc(ezpp_t ez);
 OPPAIAPI int ezpp_data(ezpp_t ez, char* data, int data_size);
 OPPAIAPI float ezpp_aim_stars(ezpp_t ez);
 OPPAIAPI float ezpp_speed_stars(ezpp_t ez);
@@ -200,7 +205,7 @@ OPPAIAPI char* oppai_version_str();
 #include <math.h>
 
 #define OPPAI_VERSION_MAJOR 3
-#define OPPAI_VERSION_MINOR 0
+#define OPPAI_VERSION_MINOR 1
 #define OPPAI_VERSION_PATCH 0
 #define STRINGIFY_(x) #x
 #define STRINGIFY(x) STRINGIFY_(x)
@@ -504,7 +509,9 @@ typedef struct object {
  */
 
 struct ezpp {
+  char* map;
   int data_size;
+  int autocalc;
   int format_version;
   int mode, mode_override, original_mode;
   int score_version;
@@ -2274,6 +2281,8 @@ OPPAIAPI
 int ezpp(ezpp_t ez, char* mapfile) {
   int res;
 
+  ez->map = mapfile;
+
   if (!ez->max_combo && mapfile) {
     res = ezpp_from_map(ez, mapfile);
     if (res < 0) {
@@ -2363,6 +2372,7 @@ OPPAIAPI float ezpp_cs(ezpp_t ez) { return ez->cs; }
 OPPAIAPI float ezpp_od(ezpp_t ez) { return ez->od; }
 OPPAIAPI float ezpp_hp(ezpp_t ez) { return ez->hp; }
 OPPAIAPI float ezpp_odms(ezpp_t ez) { return ez->odms; }
+OPPAIAPI int ezpp_autocalc(ezpp_t ez) { return ez->autocalc; }
 
 OPPAIAPI float ezpp_time_at(ezpp_t ez, int i) {
   return ez->objects.len ? ez->objects.data[i].time : 0;
@@ -2373,7 +2383,12 @@ OPPAIAPI float ezpp_strain_at(ezpp_t ez, int i, int difficulty_type) {
 }
 
 #define setter(t, x) \
-  OPPAIAPI void ezpp_set_##x(ezpp_t ez, t x) {  ez->x = x;  }
+OPPAIAPI void ezpp_set_##x(ezpp_t ez, t x) { \
+  ez->x = x; \
+  if (ez->autocalc) { \
+    ezpp(ez, ez->map); \
+  } \
+}
 setter(float, aim_stars)
 setter(float, speed_stars)
 setter(float, base_ar)
@@ -2381,10 +2396,13 @@ setter(float, base_od)
 setter(float, base_hp)
 setter(int, mode)
 setter(int, combo)
-setter(int, nmiss)
 setter(int, score_version)
 setter(float, accuracy_percent)
 #undef setter
+
+OPPAIAPI void ezpp_set_autocalc(ezpp_t ez, int autocalc) {
+  ez->autocalc = autocalc;
+}
 
 OPPAIAPI
 void ezpp_set_mods(ezpp_t ez, int mods) {
@@ -2394,6 +2412,9 @@ void ezpp_set_mods(ezpp_t ez, int mods) {
     ez->max_combo = 0;
   }
   ez->mods = mods;
+  if (ez->autocalc) {
+    ezpp(ez, ez->map);
+  }
 }
 
 #define clobber_setter(t, x) \
@@ -2402,6 +2423,9 @@ void ezpp_set_##x(ezpp_t ez, t x) { \
   ez->aim_stars = ez->speed_stars = ez->stars = 0; \
   ez->max_combo = 0; \
   ez->x = x; \
+  if (ez->autocalc) { \
+    ezpp(ez, ez->map); \
+  } \
 }
 clobber_setter(float, base_cs)
 clobber_setter(int, mode_override)
@@ -2414,8 +2438,12 @@ void ezpp_set_##x(ezpp_t ez, t x) { \
   ez->aim_stars = ez->speed_stars = ez->stars = 0; \
   ez->max_combo = 0; \
   ez->x = x; \
+  if (ez->autocalc) { \
+    ezpp(ez, ez->map); \
+  } \
 }
 
+acc_clobber_setter(int, nmiss)
 acc_clobber_setter(int, end)
 acc_clobber_setter(float, end_time)
 
@@ -2424,6 +2452,9 @@ void ezpp_set_accuracy(ezpp_t ez, int n100, int n50) {
   ez->accuracy_percent = 0;
   ez->n100 = n100;
   ez->n50 = n50;
+  if (ez->autocalc) {
+    ezpp(ez, ez->map);
+  }
 }
 
 #endif /* OPPAI_IMPLEMENTATION */
