@@ -209,7 +209,7 @@ OPPAIAPI char* oppai_version_str();
 
 #define OPPAI_VERSION_MAJOR 3
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 0
+#define OPPAI_VERSION_PATCH 1
 #define STRINGIFY_(x) #x
 #define STRINGIFY(x) STRINGIFY_(x)
 
@@ -2264,7 +2264,7 @@ ezpp_t ezpp_new() {
     ez->combo = -1;
     ez->score_version = 1;
     ez->accuracy_percent = -1;
-    ez->base_ar = ez->base_od = ez->base_cs = ez->base_hp -1;
+    ez->base_ar = ez->base_od = ez->base_cs = ez->base_hp = -1;
     array_reserve(&ez->objects, 600);
     array_reserve(&ez->timing_points, 16);
     array_reserve(&ez->highest_strains, 600);
