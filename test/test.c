@@ -29,7 +29,7 @@ void print_score(score_t* s) {
   m(HR) m(NC) m(HT) m(SO) m(NF) m(EZ) m(DT) m(FL) m(HD)
 #undef m
 
-  printf("m=%d %u +%s %dx %hdx300 %hdx100 %hdx50 %hdxmiss %g pp\n",
+  printf("m=%d %u +%s %dx %dx300 %dx100 %dx50 %dxmiss %g pp\n",
     s->mode, s->id, mods_str_buf, s->max_combo, s->n300, s->n100,
     s->n50, s->nmiss, s->pp);
 }
