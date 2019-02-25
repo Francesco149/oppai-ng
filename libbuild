@@ -11,7 +11,7 @@ hide_unnecessary_symbols() {
   clang_syms="$tmp/clang_exports.list"
   code="$tmp/main.c"
   echo "int main() { return 0; }" >> "$code"
-  exports='ezpp_ errstr oppai_'
+  exports='ezpp ezpp_ errstr oppai_'
   ( printf '{global:'
     for e in $exports; do
       printf '%s;' "$e"
