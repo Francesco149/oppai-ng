@@ -20,5 +20,7 @@ script:
 - ./download_suite
 - ./build
 - ./oppai_test
+- wc -c ./oppai_test && ldd ./oppai_test
 - LDFLAGS="-loppai" ./build -L..
 - LD_LIBRARY_PATH=.. DYLD_LIBRARY_PATH=.. ./oppai_test
+- wc -c ./oppai_test && ldd ./oppai_test
