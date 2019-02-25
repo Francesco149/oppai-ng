@@ -298,7 +298,7 @@ float v2f_dot(float* a, float* b) {
 /* https://www.doc.ic.ac.uk/%7Eeedwards/compsys/float/nan.html */
 
 int is_nan(float b) {
-  int* p = (int*)&b;
+  unsigned* p = (void*)&b;
   return (
     (*p > 0x7F800000 && *p < 0x80000000) ||
     (*p > 0x7FBFFFFF && *p <= 0xFFFFFFFF)
@@ -1110,10 +1110,11 @@ int p_line(ezpp_t ez, slice_t* line) {
     if (n < 0) {
       return n;
     }
-    if (section.end - section.start >= sizeof(ez->section)) {
+    if ((int)(section.end - section.start) >= (int)sizeof(ez->section)) {
       p_warn("W: truncated long section name", line);
     }
-    len = (int)al_min(sizeof(ez->section) - 1, section.end - section.start);
+    len = al_min((int)sizeof(ez->section) - 1,
+      (int)(section.end - section.start));
     memcpy(ez->section, section.start, len);
     ez->section[len] = 0;
     return n;
