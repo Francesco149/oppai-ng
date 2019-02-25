@@ -15,7 +15,10 @@ cache:
 
 script:
 - ./build
+- ./libbuild
 - cd test
 - ./download_suite
-- ./build -DOPPAI_EZ -DOPPAI_NOCURL
+- ./build
 - ./oppai_test
+- LDFLAGS="-loppai" ./build -L..
+- LD_LIBRARY_PATH=.. /oppai_test

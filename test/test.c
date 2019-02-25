@@ -1,4 +1,8 @@
-#define OPPAI_IMPLEMENTATION
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
 #include "../oppai.c"
 #include "test_suite.c" /* defines suite */
 

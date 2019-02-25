@@ -3,5 +3,6 @@
 dir="$(dirname "$0")"
 . "$dir"/../cflags
 
-$cc $cflags "$@" test.c $ldflags -o oppai_test
+$cc $cflags ${@:--DOPPAI_IMPLEMENTATION} \
+  test.c $ldflags -o oppai_test
 
