@@ -19,12 +19,11 @@ script:
 - cd test
 - ./download_suite
 - ./build
-- export DYLD_PRINT_LIBRARIES=1
-- export DYLD_PRINT_LIBRARIES_POST_LAUNCH=1
-- export DYLD_PRINT_RPATHS=1
-- export LD_DEBUG=libs
-- ./oppai_test
+- DYLD_PRINT_LIBRARIES=1 DYLD_PRINT_LIBRARIES_POST_LAUNCH=1 \
+  DYLD_PRINT_RPATHS=1 LD_DEBUG=libs ./oppai_test
 - wc -c ./oppai_test
 - LDFLAGS="-loppai" ./build -L..
-- LD_LIBRARY_PATH=.. DYLD_LIBRARY_PATH=.. ./oppai_test
+- LD_LIBRARY_PATH=.. DYLD_LIBRARY_PATH=.. \
+  DYLD_PRINT_LIBRARIES=1 DYLD_PRINT_LIBRARIES_POST_LAUNCH=1 \
+  DYLD_PRINT_RPATHS=1 LD_DEBUG=libs ./oppai_test
 - wc -c ./oppai_test
