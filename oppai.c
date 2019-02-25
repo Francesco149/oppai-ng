@@ -209,7 +209,7 @@ OPPAIAPI char* oppai_version_str();
 
 #define OPPAI_VERSION_MAJOR 3
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 1
+#define OPPAI_VERSION_PATCH 2
 #define STRINGIFY_(x) #x
 #define STRINGIFY(x) STRINGIFY_(x)
 
@@ -558,8 +558,8 @@ struct ezpp {
 
 /* memory arena (allocator) -------------------------------------------- */
 
-#define ARENA_ALIGN sizeof(void*)
-#define ARENA_BLOCK_SIZE 4096
+#define M_ALIGN sizeof(void*)
+#define M_BLOCK_SIZE 4096
 
 /* aligns x down to a power-of-two value a */
 #define bit_align_down(x, a) \
@@ -569,13 +569,13 @@ struct ezpp {
 #define bit_align_up(x, a) \
   bit_align_down((x) + (a) - 1, a)
 
-int ezpp_reserve(ezpp_t ez, int min_size) {
+int m_reserve(ezpp_t ez, int min_size) {
   int size;
   char* new_block;
   if (ez->end_of_block - ez->block >= min_size) {
     return 1;
   }
-  size = bit_align_up(al_max(min_size, ARENA_BLOCK_SIZE), ARENA_ALIGN);
+  size = bit_align_up(al_max(min_size, M_BLOCK_SIZE), M_ALIGN);
   new_block = malloc(size);
   if (!new_block) {
     return 0;
@@ -586,19 +586,19 @@ int ezpp_reserve(ezpp_t ez, int min_size) {
   return 1;
 }
 
-void* ezpp_alloc(ezpp_t ez, int size) {
+void* m_alloc(ezpp_t ez, int size) {
   void* res;
-  if (!ezpp_reserve(ez, size)) {
+  if (!m_reserve(ez, size)) {
     return 0;
   }
-  size = bit_align_up(size, ARENA_ALIGN);
+  size = bit_align_up(size, M_ALIGN);
   res = ez->block;
   ez->block += size;
   return res;
 }
 
-char* ezpp_strndup(ezpp_t ez, char* s, int n) {
-  char* res = ezpp_alloc(ez, n + 1);
+char* m_strndup(ezpp_t ez, char* s, int n) {
+  char* res = m_alloc(ez, n + 1);
   if (res) {
     memcpy(res, s, n);
     res[n] = 0;
@@ -606,7 +606,7 @@ char* ezpp_strndup(ezpp_t ez, char* s, int n) {
   return res;
 }
 
-void ezpp_free_arena(ezpp_t ez) {
+void m_free(ezpp_t ez) {
   int i;
   for (i = 0; i < ez->blocks.len; ++i) {
     free(ez->blocks.data[i]);
@@ -803,7 +803,7 @@ int p_property(slice_t* s, slice_t* name, slice_t* value) {
 }
 
 char* p_slicedup(ezpp_t ez, slice_t* s) {
-  return ezpp_strndup(ez, s->start, slice_len(s));
+  return m_strndup(ez, s->start, slice_len(s));
 }
 
 int p_metadata(ezpp_t ez, slice_t* line) {
@@ -974,7 +974,7 @@ int p_objects(ezpp_t ez, slice_t* line) {
   }
 
   if (ez->mode == MODE_TAIKO) {
-    int* sound_type = ezpp_alloc(ez, sizeof(int));
+    int* sound_type = m_alloc(ez, sizeof(int));
     if (!sound_type) {
       return ERR_OOM;
     }
@@ -1037,7 +1037,7 @@ int p_objects(ezpp_t ez, slice_t* line) {
 
       /* repeats + head and tail. no repeats is 0 repetition */
       nodes = o->repetitions + 1;
-      o->sound_types = ezpp_alloc(ez, sizeof(int) * nodes);
+      o->sound_types = m_alloc(ez, sizeof(int) * nodes);
       if (!o->sound_types) {
         return ERR_OOM;
       }
@@ -1342,7 +1342,7 @@ void p_reset(ezpp_t ez) {
   ez->ncircles = ez->nsliders = ez->nspinners = ez->nobjects = 0;
   ez->objects.len = 0;
   ez->timing_points.len = 0;
-  ezpp_free_arena(ez);
+  m_free(ez);
   memset(ez->section, 0, sizeof(ez->section));
 }
 
@@ -2277,7 +2277,7 @@ void ezpp_free(ezpp_t ez) {
   array_free(&ez->objects);
   array_free(&ez->timing_points);
   array_free(&ez->highest_strains);
-  ezpp_free_arena(ez);
+  m_free(ez);
   free(ez);
 }
 
