@@ -31,7 +31,7 @@
 
 typedef struct ezpp* ezpp_t; /* opaque handle */
 
-OPPAIAPI ezpp_t ezpp_new();
+OPPAIAPI ezpp_t ezpp_new(void);
 OPPAIAPI void ezpp_free(ezpp_t ez);
 OPPAIAPI int ezpp(ezpp_t ez, char* map);
 OPPAIAPI float ezpp_pp(ezpp_t ez);
@@ -145,7 +145,7 @@ OPPAIAPI char* errstr(int err);
 /* version info -------------------------------------------------------- */
 
 OPPAIAPI void oppai_version(int* major, int* minor, int* patch);
-OPPAIAPI char* oppai_version_str();
+OPPAIAPI char* oppai_version_str(void);
 
 /* --------------------------------------------------------------------- */
 
@@ -269,13 +269,13 @@ char* errstr(int err) {
 #define M_PI 3.14159265358979323846
 #endif
 
-float get_inf() {
+float get_inf(void) {
   static unsigned raw = 0x7F800000;
   float* p = (float*)&raw;
   return *p;
 }
 
-float get_nan() {
+float get_nan(void) {
   static unsigned raw = 0x7FFFFFFF;
   float* p = (float*)&raw;
   return *p;
@@ -2256,7 +2256,7 @@ cleanup:
 }
 
 OPPAIAPI
-ezpp_t ezpp_new() {
+ezpp_t ezpp_new(void) {
   ezpp_t ez = calloc(sizeof(struct ezpp), 1);
   if (ez) {
     ez->mode = MODE_STD;
