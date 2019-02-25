@@ -1999,7 +1999,7 @@ float base_pp(float stars) {
     / 100000.0f;
 }
 
-int ezpp_std_ppcalc(ezpp_t ez) {
+int pp_std(ezpp_t ez) {
   int ncircles = ez->ncircles;
   float nobjects_over_2k = ez->nobjects / 2000.0f;
   float length_bonus = (
@@ -2148,7 +2148,7 @@ int ezpp_std_ppcalc(ezpp_t ez) {
 
 /* taiko pp calc ------------------------------------------------------- */
 
-int ezpp_taiko_ppcalc(ezpp_t ez) {
+int pp_taiko(ezpp_t ez) {
   float length_bonus;
   float final_multiplier;
   float accuracy;
@@ -2324,8 +2324,8 @@ int ezpp(ezpp_t ez, char* mapfile) {
   ez->n300 = ez->nobjects - ez->n100 - ez->n50 - ez->nmiss;
 
   switch (ez->mode) {
-    case MODE_STD: res = ezpp_std_ppcalc(ez); break;
-    case MODE_TAIKO: res = ezpp_taiko_ppcalc(ez); break;
+    case MODE_STD: res = pp_std(ez); break;
+    case MODE_TAIKO: res = pp_taiko(ez); break;
     default:
       info("pp calc for this mode is not yet supported\n");
       return ERR_NOTIMPLEMENTED;
