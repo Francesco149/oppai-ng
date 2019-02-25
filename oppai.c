@@ -2214,7 +2214,7 @@ int pp_taiko(ezpp_t ez) {
 
 /* main interface ------------------------------------------------------ */
 
-int ezpp_from_map(ezpp_t ez, char* mapfile) {
+int params_from_map(ezpp_t ez, char* mapfile) {
   int res;
 
   ez->ar = ez->cs = ez->hp = ez->od = 5.0f;
@@ -2288,7 +2288,7 @@ int ezpp(ezpp_t ez, char* mapfile) {
   ez->map = mapfile;
 
   if (!ez->max_combo && mapfile) {
-    res = ezpp_from_map(ez, mapfile);
+    res = params_from_map(ez, mapfile);
     if (res < 0) {
       return res;
     }
