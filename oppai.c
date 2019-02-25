@@ -541,7 +541,7 @@ struct ezpp {
   /* parser */
   char section[64];
   char buf[0xFFFF];
-  int parse_flags;
+  int p_flags;
   array_t(object_t) objects;
   array_t(timing_t) timing_points;
 
@@ -697,13 +697,13 @@ int mods_apply(ezpp_t ez) {
  * comments in beatmaps can only be an entire line because
  * some properties such as author can contain //
  *
- * all parse_* functions expect s to be a single line and trimmed
- * on errors, parse_* functions return < 0 error codes otherwise they
+ * all p_* functions expect s to be a single line and trimmed
+ * on errors, p_* functions return < 0 error codes otherwise they
  * return n bytes consumed
  */
 
-#define PARSER_OVERRIDE_MODE (1<<0) /* mode_override */
-#define PARSER_FOUND_AR (1<<1)
+#define P_OVERRIDE_MODE (1<<0) /* mode_override */
+#define P_FOUND_AR (1<<1)
 
 #define CIRCLESIZE_BUFF_TRESHOLD 30.0f /* non-normalized diameter */
 #define PLAYFIELD_WIDTH 512.0f /* in osu!pixels */
@@ -719,7 +719,7 @@ void print_line(slice_t* line) {
   info("\n");
 }
 
-int parse_warn(char* e, slice_t* line) {
+int p_warn(char* e, slice_t* line) {
   info(e);
   info("\n");
   print_line(line);
@@ -810,7 +810,7 @@ int p_metadata(ezpp_t ez, slice_t* line) {
   slice_t name, value;
   int n = p_property(line, &name, &value);
   if (n < 0) {
-    return parse_warn("W: malformed metadata line", line);
+    return p_warn("W: malformed metadata line", line);
   }
   if (!slice_cmp(&name, "Title")) {
     ez->title = p_slicedup(ez, &value);
@@ -833,13 +833,13 @@ int p_general(ezpp_t ez, slice_t* line) {
   int n;
   n = p_property(line, &name, &value);
   if (n < 0) {
-    return parse_warn("W: malformed general line", line);
+    return p_warn("W: malformed general line", line);
   }
   if (!slice_cmp(&name, "Mode")) {
     if (sscanf(value.start, "%d", &ez->original_mode) != 1){
       return ERR_SYNTAX;
     }
-    if (ez->parse_flags & PARSER_OVERRIDE_MODE) {
+    if (ez->p_flags & P_OVERRIDE_MODE) {
       ez->mode = ez->mode_override;
     } else {
       ez->mode = ez->original_mode;
@@ -859,7 +859,7 @@ int p_difficulty(ezpp_t ez, slice_t* line) {
   slice_t name, value;
   int n = p_property(line, &name, &value);
   if (n < 0) {
-    return parse_warn("W: malformed difficulty line", line);
+    return p_warn("W: malformed difficulty line", line);
   }
   if (!slice_cmp(&name, "CircleSize")) {
     ez->cs = p_float(&value);
@@ -867,7 +867,7 @@ int p_difficulty(ezpp_t ez, slice_t* line) {
     ez->od = p_float(&value);
   } else if (!slice_cmp(&name, "ApproachRate")) {
     ez->ar = p_float(&value);
-    ez->parse_flags |= PARSER_FOUND_AR;
+    ez->p_flags |= P_FOUND_AR;
   } else if (!slice_cmp(&name, "HPDrainRate")) {
     ez->hp = p_float(&value);
   } else if (!slice_cmp(&name, "SliderMultiplier")) {
@@ -908,7 +908,7 @@ int p_timing(ezpp_t ez, slice_t* line) {
   }
 
   if (n < 2) {
-    return parse_warn("W: malformed timing point", line);
+    return p_warn("W: malformed timing point", line);
   }
 
   res = (int)(split[n - 1].end - line->start);
@@ -959,7 +959,7 @@ int p_objects(ezpp_t ez, slice_t* line) {
   }
 
   if (ne < 5) {
-    return parse_warn("W: malformed hitobject", line);
+    return p_warn("W: malformed hitobject", line);
   }
 
   o->time = p_float(&e[2]);
@@ -969,7 +969,7 @@ int p_objects(ezpp_t ez, slice_t* line) {
   }
 
   if (sscanf(e[3].start, "%d", &o->type) != 1) {
-    parse_warn("W: malformed hitobject type", line);
+    p_warn("W: malformed hitobject type", line);
     o->type = OBJ_CIRCLE;
   }
 
@@ -979,7 +979,7 @@ int p_objects(ezpp_t ez, slice_t* line) {
       return ERR_OOM;
     }
     if (sscanf(e[4].start, "%d", sound_type) != 1) {
-      parse_warn("W: malformed hitobject sound type", line);
+      p_warn("W: malformed hitobject sound type", line);
       *sound_type = SOUND_NORMAL;
     }
     o->nsound_types = 1;
@@ -1005,7 +1005,7 @@ int p_objects(ezpp_t ez, slice_t* line) {
   else if (o->type & OBJ_SLIDER) {
     ++ez->nsliders;
     if (ne < 7) {
-      return parse_warn("W: malformed slider", line);
+      return p_warn("W: malformed slider", line);
     }
 
     o->pos[0] = p_float(&e[0]);
@@ -1013,7 +1013,7 @@ int p_objects(ezpp_t ez, slice_t* line) {
 
     if (sscanf(e[6].start, "%d", &o->repetitions) != 1) {
       o->repetitions = 1;
-      parse_warn("W: malformed slider repetitions", line);
+      p_warn("W: malformed slider repetitions", line);
     }
 
     if (ne > 7) {
@@ -1061,7 +1061,7 @@ int p_objects(ezpp_t ez, slice_t* line) {
         }
         p.start += n + 1;
         if (sscanf(node.start, "%d", &type) != 1) {
-          parse_warn("W: malformed sound type", line);
+          p_warn("W: malformed sound type", line);
           break;
         }
         o->sound_types[i] = type;
@@ -1111,7 +1111,7 @@ int p_line(ezpp_t ez, slice_t* line) {
       return n;
     }
     if (section.end - section.start >= sizeof(ez->section)) {
-      parse_warn("W: truncated long section name", line);
+      p_warn("W: truncated long section name", line);
     }
     len = (int)al_min(sizeof(ez->section) - 1, section.end - section.start);
     memcpy(ez->section, section.start, len);
@@ -1153,7 +1153,7 @@ void p_end(ezpp_t ez) {
   float radius, scaling_factor;
   float legacy_multiplier = 1;
 
-  if (!(ez->parse_flags & PARSER_FOUND_AR)) {
+  if (!(ez->p_flags & P_FOUND_AR)) {
     /* in old maps ar = od */
     ez->ar = ez->od;
   }
@@ -2220,9 +2220,9 @@ int ezpp_from_map(ezpp_t ez, char* mapfile) {
   ez->ar = ez->cs = ez->hp = ez->od = 5.0f;
   ez->sv = ez->tick_rate = 1.0f;
 
-  ez->parse_flags = 0;
+  ez->p_flags = 0;
   if (ez->mode_override) {
-    ez->parse_flags |= PARSER_OVERRIDE_MODE;
+    ez->p_flags |= P_OVERRIDE_MODE;
   }
 
   if (ez->data_size) {
