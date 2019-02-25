@@ -21,4 +21,4 @@ script:
 - ./build
 - ./oppai_test
 - LDFLAGS="-loppai" ./build -L..
-- LD_LIBRARY_PATH=.. /oppai_test
+- LD_LIBRARY_PATH=.. ./oppai_test
