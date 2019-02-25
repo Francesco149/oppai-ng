@@ -2305,7 +2305,7 @@ int ezpp(ezpp_t ez, char* mapfile) {
     ez->stars = ez->speed_stars;
   }
 
-  if (ez->accuracy_percent >= 0 && !ez->n100 && !ez->n50) {
+  if (ez->accuracy_percent >= 0) {
     switch (ez->mode) {
       case MODE_STD:
         acc_round(ez->accuracy_percent, ez->nobjects, ez->nmiss,
