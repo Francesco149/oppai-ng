@@ -3,6 +3,11 @@
 import sys
 from oppai import *
 
+if sys.version_info[0] < 3:
+  # hack to force utf-8 on py < 3
+  reload(sys)
+  sys.setdefaultencoding("utf-8")
+
 def mods_str(mods):
   mods_str = "+"
   if mods == 0:
@@ -20,7 +25,7 @@ for osufile in sys.argv[1:]:
   f = open(osufile, 'r')
   data = f.read()
   f.close()
-  ezpp_data(ez, data, len(data))
+  ezpp_data_dup(ez, data, len(data.encode('utf-8')))
   print("%s - %s [%s]" % (ezpp_artist(ez), ezpp_title(ez), ezpp_version(ez)))
   print("%g stars" % ezpp_stars(ez))
   for mods in [ 0, MODS_HR, MODS_HD | MODS_HR, MODS_DT, MODS_HD | MODS_DT ]:

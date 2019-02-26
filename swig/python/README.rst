@@ -30,3 +30,13 @@ usage
     python -c 'help("oppai")'
 
 for a list of functions, or just read the top of oppai.c for better doc
+
+
+limitations
+===========
+for some reason, python3 doesn't provide a persisting pointer to strings
+you pass to c code even if you aren't doing anything with them, so if you
+want to reuse the handle at all you have to use ezpp_dup and ezpp_data_dup,
+which create a copy of the strings you pass in. this is inefficient so
+it's recommended to use autocalc mode and only call ezpp_dup or
+ezpp_data_dup when you're actually changing map

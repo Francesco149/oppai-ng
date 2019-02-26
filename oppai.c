@@ -126,6 +126,14 @@ OPPAIAPI void ezpp_set_accuracy(ezpp_t ez, int n100, int n50);
 OPPAIAPI void ezpp_set_end(ezpp_t ez, int end);
 OPPAIAPI void ezpp_set_end_time(ezpp_t ez, float end);
 
+/*
+ * these will make a copy of mapfile/data and free it automatically. this
+ * is slow but useful when working with bindings in other langs where
+ * pointers to strings aren't guaranteed to persist like python3
+ */
+OPPAIAPI int ezpp_dup(ezpp_t ez, char* mapfile);
+OPPAIAPI int ezpp_data_dup(ezpp_t ez, char* data, int data_size);
+
 /* errors -------------------------------------------------------------- */
 
 /*
@@ -210,8 +218,8 @@ OPPAIAPI char* oppai_version_str(void);
 #include <math.h>
 
 #define OPPAI_VERSION_MAJOR 3
-#define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 3
+#define OPPAI_VERSION_MINOR 2
+#define OPPAI_VERSION_PATCH 0
 #define STRINGIFY_(x) #x
 #define STRINGIFY(x) STRINGIFY_(x)
 
@@ -513,11 +521,14 @@ typedef struct object {
  * alignment etc
  */
 
+#define AUTOCALC_BIT (1<<0)
+#define OWNS_MAP_BIT (1<<1) /* map/data freed on ezpp{,_data}, ezpp_free */
+
 struct ezpp {
   char* map;
   char* data;
   int data_size;
-  int autocalc;
+  int flags;
   int format_version;
   int mode, mode_override, original_mode;
   int score_version;
@@ -2263,7 +2274,7 @@ int calc(ezpp_t ez) {
   int res;
 
   if (!ez->max_combo && (ez->map || ez->data)) {
-    if (ez->autocalc) {
+    if (ez->flags & AUTOCALC_BIT) {
       ez->base_ar = ez->base_od = ez->base_cs = ez->base_hp = -1;
     }
     res = params_from_map(ez);
@@ -2333,8 +2344,23 @@ ezpp_t ezpp_new(void) {
   return ez;
 }
 
+void free_owned_map(ezpp_t ez) {
+  if (ez->flags & OWNS_MAP_BIT) {
+    free(ez->map);
+    free(ez->data);
+    ez->flags &= ~OWNS_MAP_BIT;
+  }
+  ez->map = 0;
+  ez->data = 0;
+  ez->data_size = 0;
+  if (ez->flags & AUTOCALC_BIT) {
+    ez->max_combo = 0; /* force re-parse */
+  }
+}
+
 OPPAIAPI
 void ezpp_free(ezpp_t ez) {
+  free_owned_map(ez);
   array_free(&ez->objects);
   array_free(&ez->timing_points);
   array_free(&ez->highest_strains);
@@ -2344,22 +2370,44 @@ void ezpp_free(ezpp_t ez) {
 
 OPPAIAPI
 int ezpp(ezpp_t ez, char* mapfile) {
+  free_owned_map(ez);
   ez->map = mapfile;
-  ez->data = 0;
-  ez->data_size = 0;
-  if (ez->autocalc) {
-    ez->max_combo = 0; /* force re-parse */
-  }
   return calc(ez);
 }
 
 OPPAIAPI
 int ezpp_data(ezpp_t ez, char* data, int data_size) {
+  free_owned_map(ez);
   ez->data = data;
   ez->data_size = data_size;
-  if (ez->autocalc) {
-    ez->max_combo = 0; /* force re-parse */
-  }
+  return calc(ez);
+}
+
+void* memclone(void* p, int size) {
+  void* res = malloc(size);
+  if (res) memcpy(res, p, size);
+  return res;
+}
+
+char* strclone(char* s) {
+  int len = strlen(s) + 1;
+  return memclone(s, len);
+}
+
+OPPAIAPI
+int ezpp_dup(ezpp_t ez, char* mapfile) {
+  free_owned_map(ez);
+  ez->flags |= OWNS_MAP_BIT;
+  ez->map = strclone(mapfile);
+  return calc(ez);
+}
+
+OPPAIAPI
+int ezpp_data_dup(ezpp_t ez, char* data, int data_size) {
+  free_owned_map(ez);
+  ez->flags |= OWNS_MAP_BIT;
+  ez->data = memclone(data, data_size);
+  ez->data_size = data_size;
   return calc(ez);
 }
 
@@ -2395,7 +2443,7 @@ OPPAIAPI float ezpp_cs(ezpp_t ez) { return ez->cs; }
 OPPAIAPI float ezpp_od(ezpp_t ez) { return ez->od; }
 OPPAIAPI float ezpp_hp(ezpp_t ez) { return ez->hp; }
 OPPAIAPI float ezpp_odms(ezpp_t ez) { return ez->odms; }
-OPPAIAPI int ezpp_autocalc(ezpp_t ez) { return ez->autocalc; }
+OPPAIAPI int ezpp_autocalc(ezpp_t ez) { return ez->flags & AUTOCALC_BIT; }
 
 OPPAIAPI float ezpp_time_at(ezpp_t ez, int i) {
   return ez->objects.len ? ez->objects.data[i].time : 0;
@@ -2408,7 +2456,7 @@ OPPAIAPI float ezpp_strain_at(ezpp_t ez, int i, int difficulty_type) {
 #define setter(t, x) \
 OPPAIAPI void ezpp_set_##x(ezpp_t ez, t x) { \
   ez->x = x; \
-  if (ez->autocalc) { \
+  if (ez->flags & AUTOCALC_BIT) { \
     calc(ez); \
   } \
 }
@@ -2423,8 +2471,13 @@ setter(int, score_version)
 setter(float, accuracy_percent)
 #undef setter
 
-OPPAIAPI void ezpp_set_autocalc(ezpp_t ez, int autocalc) {
-  ez->autocalc = autocalc;
+OPPAIAPI
+void ezpp_set_autocalc(ezpp_t ez, int autocalc) {
+  if (autocalc) {
+    ez->flags |= AUTOCALC_BIT;
+  } else {
+    ez->flags &= ~AUTOCALC_BIT;
+  }
 }
 
 OPPAIAPI
@@ -2435,7 +2488,7 @@ void ezpp_set_mods(ezpp_t ez, int mods) {
     ez->max_combo = 0;
   }
   ez->mods = mods;
-  if (ez->autocalc) {
+  if (ez->flags & AUTOCALC_BIT) {
     calc(ez);
   }
 }
@@ -2446,7 +2499,7 @@ void ezpp_set_##x(ezpp_t ez, t x) { \
   ez->aim_stars = ez->speed_stars = ez->stars = 0; \
   ez->max_combo = 0; \
   ez->x = x; \
-  if (ez->autocalc) { \
+  if (ez->flags & AUTOCALC_BIT) { \
     calc(ez); \
   } \
 }
@@ -2461,7 +2514,7 @@ void ezpp_set_##x(ezpp_t ez, t x) { \
   ez->aim_stars = ez->speed_stars = ez->stars = 0; \
   ez->max_combo = 0; \
   ez->x = x; \
-  if (ez->autocalc) { \
+  if (ez->flags & AUTOCALC_BIT) { \
     calc(ez); \
   } \
 }
@@ -2475,7 +2528,7 @@ void ezpp_set_accuracy(ezpp_t ez, int n100, int n50) {
   ez->accuracy_percent = -1;
   ez->n100 = n100;
   ez->n50 = n50;
-  if (ez->autocalc) {
+  if (ez->flags & AUTOCALC_BIT) {
     calc(ez);
   }
 }
