@@ -69,6 +69,8 @@ OPPAIAPI float ezpp_stars(ezpp_t ez);
  * - when you change map and you're reusing the handle, you should reset
  *   ar/od/cs/hp to -1 otherwise it will override them with the previous
  *   map's values
+ * - in autocalc mode, calling ezpp with a non-NULL map always resets
+ *   ar/od/cs/hp overrides to -1 so you don't have to
  */
 
 OPPAIAPI void ezpp_set_autocalc(ezpp_t ez, int autocalc);
@@ -2288,7 +2290,10 @@ int ezpp(ezpp_t ez, char* mapfile) {
 
   ez->map = mapfile;
 
-  if (!ez->max_combo && mapfile) {
+  if ((ez->autocalc || !ez->max_combo) && mapfile) {
+    if (ez->autocalc) {
+      ez->base_ar = ez->base_od = ez->base_cs = ez->base_hp = -1;
+    }
     res = params_from_map(ez, mapfile);
     if (res < 0) {
       return res;
