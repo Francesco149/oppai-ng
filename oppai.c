@@ -211,7 +211,7 @@ OPPAIAPI char* oppai_version_str(void);
 
 #define OPPAI_VERSION_MAJOR 3
 #define OPPAI_VERSION_MINOR 1
-#define OPPAI_VERSION_PATCH 2
+#define OPPAI_VERSION_PATCH 3
 #define STRINGIFY_(x) #x
 #define STRINGIFY(x) STRINGIFY_(x)
 
@@ -515,6 +515,7 @@ typedef struct object {
 
 struct ezpp {
   char* map;
+  char* data;
   int data_size;
   int autocalc;
   int format_version;
@@ -2217,7 +2218,7 @@ int pp_taiko(ezpp_t ez) {
 
 /* main interface ------------------------------------------------------ */
 
-int params_from_map(ezpp_t ez, char* mapfile) {
+int params_from_map(ezpp_t ez) {
   int res;
 
   ez->ar = ez->cs = ez->hp = ez->od = 5.0f;
@@ -2228,12 +2229,12 @@ int params_from_map(ezpp_t ez, char* mapfile) {
     ez->p_flags |= P_OVERRIDE_MODE;
   }
 
-  if (ez->data_size) {
-    res = p_map_mem(ez, mapfile, ez->data_size);
-  } else if (!strcmp(mapfile, "-")) {
+  if (ez->data) {
+    res = p_map_mem(ez, ez->data, ez->data_size);
+  } else if (!strcmp(ez->map, "-")) {
     res = p_map(ez, stdin);
   } else {
-    FILE* f = fopen(mapfile, "rb");
+    FILE* f = fopen(ez->map, "rb");
     if (!f) {
       perror("fopen");
       res = ERR_IO;
@@ -2258,43 +2259,14 @@ cleanup:
   return res;
 }
 
-OPPAIAPI
-ezpp_t ezpp_new(void) {
-  ezpp_t ez = calloc(sizeof(struct ezpp), 1);
-  if (ez) {
-    ez->mode = MODE_STD;
-    ez->mods = MODS_NOMOD;
-    ez->combo = -1;
-    ez->score_version = 1;
-    ez->accuracy_percent = -1;
-    ez->base_ar = ez->base_od = ez->base_cs = ez->base_hp = -1;
-    array_reserve(&ez->objects, 600);
-    array_reserve(&ez->timing_points, 16);
-    array_reserve(&ez->highest_strains, 600);
-  }
-  return ez;
-}
-
-OPPAIAPI
-void ezpp_free(ezpp_t ez) {
-  array_free(&ez->objects);
-  array_free(&ez->timing_points);
-  array_free(&ez->highest_strains);
-  m_free(ez);
-  free(ez);
-}
-
-OPPAIAPI
-int ezpp(ezpp_t ez, char* mapfile) {
+int calc(ezpp_t ez) {
   int res;
 
-  ez->map = mapfile;
-
-  if ((ez->autocalc || !ez->max_combo) && mapfile) {
+  if (!ez->max_combo && (ez->map || ez->data)) {
     if (ez->autocalc) {
       ez->base_ar = ez->base_od = ez->base_cs = ez->base_hp = -1;
     }
-    res = params_from_map(ez, mapfile);
+    res = params_from_map(ez);
     if (res < 0) {
       return res;
     }
@@ -2345,9 +2317,50 @@ int ezpp(ezpp_t ez, char* mapfile) {
 }
 
 OPPAIAPI
+ezpp_t ezpp_new(void) {
+  ezpp_t ez = calloc(sizeof(struct ezpp), 1);
+  if (ez) {
+    ez->mode = MODE_STD;
+    ez->mods = MODS_NOMOD;
+    ez->combo = -1;
+    ez->score_version = 1;
+    ez->accuracy_percent = -1;
+    ez->base_ar = ez->base_od = ez->base_cs = ez->base_hp = -1;
+    array_reserve(&ez->objects, 600);
+    array_reserve(&ez->timing_points, 16);
+    array_reserve(&ez->highest_strains, 600);
+  }
+  return ez;
+}
+
+OPPAIAPI
+void ezpp_free(ezpp_t ez) {
+  array_free(&ez->objects);
+  array_free(&ez->timing_points);
+  array_free(&ez->highest_strains);
+  m_free(ez);
+  free(ez);
+}
+
+OPPAIAPI
+int ezpp(ezpp_t ez, char* mapfile) {
+  ez->map = mapfile;
+  ez->data = 0;
+  ez->data_size = 0;
+  if (ez->autocalc) {
+    ez->max_combo = 0; /* force re-parse */
+  }
+  return calc(ez);
+}
+
+OPPAIAPI
 int ezpp_data(ezpp_t ez, char* data, int data_size) {
+  ez->data = data;
   ez->data_size = data_size;
-  return ezpp(ez, data);
+  if (ez->autocalc) {
+    ez->max_combo = 0; /* force re-parse */
+  }
+  return calc(ez);
 }
 
 OPPAIAPI float ezpp_pp(ezpp_t ez) { return ez->pp; }
@@ -2396,7 +2409,7 @@ OPPAIAPI float ezpp_strain_at(ezpp_t ez, int i, int difficulty_type) {
 OPPAIAPI void ezpp_set_##x(ezpp_t ez, t x) { \
   ez->x = x; \
   if (ez->autocalc) { \
-    ezpp(ez, ez->map); \
+    calc(ez); \
   } \
 }
 setter(float, aim_stars)
@@ -2423,7 +2436,7 @@ void ezpp_set_mods(ezpp_t ez, int mods) {
   }
   ez->mods = mods;
   if (ez->autocalc) {
-    ezpp(ez, ez->map);
+    calc(ez);
   }
 }
 
@@ -2434,7 +2447,7 @@ void ezpp_set_##x(ezpp_t ez, t x) { \
   ez->max_combo = 0; \
   ez->x = x; \
   if (ez->autocalc) { \
-    ezpp(ez, ez->map); \
+    calc(ez); \
   } \
 }
 clobber_setter(float, base_cs)
@@ -2449,7 +2462,7 @@ void ezpp_set_##x(ezpp_t ez, t x) { \
   ez->max_combo = 0; \
   ez->x = x; \
   if (ez->autocalc) { \
-    ezpp(ez, ez->map); \
+    calc(ez); \
   } \
 }
 
@@ -2463,7 +2476,7 @@ void ezpp_set_accuracy(ezpp_t ez, int n100, int n50) {
   ez->n100 = n100;
   ez->n50 = n50;
   if (ez->autocalc) {
-    ezpp(ez, ez->map);
+    calc(ez);
   }
 }
 
