@@ -2390,7 +2390,7 @@ void* memclone(void* p, int size) {
 }
 
 char* strclone(char* s) {
-  int len = strlen(s) + 1;
+  int len = (int)strlen(s) + 1;
   return memclone(s, len);
 }
 
