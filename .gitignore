@@ -14,3 +14,10 @@ tags
 *.exp
 /test/test_suite
 /test/oppai_test
+/swig/**/*.c
+/swig/*/*.i
+/swig/python/oppai.egg-info
+/swig/python/build
+/swig/python/oppai.py
+*.whl
+*.pyc

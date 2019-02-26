@@ -18,6 +18,7 @@ to taiko).
 - [installing (osx)](#installing-osx)
 - [usage](#usage)
 - [implementations for other programming languages](#implementations-for-other-programming-languages)
+- [bindings for other programming languages](#bindings-for-other-programming-languages)
 - [oppai-ng vs old oppai](#oppai-ng-vs-old-oppai)
 - [compile from source (windows)](#compile-from-source-windows)
 - [using oppai as a library or making bindings](#using-oppai-as-a-library-or-making-bindings)
@@ -98,8 +99,6 @@ If you feel like making your own implementation and want it listed
 here, open an issue or pull request. the requirement is that it
 should pass the same test suite that oppai-ng passes.
 
-note: these aren't just native bindings unless stated otherwise.
-
 * [ojsama (javascript)](https://github.com/Francesco149/ojsama)
 * [koohii (java)](https://github.com/Francesco149/koohii) . this
   is currently being used in tillerino.
@@ -107,6 +106,14 @@ note: these aren't just native bindings unless stated otherwise.
 * [oppai5 (golang)](https://github.com/flesnuk/oppai5) (by flesnuk)
 * [OppaiSharp (C#)](https://github.com/HoLLy-HaCKeR/OppaiSharp)
   (by HoLLy)
+
+# bindings for other programming languages
+thanks to swig it's trivial to generate native bindings for other
+programming languages. bindings are an interface to the C code, meaning
+that you get basically the same performance as C by sacrificing some
+portability
+
+* [python](https://github.com/Francesco149/oppai-ng/swig/python)
 
 # oppai-ng vs old oppai
 executable size is around 7 times smaller:
