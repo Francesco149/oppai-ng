@@ -1,0 +1,50 @@
+version: b{build}
+image: Visual Studio 2017
+cache: test/test_suite -> test/suite_url
+build_script:
+- ps: >-
+    function VcVars {
+        param ([string]$VcPath, [string]$BatName)
+        Push-Location $VcPath
+        cmd /c ($BatName + "&set") |
+        ForEach-Object {
+            if ($_ -match "=") {
+                $v = $_.split("="); set-item -force -path "ENV:\$($v[0])"  -value "$($v[1])"
+            }
+        }
+        Pop-Location
+    }
+
+    $VcPath = "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build"
+    VcVars $VcPath vcvars32.bat
+    .\release.ps1; if (-not $?) { exit $LastExitCode }
+    VcVars $VcPath vcvars64.bat
+    .\release.ps1; if (-not $?) { exit $LastExitCode }
+
+    cd .\test
+    .\download_suite.ps1
+    .\build.bat; if (-not $?) { exit $LastExitCode }
+    .\oppai_test.exe; if (-not $?) { exit $LastExitCode }
+    Write-Host "bin size: " + (Get-Item '.\oppai_test.exe').length
+    dumpbin /dependents .\oppai_test.exe
+
+    .\build.bat ..\oppai.lib; if (-not $?) { exit $LastExitCode }
+    cp ..\oppai.dll .
+    .\oppai_test.exe; if (-not $?) { exit $LastExitCode }
+    Write-Host "bin size: " + (Get-Item '.\oppai_test.exe').length
+    dumpbin /dependents .\oppai_test.exe
+test: off
+artifacts:
+- path: oppai-*-windows-*.zip
+  name: windows-binaries
+deploy:
+- provider: GitHub
+  tag: $(appveyor_repo_tag_name)
+  release: oppai $(appveyor_repo_tag_name)-$(appveyor_build_version)
+  description: linux binaries are manually uploaded shortly after the windows release and statically linked against musl libc\n\nwindows binaries should not require the c runtime\n\nx64 and x86_64 mean 64-bit i586 and x86 mean 32-bit\n\nthe binary packages include the source code inside the src directory
+  auth_token:
+    secure: k73tV2NZTFp4thujp/KiohNwRwIpWC12gU/qsnfCqlctcC+rqWiDWet3sSAz34gT
+  artifact: windows-binaries
+  force_update: true
+  on:
+    APPVEYOR_REPO_TAG: true
