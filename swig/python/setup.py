@@ -1,6 +1,16 @@
 import os
 import sys
 
+def parse_version_str():
+  import re
+  version_re = re.compile('^#define OPPAI_VERSION_(MAJOR|MINOR|PATCH)')
+  version = []
+  with open('oppai.c', 'r') as f:
+    for line in f:
+      if version_re.match(line):
+        version.append(str(int(line.split(' ')[2])))
+  return '.'.join(version)
+
 try:
     from setuptools import setup, Extension
 except ImportError:
@@ -10,7 +20,10 @@ try:
   from oppai import oppai_version_str
 except Exception:
   def oppai_version_str():
-    return "INVALID"
+    try:
+      return parse_version_str()
+    except Exception:
+      return "INVALID"
 
 oppai_classifiers = [
     "Programming Language :: Python :: 2",

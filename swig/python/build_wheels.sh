@@ -4,7 +4,6 @@
 for pybin in /opt/python/*/bin
 do
   rm *.so
-  "$pybin/python" ./setup.py build_ext --inplace || exit
   "$pybin/pip" wheel . -w dist/ || exit
 done
 
