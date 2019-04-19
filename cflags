@@ -1,7 +1,7 @@
 #!/bin/sh
 
 cflags="-std=c89 -pedantic"
-cflags="$cflags -O3"
+cflags="$cflags -Os"
 cflags="$cflags -fno-strict-aliasing"
 cflags="$cflags -Wall"
 cflags="$cflags -ffunction-sections -fdata-sections"
