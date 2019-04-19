@@ -2,18 +2,6 @@ environment:
   TWINE_USERNAME: lolisamurai
   TWINE_PASSWORD:
     secure: DTyX4L2loxFxlsbPYAwuga0DyOlGiOnJyEwi/j08gba0NyNx21TvRFMHpITIqcfg
-  matrix:
-    - PYTHON: "C:\\Python27"
-    - PYTHON: "C:\\Python33"
-    - PYTHON: "C:\\Python34"
-    - PYTHON: "C:\\Python35"
-    - PYTHON: "C:\\Python27-x64"
-    - PYTHON: "C:\\Python33-x64"
-      DISTUTILS_USE_SDK: "1"
-    - PYTHON: "C:\\Python34-x64"
-      DISTUTILS_USE_SDK: "1"
-    - PYTHON: "C:\\Python35-x64"
-    - PYTHON: "C:\\Python36-x64"
 cache:
 - C:\ProgramData\chocolatey\bin
 - C:\ProgramData\chocolatey\lib
@@ -28,10 +16,11 @@ build_script:
 - copy ..\oppai.i .
 - swig -python -includeall oppai.i
 - env.cmd cibuildwheel --output-dir wheelhouse
-- >
-  IF "%APPVEYOR_REPO_TAG%" == "true" (
-    python -m twine upload wheelhouse/*.whl
-  )
+- ps: >-
+    if ($env:APPVEYOR_REPO_TAG -eq "true") {
+      Invoke-Expression "python -m pip install twine"
+      Invoke-Expression "python -m twine upload --skip-existing wheelhouse/*.whl"
+    }
 artifacts:
   - path: "wheelhouse\\*.whl"
     name: wheels
