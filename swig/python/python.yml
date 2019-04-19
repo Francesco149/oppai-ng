@@ -2,7 +2,7 @@ image: Python
 enviroonment:
   TWINE_USERNAME: lolisamurai
   TWINE_PASSWORD:
-    secure: TSLMJyVKLSukt92YkEBmOsuYSDdeEQVUhICuZTTOtbE=
+    secure: DTyX4L2loxFxlsbPYAwuga0DyOlGiOnJyEwi/j08gba0NyNx21TvRFMHpITIqcfg
 cache:
 - C:\ProgramData\chocolatey\bin
 - C:\ProgramData\chocolatey\lib
