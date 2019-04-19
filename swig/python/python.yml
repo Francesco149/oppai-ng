@@ -24,6 +24,9 @@ install:
 - python -m pip install cibuildwheel==0.10.1
 build_script:
 - cd swig/python
+- copy ..\..\oppai.c .
+- copy ..\oppai.i .
+- swig -python -includeall oppai.i
 - env.cmd cibuildwheel --output-dir wheelhouse
 - >
   IF "%APPVEYOR_REPO_TAG%" == "true" (
