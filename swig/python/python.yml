@@ -1,4 +1,4 @@
-image: Python
+image: Visual Studio 2017
 environment:
   TWINE_USERNAME: lolisamurai
   TWINE_PASSWORD:
