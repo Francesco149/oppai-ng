@@ -15,23 +15,40 @@ build_script:
         Pop-Location
     }
 
+
     $VcPath = "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build"
+
+
     VcVars $VcPath vcvars32.bat
-    .\release.ps1; if (-not $?) { exit $LastExitCode }
-    VcVars $VcPath vcvars64.bat
+
     .\release.ps1; if (-not $?) { exit $LastExitCode }
 
+
+    VcVars $VcPath vcvars64.bat
+
+    .\release.ps1; if (-not $?) { exit $LastExitCode }
+
+
     cd .\test
+
     .\download_suite.ps1
+
     .\build.bat; if (-not $?) { exit $LastExitCode }
+
     .\oppai_test.exe; if (-not $?) { exit $LastExitCode }
+
     Write-Host "bin size: " + (Get-Item '.\oppai_test.exe').length
+
     dumpbin /dependents .\oppai_test.exe
 
     .\build.bat ..\oppai.lib; if (-not $?) { exit $LastExitCode }
+
     cp ..\oppai.dll .
+
     .\oppai_test.exe; if (-not $?) { exit $LastExitCode }
+
     Write-Host "bin size: " + (Get-Item '.\oppai_test.exe').length
+
     dumpbin /dependents .\oppai_test.exe
 test: off
 artifacts:
