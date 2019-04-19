@@ -8,6 +8,8 @@ cflags="$cflags -ffunction-sections -fdata-sections"
 if [ -z $DBGINFO ]; then
   cflags="$cflags -g0 -fno-unwind-tables -s"
   cflags="$cflags -fno-asynchronous-unwind-tables"
+  cflags="$cflags -fno-stack-protector"
+  cflags="$cflags -Wl,--build-id=none"
 else
   cflags="$cflags -g"
 fi
