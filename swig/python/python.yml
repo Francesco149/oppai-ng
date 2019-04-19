@@ -15,7 +15,7 @@ build_script:
 - copy ..\..\oppai.c .
 - copy ..\oppai.i .
 - swig -python -includeall oppai.i
-- env.cmd cibuildwheel --output-dir wheelhouse
+- cibuildwheel --output-dir wheelhouse
 - ps: >-
     if ($env:APPVEYOR_REPO_TAG -eq "true") {
       Invoke-Expression "python -m pip install twine"
