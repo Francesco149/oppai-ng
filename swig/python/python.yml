@@ -1,5 +1,5 @@
 image: Python
-enviroonment:
+environment:
   TWINE_USERNAME: lolisamurai
   TWINE_PASSWORD:
     secure: DTyX4L2loxFxlsbPYAwuga0DyOlGiOnJyEwi/j08gba0NyNx21TvRFMHpITIqcfg
