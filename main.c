@@ -359,7 +359,7 @@ void print_escaped_json_string_ex(char* str, int quotes) {
 
 /* https://www.doc.ic.ac.uk/%7Eeedwards/compsys/float/nan.html */
 
-int is_inf(float b) {
+static int is_inf(float b) {
   int* p = (int*)&b;
   return *p == 0x7F800000 || *p == 0xFF800000;
 }
