@@ -1051,6 +1051,11 @@ int p_objects(ezpp_t ez, slice_t* line) {
 
       /* repeats + head and tail. no repeats is 0 repetition */
       nodes = o->repetitions + 1;
+      if (nodes < 0 || nodes > 1000) {
+        /* TODO: not sure if 1000 limit is enough */
+        p_warn("W: malformed node count", line);
+        return ERR_SYNTAX;
+      }
       o->sound_types = m_alloc(ez, sizeof(int) * nodes);
       if (!o->sound_types) {
         return ERR_OOM;
