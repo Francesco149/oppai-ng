@@ -1841,6 +1841,10 @@ int d_taiko(ezpp_t ez) {
       cur->time_elapsed = 0;
     }
 
+    if (!o->sound_types) {
+      return ERR_SYNTAX;
+    }
+
     cur->strain = 1;
     cur->same_since = 1;
     cur->last_switch_even = -1;
