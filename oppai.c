@@ -315,6 +315,13 @@ int is_nan(float b) {
   );
 }
 
+/* https://www.doc.ic.ac.uk/%7Eeedwards/compsys/float/nan.html */
+
+int is_inf(float b) {
+  int* p = (int*)&b;
+  return *p == 0x7F800000 || *p == 0xFF800000;
+}
+
 /* string utils -------------------------------------------------------- */
 
 int whitespace(char c) {
@@ -977,6 +984,12 @@ int p_objects(ezpp_t ez, slice_t* line) {
   }
 
   o->time = p_float(&e[2]);
+  if (is_inf(o->time)) {
+    o->time = 0.0f;
+    info("W: object with infinite time\n");
+    print_line(line);
+  }
+
   if (ez->end_time > 0 && o->time >= ez->end_time) {
     --ez->objects.len;
     return 0;
