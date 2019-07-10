@@ -219,7 +219,7 @@ OPPAIAPI char* oppai_version_str(void);
 
 #define OPPAI_VERSION_MAJOR 3
 #define OPPAI_VERSION_MINOR 2
-#define OPPAI_VERSION_PATCH 2
+#define OPPAI_VERSION_PATCH 3
 #define STRINGIFY_(x) #x
 #define STRINGIFY(x) STRINGIFY_(x)
 
@@ -1382,8 +1382,7 @@ void p_reset(ezpp_t ez) {
 int p_map(ezpp_t ez, FILE* f) {
   char* p;
   char* bufend;
-  char c;
-  int n;
+  int c, n;
   slice_t line;
   if (!f) {
     return ERR_IO;
@@ -1399,11 +1398,11 @@ int p_map(ezpp_t ez, FILE* f) {
       if (p >= bufend) {
         return ERR_TRUNCATED;
       }
-      c = (char)fgetc(f);
+      c = fgetc(f);
       if (c == '\n' || c == EOF) {
         break;
       }
-      *p++ = c;
+      *p++ = (char)c;
     }
     *p = 0;
     line.start = ez->buf;
