@@ -106,6 +106,7 @@ should pass the same test suite that oppai-ng passes.
 * [oppai5 (golang)](https://github.com/flesnuk/oppai5) (by flesnuk)
 * [OppaiSharp (C#)](https://github.com/HoLLy-HaCKeR/OppaiSharp)
   (by HoLLy)
+* [ezpp (rust)](https://gitlab.com/JackRedstonia/ezpp/)
 
 # bindings for other programming languages
 thanks to swig it's trivial to generate native bindings for other
@@ -114,7 +115,6 @@ that you get basically the same performance as C by sacrificing some
 portability
 
 * [python](https://github.com/Francesco149/oppai-ng/swig/python)
-* [rust](https://gitlab.com/JackRedstonia/ezpp/)
 
 # oppai-ng vs old oppai
 executable size is around 7 times smaller:
