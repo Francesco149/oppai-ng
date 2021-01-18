@@ -2048,8 +2048,8 @@ int pp_std(ezpp_t ez) {
     (ez->nobjects > 2000 ? (float)log10(nobjects_over_2k) * 0.5f : 0.0f)
   );
 
-  float miss_penality_aim = 0.97 * (float) pow(1 - (float) pow((double)ez->nmiss / ez->nobjects, 0.775), ez->nmiss);
-  float miss_penality_speed = 0.97 * (float) pow(1 - (float) pow((double)ez->nmiss / ez->nobjects, 0.775f), (float) pow(ez->nmiss, 0.875f));
+  float miss_penality_aim = 0.97 * pow(1 - pow((double)ez->nmiss / ez->nobjects, 0.775), ez->nmiss);
+  float miss_penality_speed = 0.97 * pow(1 - pow((double)ez->nmiss / ez->nobjects, 0.775f), pow(ez->nmiss, 0.875f));
 
   float combo_break = (
     (float)pow(ez->combo, 0.8f) / (float)pow(ez->max_combo, 0.8f)
@@ -2157,10 +2157,10 @@ int pp_std(ezpp_t ez) {
   }
   ez->speed_pp *= hd_bonus;
 
-  /* scale the speed value with accuracy slightly */
+  /* scale the speed value with accuracy slightly */                  
   ez->speed_pp *= (0.95f + od_squared / 750) * (float)pow(accuracy, (14.5 - al_max(ez->od, 8)) / 2);
 
-  /* it's important to also consider accuracy difficulty when doing that */
+  /* it's important to also consider accuracy difficulty when doing that */               
   ez->speed_pp *= (float) pow(0.98f, ez->n50 < ez->nobjects / 500.0f ? 0.00 : ez->n50 - ez->nobjects / 500.0f);
 
   /* acc pp ---------------------------------------------------------- */
@@ -2177,7 +2177,7 @@ int pp_std(ezpp_t ez) {
   /* total pp -------------------------------------------------------- */
   final_multiplier = 1.12f;
   if (ez->mods & MODS_NF) final_multiplier *= (float) al_max(0.9f, 1.0f - 0.2f * ez->nmiss);
-  if (ez->mods & MODS_SO) final_multiplier *= 0.95f;
+  if (ez->mods & MODS_SO) final_multiplier *= 1.0 - pow((double)ez->nspinners / ez->nobjects, 0.85);
 
   ez->pp = (float)(
     pow(
