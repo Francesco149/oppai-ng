@@ -240,6 +240,7 @@ if args.input_file == None:
 
   with open(args.output_file, 'w+') as f:
     f.write(json.dumps(scores))
+    # After writing, we also need to download the maps
 
 else:
   # load existing test suite from json file
@@ -249,6 +250,8 @@ else:
   scores.sort(key=lambda x: int(x['beatmap_id'])<<32|x['mode'],
     reverse=True)
 
+import subprocess
+subprocess.call(["python3", "./download_suite.py", "test_suite.json"])
 
 gen_test_suite_c()
 
