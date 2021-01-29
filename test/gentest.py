@@ -185,6 +185,8 @@ if args.key == None:
   )
   sys.exit(1)
 
+if not os.path.exists("test_suite"):
+  os.mkdir("test_suite")
 
 scores = []
 

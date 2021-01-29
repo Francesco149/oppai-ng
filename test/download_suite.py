@@ -59,9 +59,6 @@ with open(sys.argv[1], 'r') as f:
 unique_maps = set([s['beatmap_id'] for s in scores])
 i = 1
 
-if not os.path.exists("./test_suite/"):
-  os.mkdir("test_suite")
-
 for b in unique_maps:
     sys.stderr.write(
         "[%.02f%% - %d/%d] %s" % (i / float(len(unique_maps)) * 100, i,
