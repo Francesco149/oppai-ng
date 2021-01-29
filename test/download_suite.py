@@ -5,6 +5,7 @@
 
 import sys
 import json
+import os
 
 try:
     import httplib
@@ -55,8 +56,11 @@ if len(sys.argv) != 2:
 with open(sys.argv[1], 'r') as f:
     scores = json.loads(f.read())
 
-unique_maps = set([s['beatmap_id'] for m in [0, 1] for s in scores[m]])
+unique_maps = set([s['beatmap_id'] for s in scores])
 i = 1
+
+if not os.path.exists("./test_suite/"):
+  os.mkdir("test_suite")
 
 for b in unique_maps:
     sys.stderr.write(
@@ -67,7 +71,7 @@ for b in unique_maps:
 
     # TODO: tmp file and rename
     try:
-        with open(b + '.osu', 'r') as f:
+        with open('./test_suite/' + b + '.osu', 'r') as f:
             sys.stderr.write(' (already exists)\n')
             continue
     except FileNotFoundError:
@@ -75,5 +79,5 @@ for b in unique_maps:
 
     sys.stderr.write('\n')
 
-    with open(b + '.osu', 'wb') as f:
+    with open('./test_suite/' + b + '.osu', 'wb') as f:
         f.write(osu_get('/osu/' + b))
