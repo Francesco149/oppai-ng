@@ -158,52 +158,51 @@ if args.key == None:
 
 scores = []
 
+#top_players = [
+#  [ 124493, 4787150, 2558286, 1777162, 2831793, 50265 ],
+#  [ 3174184, 8276884, 5991961, 2774767 ]
+#]
+
 top_players = [
-  [ 124493, 4787150, 2558286, 1777162, 2831793, 50265 ],
-  [ 3174184, 8276884, 5991961, 2774767 ]
+  [ 4504101, 7562902, 6447454, 4787150, 11367222, 5339515, 8179335, 4196808, 4650315 ]
 ]
 
 if args.input_file == None:
   # fetch a fresh test suite from osu api
   osu = httplib.HTTPSConnection('osu.ppy.sh')
 
-  for m in [0, 1]:
-    for u in top_players[m]:
+  for m, ids in enumerate(top_players):
+    for u in ids:
       params = { 'u': u, 'limit': 100, 'type': 'id', 'm': m }
       batch = osu_get(osu, 'get_user_best', params)
       for s in batch:
         s['mode'] = m
       scores += batch
 
-  # temporarily removed, not all std scores are recalc'd
-  #params = { 'm': 0, 'since': '2015-11-26' }
+  # TODO: uncomment when all scores are properly recalced
+  #params = { 'm': 0, 'since': '2019-01-01' }
   #maps = osu_get(osu, 'get_beatmaps', params)
 
-  # no taiko converts here because as explained below, tiny float
-  # errors can lead to completely broken conversions
-  for mode in [1]:
-    params = { 'm': mode, 'since': '2015-11-26' }
-    maps = osu_get(osu, 'get_beatmaps', params)
+  #for m in maps:
+  #  mode = 0
+  #  params = { 'b': m['beatmap_id'], 'm': mode }
+  #  map_scores = osu_get(osu, 'get_scores', params)
 
-    for m in maps:
-      params = { 'b': m['beatmap_id'], 'm': mode }
-      map_scores = osu_get(osu, 'get_scores', params)
+  #  if len(map_scores) == 0:
+  #    sys.stderr.write('W: map has no scores???\n')
+  #    continue
 
-      if len(map_scores) == 0:
-        sys.stderr.write('W: map has no scores???\n')
-        continue
+  #  # note: api also returns qualified and loved, so ignore
+  #  # maps that don't have pp in rankings
+  #  if not 'pp' in map_scores[0] or map_scores[0]['pp'] is None:
+  #    sys.stderr.write('W: ignoring loved/qualified map\n')
+  #    continue
 
-      # note: api also returns qualified and loved, so ignore
-      # maps that don't have pp in rankings
-      if not 'pp' in map_scores[0] or map_scores[0]['pp'] is None:
-        sys.stderr.write('W: ignoring loved/qualified map\n')
-        continue
+  #  for s in map_scores:
+  #    s['beatmap_id'] = m['beatmap_id']
+  #    s['mode'] = mode
 
-      for s in map_scores:
-        s['beatmap_id'] = m['beatmap_id']
-        s['mode'] = mode
-
-      scores += map_scores
+  #  scores += map_scores
 
 
   with open(args.output_file, 'w+') as f:

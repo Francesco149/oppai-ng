@@ -369,18 +369,16 @@ to the build script to disable features:
 
 ```sh
 cd test
-mkdir test_suite
-OSU_API_KEY=... ./gentest.py
+OSU_API_KEY=... ./gentest.py  > test_suite.c
 ```
 
-if it fails to open maps do this:
+download all the maps
 
 ```sh
+mkdir test_suite
 cd test_suite
 ../download_suite.py ../test_suite.json
 cd ..
-
-OSU_API_KEY=... ./gentest.py -input-file test_suite.json > test_suite.c
 ```
 
 the json file can be reused to avoid hitting the osu API again. keep using it unless a pp recalc
