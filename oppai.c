@@ -221,8 +221,8 @@ OPPAIAPI char* oppai_version_str(void);
 #include <string.h>
 #include <math.h>
 
-#define OPPAI_VERSION_MAJOR 3
-#define OPPAI_VERSION_MINOR 3
+#define OPPAI_VERSION_MAJOR 4
+#define OPPAI_VERSION_MINOR 0
 #define OPPAI_VERSION_PATCH 0
 #define STRINGIFY_(x) #x
 #define STRINGIFY(x) STRINGIFY_(x)
