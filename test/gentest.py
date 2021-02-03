@@ -19,9 +19,9 @@ except ImportError:
   import http.client as httplib
 
 try:
-  import urllib
+  from urllib import urlencode
 except ImportError:
-  import urllib.parse as urllib
+  from urllib.parse import urlencode
 
 # -------------------------------------------------------------------------
 
@@ -76,7 +76,7 @@ def osu_get(conn, endpoint, paramsdict=None):
   sys.stderr.write('%s %s\n' % (endpoint, str(paramsdict)))
 
   paramsdict['k'] = args.key
-  path = '/api/%s?%s' % (endpoint, urllib.urlencode(paramsdict))
+  path = '/api/%s?%s' % (endpoint, urlencode(paramsdict))
 
   while True:
     while True:
@@ -97,7 +97,7 @@ def osu_get(conn, endpoint, paramsdict=None):
       osu_ncalls += 1
       r = conn.getresponse()
 
-      raw = ''
+      raw = b''
 
       while True:
         try:
@@ -278,7 +278,7 @@ for s in scores:
   )
 
   # don't include identical scores by different people
-  s = hashlib.sha1(line).digest()
+  s = hashlib.sha1(line.encode('utf-8')).digest()
   if s in seen_hashes:
     continue
 
