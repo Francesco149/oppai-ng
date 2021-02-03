@@ -365,3 +365,30 @@ to the build script to disable features:
 
 * ```-DOPPAI_UTF8GRAPH``` use utf-8 characters for the strains graph
 
+# generating the test suite
+
+```sh
+cd test
+mkdir test_suite
+OSU_API_KEY=... ./gentest.py
+```
+
+if it fails to open maps do this:
+
+```sh
+cd test_suite
+../download_suite.py ../test_suite.json
+cd ..
+
+OSU_API_KEY=... ./gentest.py -input-file test_suite.json > test_suite.c
+```
+
+the json file can be reused to avoid hitting the osu API again. keep using it unless a pp recalc
+happens. you don't want to keep hitting the osu api
+
+now you can build and run the test suite:
+
+```sh
+./build
+./oppai_test
+```

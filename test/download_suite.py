@@ -55,7 +55,7 @@ if len(sys.argv) != 2:
 with open(sys.argv[1], 'r') as f:
     scores = json.loads(f.read())
 
-unique_maps = set([s['beatmap_id'] for m in [0, 1] for s in scores[m]])
+unique_maps = set([s['beatmap_id'] for s in scores])
 i = 1
 
 for b in unique_maps:
