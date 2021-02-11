@@ -114,7 +114,7 @@ programming languages. bindings are an interface to the C code, meaning
 that you get basically the same performance as C by sacrificing some
 portability
 
-* [python](https://github.com/Francesco149/oppai-ng/swig/python)
+* [python](swig/python)
 
 # oppai-ng vs old oppai
 executable size is around 7 times smaller:
