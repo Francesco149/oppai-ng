@@ -222,7 +222,7 @@ OPPAIAPI char* oppai_version_str(void);
 #include <math.h>
 
 #define OPPAI_VERSION_MAJOR 4
-#define OPPAI_VERSION_MINOR 0
+#define OPPAI_VERSION_MINOR 1
 #define OPPAI_VERSION_PATCH 0
 #define STRINGIFY_(x) #x
 #define STRINGIFY(x) STRINGIFY_(x)
@@ -2103,7 +2103,7 @@ int pp_std(ezpp_t ez) {
 
   /* low ar bonus */
   else if (ez->ar < 8.0f) {
-    ar_bonus += 0.1f * (8.0f - ez->ar);
+    ar_bonus += 0.01f * (8.0f - ez->ar);
   }
 
   /* aim pp ---------------------------------------------------------- */
