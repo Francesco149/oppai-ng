@@ -115,6 +115,7 @@ that you get basically the same performance as C by sacrificing some
 portability
 
 * [python](swig/python)
+* [rust](https://lib.rs/crates/oppai-rs) (by natsukagami)
 
 # oppai-ng vs old oppai
 executable size is around 7 times smaller:
