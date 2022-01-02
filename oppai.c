@@ -2048,15 +2048,12 @@ int pp_std(ezpp_t ez) {
     (ez->nobjects > 2000 ? (float)log10(nobjects_over_2k) * 0.5f : 0.0f)
   );
 
-  float miss_penality_aim = 0.97 * pow(1 - pow((double)ez->nmiss / ez->nobjects, 0.775), ez->nmiss);
-  float miss_penality_speed = 0.97 * pow(1 - pow((double)ez->nmiss / ez->nobjects, 0.775f), pow(ez->nmiss, 0.875f));
-
   float combo_break = (
     (float)pow(ez->combo, 0.8f) / (float)pow(ez->max_combo, 0.8f)
   );
   float ar_bonus;
   float final_multiplier;
-  float acc_bonus, od_bonus;
+  float od_bonus;
   float od_squared;
   float hd_bonus;
 
@@ -2098,63 +2095,71 @@ int pp_std(ezpp_t ez) {
 
   /* high ar bonus */
   if (ez->ar > 10.33f) {
-    ar_bonus += 0.4f * (ez->ar - 10.33f);
+    ar_bonus = 0.3f * (ez->ar - 10.33f);
   }
 
   /* low ar bonus */
   else if (ez->ar < 8.0f) {
-    ar_bonus += 0.01f * (8.0f - ez->ar);
+    ar_bonus = 0.1f * (8.0f - ez->ar);
   }
+
+  /* effective_nmiss ------------------------------------------------- */
+  float combo_based_nmiss = 0.0f;
+  if (ez->nsliders > 0) {
+    float fc_threshhold = ez->max_combo - 0.1f * ez->nsliders;
+    if (ez->combo < fc_threshhold) {
+      combo_based_nmiss = fc_threshhold / al_max(1, ez->combo);
+    }
+  }
+  combo_based_nmiss = al_min(combo_based_nmiss, ez->n300 + ez->n100 + ez->n50 + ez->nmiss);
+  int effective_nmiss = al_max(ez->nmiss, (int)al_round(combo_based_nmiss));
 
   /* aim pp ---------------------------------------------------------- */
   ez->aim_pp = base_pp(ez->aim_stars);
   ez->aim_pp *= length_bonus;
-  if (ez->nmiss > 0) {
+  if (effective_nmiss > 0) {
+  float miss_penality_aim = 0.97 * pow(1 - pow((double)effective_nmiss / ez->nobjects, 0.775), effective_nmiss);
     ez->aim_pp *= miss_penality_aim;
   }
   ez->aim_pp *= combo_break;
-  ez->aim_pp *= 1.0f + (float)al_min(ar_bonus, ar_bonus * (ez->nobjects / 1000.0f));
+
+  ez->aim_pp *= 1.0f + ar_bonus  * length_bonus;
 
   /* hidden */
-  hd_bonus = 1.0f;
   if (ez->mods & MODS_HD) {
-    hd_bonus += 0.04f * (12.0f - ez->ar);
+    hd_bonus = 1.0f + 0.04f * (12.0f - ez->ar);
+    ez->aim_pp *= hd_bonus;
+  }
+  if (ez->nsliders > 0) {
+
+    float slider_factor = 1.0f;
+    float est_slider_difficulty = ez->nsliders * 0.15f;
+    float est_slider_ends_dropped = al_min(al_max(al_min((float)(ez->n100 + ez->n50 + ez->nmiss), ez->max_combo - ez->combo + ez->nmiss), 0.0f), est_slider_difficulty);
+    float slider_nerf_factor = (1.0f - slider_factor) * pow(1.0f - est_slider_ends_dropped / est_slider_difficulty, 3) +  slider_factor;
+    ez->aim_pp *= slider_nerf_factor;
   }
 
-  ez->aim_pp *= hd_bonus;
-
-  /* flashlight */
-  if (ez->mods & MODS_FL) {
-    float fl_bonus = 1.0f + 0.35f * al_min(1.0f, ez->nobjects / 200.0f);
-    if (ez->nobjects > 200) {
-      fl_bonus += 0.3f * al_min(1, (ez->nobjects - 200) / 300.0f);
-    }
-    if (ez->nobjects > 500) {
-      fl_bonus += (ez->nobjects - 500) / 1200.0f;
-    }
-    ez->aim_pp *= fl_bonus;
-  }
-
-  /* acc bonus (bad aim can lead to bad acc) */
-  acc_bonus = 0.5f + accuracy / 2.0f;
+  ez->aim_pp *= accuracy;
 
   /* od bonus (high od requires better aim timing to acc) */
   od_squared = (float)pow(ez->od, 2);
   od_bonus = 0.98f + od_squared / 2500.0f;
-
-  ez->aim_pp *= acc_bonus;
   ez->aim_pp *= od_bonus;
 
   /* speed pp -------------------------------------------------------- */
   ez->speed_pp = base_pp(ez->speed_stars);
   ez->speed_pp *= length_bonus;
-  if (ez->nmiss > 0) {
+  if (effective_nmiss > 0) {
+    float miss_penality_speed = 0.97 * pow(1 - pow((double)effective_nmiss / ez->nobjects, 0.775f), pow(effective_nmiss, 0.875f));
     ez->speed_pp *= miss_penality_speed;
   }
   ez->speed_pp *= combo_break;
   if (ez->ar > 10.33f) {
-    ez->speed_pp *= 1.0f + (float)al_min(ar_bonus, ar_bonus * (ez->nobjects / 1000.0f));;
+    ar_bonus = 0.3f * (ez->ar - 10.33f);
   }
+
+  ez->speed_pp *= 1.0f + ar_bonus + length_bonus;
+
   ez->speed_pp *= hd_bonus;
 
   /* scale the speed value with accuracy slightly */                  
@@ -2176,7 +2181,7 @@ int pp_std(ezpp_t ez) {
 
   /* total pp -------------------------------------------------------- */
   final_multiplier = 1.12f;
-  if (ez->mods & MODS_NF) final_multiplier *= (float) al_max(0.9f, 1.0f - 0.2f * ez->nmiss);
+  if (ez->mods & MODS_NF) final_multiplier *= (float) al_max(0.9f, 1.0f - 0.2f * effective_nmiss);
   if (ez->mods & MODS_SO) final_multiplier *= 1.0 - pow((double)ez->nspinners / ez->nobjects, 0.85);
 
   ez->pp = (float)(
